@@ -1,0 +1,112 @@
+# =========================================================================
+#  APTS Skeleton — Database Compose file
+# =========================================================================
+#
+# Deploys the PostgreSQL database container,
+# Useful for:
+#   * testing / inspecting the database in isolation,
+#   * running the DB on a separate host from the Python services,
+#
+# ---------------------------------------------------------------------------
+# Prerequisites (relative to the directory this file lives in)
+# ---------------------------------------------------------------------------
+#   * ./init_db.sql         — schema init script
+#   * ./certs/database.crt            — TLS certificate (mode 644, UID 999)
+#   * ./certs/database.key            — TLS private key (mode 600, UID 999)
+#   * ./certs/trust-bundle.pem        — combined trust store (mode 644)
+#   * ./tokens/db_password.txt        — DB password (mode 600, plain text)
+#
+# The two UID-999 files are required because the postgres:16 image runs as UID 999 internally
+# and refuses to read a TLS key it doesn't own.
+#
+# ---------------------------------------------------------------------------
+# Bring-up
+# ---------------------------------------------------------------------------
+#   docker compose -f docker-compose.database.yml up -d
+#   docker compose -f docker-compose.database.yml logs -f database
+#   docker compose -f docker-compose.database.yml ps
+#
+# Verify schema loaded:
+#   docker compose -f docker-compose.database.yml exec database \
+#       psql -U apts -d apts -c "\dt"
+#
+# Tear down (data volume preserved):
+#   docker compose -f docker-compose.database.yml down
+#
+# Tear down and DESTROY DATA:
+#   docker compose -f docker-compose.database.yml down -v
+# =========================================================================
+
+services:
+
+  database:
+    image: postgres:16-bookworm
+    container_name: apts-database
+    hostname: database
+    restart: unless-stopped
+    networks:
+      - apts-net
+    environment:
+      POSTGRES_DB: apts
+      POSTGRES_USER: apts
+      POSTGRES_PASSWORD_FILE: /run/secrets/db_password
+    volumes:
+      - db_data:/var/lib/postgresql/data
+      - ./init_db.sql:/docker-entrypoint-initdb.d/00-init.sql:ro
+      - ./certs/database.crt:/var/lib/postgresql/server.crt:ro
+      - ./certs/database.key:/var/lib/postgresql/server.key:ro
+      - ./certs/trust-bundle.pem:/var/lib/postgresql/trust-bundle.pem:ro
+    command: >
+      postgres
+        -c ssl=on
+        -c ssl_cert_file=/var/lib/postgresql/server.crt
+        -c ssl_key_file=/var/lib/postgresql/server.key
+        -c ssl_ca_file=/var/lib/postgresql/trust-bundle.pem
+        -c listen_addresses=*
+    # Uncomment to reach the DB from the host (e.g. for interactive psql).
+    # Bind to 127.0.0.1 — local access  
+    # Bind to 0.0.0.0   — so the port is reachable from the network.
+    # ports:
+    #   - "127.0.0.1:5432:5432"
+    #   - "0.0.0.0:5432:5432"
+    secrets:
+      - db_password
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U apts -d apts"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+          cpus: "1.0"
+
+
+# ---------------------------------------------------------------------------
+# Named volume for persistent DB data.  Survives `docker compose down`;
+# destroyed only by `docker compose down -v` or `docker volume rm`.
+# ---------------------------------------------------------------------------
+volumes:
+  db_data: {}
+
+
+# ---------------------------------------------------------------------------
+# Bridge network.  When this file is used standalone the DB is the only
+# container on the network — but the network is still needed so that
+# hostname 'database' resolves via Docker's built-in DNS, in case other
+# containers are attached later.
+# ---------------------------------------------------------------------------
+networks:
+  apts-net:
+    driver: bridge
+
+
+# ---------------------------------------------------------------------------
+# Docker secret backed by a plain file on the host.  The file is mounted
+# read-only into the container at /run/secrets/db_password, where the
+# postgres entrypoint reads it (see POSTGRES_PASSWORD_FILE above).
+# ---------------------------------------------------------------------------
+secrets:
+  db_password:
+    file: ./tokens/db_password.txt
