@@ -11,7 +11,7 @@ container on a fresh Ubuntu 24.04 host.
 * An Ubuntu 24.04 LTS VM with at least **2 vCPU, 2 GB RAM, 20 GB disk**
   (the DB alone is much lighter than the full stack).
 * SSH access, initially as `root` or another sudo-capable account.
-* The `apts-skeleton.zip` archive on your workstation, containing:
+* The `database.zip` archive on your workstation, containing:
   * `docker-compose.database.yml` (the standalone DB compose file)
   * `bootstrap/init_db.sql`
   * `bootstrap/generate_certs.sh`
