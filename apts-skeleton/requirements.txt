@@ -1,0 +1,10 @@
+# Runtime dependencies for orchestrator, agents, mcp-tools, and sandbox.
+#
+# Pinned to specific compatible versions.  When updating, bump one at a time
+# and re-run the end-to-end smoke test.
+
+fastapi==0.115.5
+uvicorn[standard]==0.32.1
+httpx==0.27.2
+pydantic==2.9.2
+psycopg[binary]==3.2.3
