@@ -1,0 +1,331 @@
+# =========================================================================
+#  APTS Skeleton — full deployment on a single Linux host
+#
+#  Design change from v1: no `.env` file is used.  Configuration is split
+#  cleanly into two directories on the host:
+#
+#      ./tokens/       — one file per secret (raw bearer tokens, DB password)
+#                        mounted read-only into containers as Docker secrets.
+#      ./config/       — one file per non-secret setting (log_level,
+#                        target_allowlist, stub_failure_rate) mounted
+#                        read-only into every Python container.
+#
+#  The database container reads its password via POSTGRES_PASSWORD_FILE.
+#  The Python containers read the same password via shared/db.py, which
+#  constructs the DSN at runtime — so the raw password never appears in an
+#  environment variable and never leaks through `docker inspect`.
+# =========================================================================
+
+x-service-base: &service-base
+  build:
+    context: .
+    dockerfile: Dockerfile
+  image: apts-skeleton:latest
+  restart: unless-stopped
+  networks:
+    - apts-net
+
+# Shared config-mount block, reused by every Python service.
+x-config-mount: &config-mount
+  - ./config:/etc/apts/config:ro
+
+# Shared resource limits for the six working agents.
+x-agent-limits: &agent-limits
+  deploy:
+    resources:
+      limits:
+        cpus: "0.5"
+        memory: 256M
+      reservations:
+        memory: 64M
+
+
+services:
+
+  # ---------------------------------------------------------------------
+  #  Database
+  # ---------------------------------------------------------------------
+  database:
+    image: postgres:16-bookworm
+    container_name: apts-database
+    hostname: database
+    restart: unless-stopped
+    networks:
+      - apts-net
+    environment:
+      POSTGRES_DB: apts
+      POSTGRES_USER: apts
+      POSTGRES_PASSWORD_FILE: /run/secrets/db_password
+    volumes:
+      - db_data:/var/lib/postgresql/data
+      - ./bootstrap/init_db.sql:/docker-entrypoint-initdb.d/00-init.sql:ro
+      - ./certs/database.crt:/var/lib/postgresql/server.crt:ro
+      - ./certs/database.key:/var/lib/postgresql/server.key:ro
+      - ./certs/trust-bundle.pem:/var/lib/postgresql/trust-bundle.pem:ro
+    command: >
+      postgres
+        -c ssl=on
+        -c ssl_cert_file=/var/lib/postgresql/server.crt
+        -c ssl_key_file=/var/lib/postgresql/server.key
+        -c ssl_ca_file=/var/lib/postgresql/trust-bundle.pem
+        -c listen_addresses=*
+    secrets:
+      - db_password
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U apts -d apts"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    deploy:
+      resources:
+        limits: { memory: 512M, cpus: "1.0" }
+
+  # ---------------------------------------------------------------------
+  #  Orchestrator
+  # ---------------------------------------------------------------------
+  orchestrator:
+    <<: *service-base
+    container_name: apts-orchestrator
+    hostname: orchestrator
+    depends_on:
+      database: { condition: service_healthy }
+    command: python -m orchestrator.main
+    secrets:
+      - source: orchestrator_token
+        target: token
+      - source: orchestrator_key
+        target: tls.key
+      - source: db_password
+        target: db_password
+    volumes:
+      - ./certs/orchestrator.crt:/etc/apts/tls.crt:ro
+      - ./certs/trust-bundle.pem:/etc/apts/trust-bundle.pem:ro
+      - ./config:/etc/apts/config:ro
+    ports:
+      - "127.0.0.1:8080:8080"
+      - "127.0.0.1:8443:8443"
+    deploy:
+      resources:
+        limits: { memory: 256M, cpus: "0.5" }
+
+  # ---------------------------------------------------------------------
+  #  Six working agents — same image, one command, different AGENT_NAME
+  # ---------------------------------------------------------------------
+  agent-recon:
+    <<: [*service-base, *agent-limits]
+    container_name: apts-agent-recon
+    hostname: agent-recon
+    depends_on:
+      database: { condition: service_healthy }
+    command: python -m agent.main
+    environment:
+      AGENT_NAME: recon
+    secrets:
+      - source: agent_recon_token
+        target: token
+      - source: agent_recon_key
+        target: tls.key
+      - source: db_password
+        target: db_password
+    volumes:
+      - ./certs/agent-recon.crt:/etc/apts/tls.crt:ro
+      - ./certs/trust-bundle.pem:/etc/apts/trust-bundle.pem:ro
+      - ./config:/etc/apts/config:ro
+
+  agent-vuln:
+    <<: [*service-base, *agent-limits]
+    container_name: apts-agent-vuln
+    hostname: agent-vuln
+    depends_on:
+      database: { condition: service_healthy }
+    command: python -m agent.main
+    environment:
+      AGENT_NAME: vuln
+    secrets:
+      - source: agent_vuln_token
+        target: token
+      - source: agent_vuln_key
+        target: tls.key
+      - source: db_password
+        target: db_password
+    volumes:
+      - ./certs/agent-vuln.crt:/etc/apts/tls.crt:ro
+      - ./certs/trust-bundle.pem:/etc/apts/trust-bundle.pem:ro
+      - ./config:/etc/apts/config:ro
+
+  agent-mitre:
+    <<: [*service-base, *agent-limits]
+    container_name: apts-agent-mitre
+    hostname: agent-mitre
+    depends_on:
+      database: { condition: service_healthy }
+    command: python -m agent.main
+    environment:
+      AGENT_NAME: mitre
+    secrets:
+      - source: agent_mitre_token
+        target: token
+      - source: agent_mitre_key
+        target: tls.key
+      - source: db_password
+        target: db_password
+    volumes:
+      - ./certs/agent-mitre.crt:/etc/apts/tls.crt:ro
+      - ./certs/trust-bundle.pem:/etc/apts/trust-bundle.pem:ro
+      - ./config:/etc/apts/config:ro
+
+  agent-exploit:
+    <<: [*service-base, *agent-limits]
+    container_name: apts-agent-exploit
+    hostname: agent-exploit
+    depends_on:
+      database: { condition: service_healthy }
+    command: python -m agent.main
+    environment:
+      AGENT_NAME: exploit
+    secrets:
+      - source: agent_exploit_token
+        target: token
+      - source: agent_exploit_key
+        target: tls.key
+      - source: db_password
+        target: db_password
+    volumes:
+      - ./certs/agent-exploit.crt:/etc/apts/tls.crt:ro
+      - ./certs/trust-bundle.pem:/etc/apts/trust-bundle.pem:ro
+      - ./config:/etc/apts/config:ro
+
+  agent-script:
+    <<: [*service-base, *agent-limits]
+    container_name: apts-agent-script
+    hostname: agent-script
+    depends_on:
+      database: { condition: service_healthy }
+    command: python -m agent.main
+    environment:
+      AGENT_NAME: script
+    secrets:
+      - source: agent_script_token
+        target: token
+      - source: agent_script_key
+        target: tls.key
+      - source: db_password
+        target: db_password
+    volumes:
+      - ./certs/agent-script.crt:/etc/apts/tls.crt:ro
+      - ./certs/trust-bundle.pem:/etc/apts/trust-bundle.pem:ro
+      - ./config:/etc/apts/config:ro
+
+  agent-adviser:
+    <<: [*service-base, *agent-limits]
+    container_name: apts-agent-adviser
+    hostname: agent-adviser
+    depends_on:
+      database: { condition: service_healthy }
+    command: python -m agent.main
+    environment:
+      AGENT_NAME: adviser
+    secrets:
+      - source: agent_adviser_token
+        target: token
+      - source: agent_adviser_key
+        target: tls.key
+      - source: db_password
+        target: db_password
+    volumes:
+      - ./certs/agent-adviser.crt:/etc/apts/tls.crt:ro
+      - ./certs/trust-bundle.pem:/etc/apts/trust-bundle.pem:ro
+      - ./config:/etc/apts/config:ro
+
+  # ---------------------------------------------------------------------
+  #  MCP tools (bundled)
+  # ---------------------------------------------------------------------
+  mcp-tools:
+    <<: *service-base
+    container_name: apts-mcp-tools
+    hostname: mcp-tools
+    depends_on:
+      database: { condition: service_healthy }
+    command: python -m mcp_tools.main
+    secrets:
+      - source: mcp_tools_token
+        target: token
+      - source: mcp_tools_key
+        target: tls.key
+      - source: db_password
+        target: db_password
+    volumes:
+      - ./certs/mcp-tools.crt:/etc/apts/tls.crt:ro
+      - ./certs/trust-bundle.pem:/etc/apts/trust-bundle.pem:ro
+      - ./config:/etc/apts/config:ro
+    deploy:
+      resources:
+        limits: { memory: 256M, cpus: "0.5" }
+
+  # ---------------------------------------------------------------------
+  #  Sandbox (locked-down stub)
+  # ---------------------------------------------------------------------
+  sandbox:
+    <<: *service-base
+    container_name: apts-sandbox
+    hostname: sandbox
+    depends_on:
+      database: { condition: service_healthy }
+    command: python -m sandbox.main
+    read_only: true
+    tmpfs:
+      - /tmp:size=64M,mode=1777
+    cap_drop: [ ALL ]
+    security_opt:
+      - no-new-privileges:true
+    secrets:
+      - source: sandbox_token
+        target: token
+      - source: sandbox_key
+        target: tls.key
+      - source: db_password
+        target: db_password
+    volumes:
+      - ./certs/sandbox.crt:/etc/apts/tls.crt:ro
+      - ./certs/trust-bundle.pem:/etc/apts/trust-bundle.pem:ro
+      - ./config:/etc/apts/config:ro
+    deploy:
+      resources:
+        limits: { memory: 128M, cpus: "0.5", pids: 64 }
+
+
+# =========================================================================
+#  Volumes, networks, and secrets
+# =========================================================================
+volumes:
+  db_data: {}
+
+networks:
+  apts-net:
+    driver: bridge
+    driver_opts:
+      com.docker.network.bridge.name: apts0
+
+secrets:
+  # DB password — mounted into the DB container AND every Python container
+  db_password:            { file: ./tokens/db_password.txt }
+  # Bearer tokens (one per Python service)
+  orchestrator_token:     { file: ./tokens/orchestrator.token }
+  agent_recon_token:      { file: ./tokens/agent-recon.token }
+  agent_vuln_token:       { file: ./tokens/agent-vuln.token }
+  agent_mitre_token:      { file: ./tokens/agent-mitre.token }
+  agent_exploit_token:    { file: ./tokens/agent-exploit.token }
+  agent_script_token:     { file: ./tokens/agent-script.token }
+  agent_adviser_token:    { file: ./tokens/agent-adviser.token }
+  mcp_tools_token:        { file: ./tokens/mcp-tools.token }
+  sandbox_token:          { file: ./tokens/sandbox.token }
+  # TLS private keys (one per Python service)
+  orchestrator_key:       { file: ./certs/orchestrator.key }
+  agent_recon_key:        { file: ./certs/agent-recon.key }
+  agent_vuln_key:         { file: ./certs/agent-vuln.key }
+  agent_mitre_key:        { file: ./certs/agent-mitre.key }
+  agent_exploit_key:      { file: ./certs/agent-exploit.key }
+  agent_script_key:       { file: ./certs/agent-script.key }
+  agent_adviser_key:      { file: ./certs/agent-adviser.key }
+  mcp_tools_key:          { file: ./certs/mcp-tools.key }
+  sandbox_key:            { file: ./certs/sandbox.key }
