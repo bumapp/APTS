@@ -97,7 +97,8 @@ class ToolProvider:
                 f"tool {tool_name!r} is permitted for {caller!r} but has no "
                 f"registered implementation")
 
-        ctx = ToolContext(engagement_id=call.engagement_id, caller=caller)
+        ctx = ToolContext(engagement_id=call.engagement_id, caller=caller,
+                          scope=scope)
         output = await handler(call.args, ctx)
 
         self._audit.record("tool_call_completed", engagement_id=engagement_id,

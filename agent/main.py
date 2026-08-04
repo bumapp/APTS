@@ -1,228 +1,162 @@
-"""Working agent service.
+"""Working agent service — composition root.
 
-One image, six containers.  The container's ``AGENT_NAME`` environment variable
-selects which agent this instance behaves as (``recon``, ``vuln``, ``mitre``,
-``exploit``, ``script``, ``adviser``).
+One image, six containers. ``AGENT_NAME`` selects which stage this instance is
+(``recon``, ``vuln``, ``mitre``, ``exploit``, ``script``, ``adviser``).
 
-The service exposes exactly one working endpoint and one health probe:
+Layering — each layer calls only the one below it::
 
-* ``POST /run`` — receive a :class:`ChainHandoff`, acknowledge immediately,
-  then run the agent's work in a background task.  The background task:
+    controllers/   HTTP surface: routing, auth, status codes
+    providers/     orchestration: composes one stage run
+    services/      units of work: the stage worker, progress, handoff
+    repositories/  database: agent_results and audit_log writes
 
-  1. posts ``progress = started`` to the orchestrator,
-  2. calls :func:`agent.stub_work.do_stub_work` (this is what the model call
-     will replace),
-  3. writes the result to the ``agent_results`` table,
-  4. pushes the same result to the next agent in the chain (unless this is
-     the Adviser),
-  5. posts ``progress = done`` to the orchestrator.
-
-Every outbound HTTP call is TLS + bearer token.
+Only this module decides which concrete worker a given agent gets, and it is
+the one place that knows an LLM exists. Swapping a stub for a real model is a
+line in :func:`build_worker`.
 """
 from __future__ import annotations
 
-import asyncio
 import logging
-import os
 from contextlib import asynccontextmanager
-from datetime import datetime
-from typing import Any
-from uuid import UUID
 
 import httpx
-import psycopg
 import uvicorn
-from fastapi import BackgroundTasks, Depends, FastAPI, HTTPException
+from fastapi import FastAPI
 
 from shared import logging_config
-from shared.auth import Caller, bearer_headers, load_own_token, require_auth
-from shared.db import audit, get_conn
-from shared.models import ChainHandoff, HandoffAck, ProgressUpdate
+from shared.auth import load_own_token
+from shared.llm import LlmClient
 from shared.tls import client_ssl_context, uvicorn_ssl_kwargs
 
-from agent.stub_work import do_stub_work, maybe_fail
-
-AGENT_NAME = os.environ.get("AGENT_NAME")
-if not AGENT_NAME:
-    raise RuntimeError("AGENT_NAME environment variable is required")
-
-logging_config.configure(f"agent-{AGENT_NAME}")
-log = logging.getLogger(f"agent.{AGENT_NAME}")
-
-CHAIN = ["recon", "vuln", "mitre", "exploit", "script", "adviser"]
-if AGENT_NAME not in CHAIN:
-    raise RuntimeError(f"unknown AGENT_NAME {AGENT_NAME!r} (must be one of {CHAIN})")
-
-NEXT_AGENT: str | None = (
-    CHAIN[CHAIN.index(AGENT_NAME) + 1] if CHAIN.index(AGENT_NAME) < len(CHAIN) - 1 else None
+from agent.config import (
+    AGENT_NAME,
+    COMPONENT,
+    HTTP_CONNECT_TIMEOUT_SECONDS,
+    HTTP_TIMEOUT_SECONDS,
+    LISTEN_HOST,
+    LISTEN_PORT,
+    ORCHESTRATOR_URL,
+    stub_failure_rate,
 )
+from agent.controllers import run_controller
+from agent.providers.run_provider import RunProvider
+from agent.repositories.agent_result_repository import (
+    AgentResultRepository,
+    AuditRepository,
+)
+from agent.services.mcp_service import McpService
+from agent.services.orchestrator_service import HandoffService, OrchestratorService
+from agent.services.workers.base import Worker
+from agent.services.workers.mitre_worker import MitreWorker
+from agent.repositories.report_repository import ReportRepository
+from agent.services.workers.adviser_worker import AdviserWorker
+from agent.services.workers.exploit_worker import ExploitWorker
+from agent.services.workers.recon_worker import ReconWorker
+from agent.services.workers.script_worker import ScriptWorker
+from agent.services.workers.vuln_worker import VulnWorker
+from agent.services.workers.stub_worker import StubWorker
 
-ORCHESTRATOR_URL = "https://orchestrator:8443"
-def _read_failure_rate() -> float:
-    """Read the synthetic failure rate from the mounted config file.
+logging_config.configure(COMPONENT)
+log = logging.getLogger(COMPONENT)
 
-    Falls back to 0 if the file is missing or malformed — production runs
-    do not want random failures.
+# Stages backed by a real model. Everything absent from this set and from
+# TOOL_BACKED still runs the canned StubWorker, so the pipeline stays runnable
+# while stages are migrated one at a time.
+LLM_BACKED = {"vuln", "mitre", "exploit", "script", "adviser"}
+
+# Stages that do real work through MCP tools but need no model. Recon belongs
+# here on purpose: "what URLs exist" is a question a crawler answers exactly and
+# a model answers approximately, and an invented endpoint would propagate
+# through every stage downstream.
+TOOL_BACKED = {"recon"}
+
+
+def build_worker(mcp: McpService, results: AgentResultRepository,
+                 exit_stack: list) -> Worker:
+    """Pick this agent's worker, opening an LLM client only if it needs one.
+
+    Appends any async context manager it opens to ``exit_stack`` so lifespan can
+    close it — an agent with no model must not hold an idle client, and an agent
+    with one must not leak it.
     """
-    try:
-        with open("/etc/apts/config/stub_failure_rate", "r", encoding="utf-8") as fh:
-            return float(fh.read().strip() or "0")
-    except (FileNotFoundError, OSError, ValueError):
-        return 0.0
+    if AGENT_NAME in TOOL_BACKED:
+        if AGENT_NAME == "recon":
+            return ReconWorker(mcp)
+        raise RuntimeError(f"{AGENT_NAME!r} is marked tool-backed but has no worker")
 
+    if AGENT_NAME not in LLM_BACKED:
+        return StubWorker(AGENT_NAME)
 
-FAILURE_RATE = _read_failure_rate()
+    llm = LlmClient(AGENT_NAME)
+    exit_stack.append(llm)
+    if AGENT_NAME == "mitre":
+        return MitreWorker(llm)
+    if AGENT_NAME == "vuln":
+        # The only worker needing both: a model to judge, and tools to verify.
+        return VulnWorker(llm, mcp)
+    if AGENT_NAME == "exploit":
+        # Also reads the register from the store — MITRE sits between this
+        # stage and the artifact it needs.
+        return ExploitWorker(llm, mcp, results)
+    if AGENT_NAME == "script":
+        return ScriptWorker(llm, results)
+    if AGENT_NAME == "adviser":
+        # Reads every stage's artifact and writes the deliverable to disk.
+        return AdviserWorker(llm, results, ReportRepository())
+    raise RuntimeError(f"{AGENT_NAME!r} is marked LLM-backed but has no worker")
 
-_OWN_TOKEN: str | None = None
-_client: httpx.AsyncClient | None = None
-
-
-# --------------------------------------------------------------------------- #
-# Lifecycle
-# --------------------------------------------------------------------------- #
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    global _OWN_TOKEN, _client
-    _OWN_TOKEN = load_own_token()
-    _client = httpx.AsyncClient(
+    token = load_own_token()
+    client = httpx.AsyncClient(
         verify=client_ssl_context(),
-        timeout=httpx.Timeout(30.0, connect=5.0),
+        timeout=httpx.Timeout(HTTP_TIMEOUT_SECONDS, connect=HTTP_CONNECT_TIMEOUT_SECONDS),
     )
-    log.info("agent %s ready (next=%s)", AGENT_NAME, NEXT_AGENT)
-    audit(f"agent-{AGENT_NAME}", "startup")
+    audit = AuditRepository()
+
+    mcp = McpService(client, token)
+    results = AgentResultRepository()
+    opened: list = []
+    worker = build_worker(mcp, results, opened)
+    for resource in opened:
+        await resource.__aenter__()
+
+    app.state.http_client = client
+    app.state.run_provider = RunProvider(
+        agent=AGENT_NAME,
+        worker=worker,
+        orchestrator=OrchestratorService(client, token, AGENT_NAME, ORCHESTRATOR_URL),
+        handoff=HandoffService(client, token, AGENT_NAME),
+        results=results,
+        audit=audit,
+        failure_rate=stub_failure_rate(),
+    )
+
+    log.info("agent %s ready (worker=%s)", AGENT_NAME, type(worker).__name__)
+    audit.record(COMPONENT, "startup")
     try:
         yield
     finally:
-        await _client.aclose()
-        audit(f"agent-{AGENT_NAME}", "shutdown")
+        for resource in reversed(opened):
+            await resource.__aexit__(None, None, None)
+        await client.aclose()
+        audit.record(COMPONENT, "shutdown")
 
 
-app = FastAPI(title=f"APTS Agent — {AGENT_NAME}", lifespan=lifespan)
+def create_app() -> FastAPI:
+    application = FastAPI(title=f"APTS Agent — {AGENT_NAME}", lifespan=lifespan)
+    application.include_router(run_controller.router)
+    return application
 
 
-# --------------------------------------------------------------------------- #
-# Endpoints
-# --------------------------------------------------------------------------- #
+app = create_app()
 
-@app.get("/health")
-def health() -> dict[str, str]:
-    return {"status": "ok", "agent": AGENT_NAME}
-
-
-def _allowed_callers() -> set[str]:
-    """Who is permitted to POST /run on this agent.
-
-    * Recon accepts kickoffs from the orchestrator and retries from the orchestrator.
-    * Every other agent accepts the push from its predecessor in the chain.
-    * The orchestrator can also call any agent directly, for retries.
-    """
-    if AGENT_NAME == "recon":
-        return {"orchestrator"}
-    idx = CHAIN.index(AGENT_NAME)
-    predecessor = CHAIN[idx - 1]
-    return {f"agent-{predecessor}", "orchestrator"}
-
-
-@app.post("/run", response_model=HandoffAck)
-async def run(handoff: ChainHandoff,
-              background: BackgroundTasks,
-              caller: Caller = Depends(require_auth)) -> HandoffAck:
-    allowed = _allowed_callers()
-    if caller.component not in allowed:
-        raise HTTPException(403, f"{caller.component!r} may not call /run on {AGENT_NAME}")
-
-    log.info("received handoff for engagement %s from %s",
-             handoff.engagement_id, caller.component)
-    audit(f"agent-{AGENT_NAME}", "handoff_received",
-          engagement_id=str(handoff.engagement_id),
-          detail={"from": caller.component})
-
-    background.add_task(_perform_work, handoff)
-    return HandoffAck(engagement_id=handoff.engagement_id,
-                      accepted_by=f"agent-{AGENT_NAME}",
-                      started_at=datetime.utcnow())
-
-
-# --------------------------------------------------------------------------- #
-# Background work: the actual chain step
-# --------------------------------------------------------------------------- #
-
-async def _perform_work(handoff: ChainHandoff) -> None:
-    engagement_id = handoff.engagement_id
-    try:
-        await _post_progress(engagement_id, "started", "beginning work")
-        await maybe_fail(FAILURE_RATE)
-        result = await do_stub_work(AGENT_NAME, handoff.model_dump(mode="json"))
-        _write_result(engagement_id, result)
-
-        if NEXT_AGENT is not None:
-            await _push_to_next(engagement_id, handoff, result)
-
-        await _post_progress(engagement_id, "done", "work complete",
-                             detail={"has_result": True})
-    except Exception as exc:
-        log.exception("work failed: %s", exc)
-        await _post_progress(engagement_id, "failed", str(exc))
-
-
-def _write_result(engagement_id: UUID, payload: dict[str, Any]) -> None:
-    with get_conn() as conn, conn.cursor() as cur:
-        cur.execute(
-            """INSERT INTO agent_results (engagement_id, agent, payload)
-               VALUES (%s, %s, %s::jsonb)
-               ON CONFLICT (engagement_id, agent)
-               DO UPDATE SET payload = EXCLUDED.payload, written_at = NOW()""",
-            (str(engagement_id), AGENT_NAME, psycopg.types.json.Json(payload)),
-        )
-    audit(f"agent-{AGENT_NAME}", "result_written", engagement_id=str(engagement_id))
-
-
-async def _push_to_next(engagement_id: UUID, incoming: ChainHandoff,
-                        result: dict[str, Any]) -> None:
-    assert NEXT_AGENT is not None
-    assert _client is not None
-    assert _OWN_TOKEN is not None
-    next_handoff = ChainHandoff(
-        engagement_id=engagement_id,
-        from_component=f"agent-{AGENT_NAME}",
-        target_url=incoming.target_url,
-        scope=incoming.scope,
-        time_window=incoming.time_window,
-        results=result,
-    )
-    url = f"https://agent-{NEXT_AGENT}:8443/run"
-    resp = await _client.post(url, content=next_handoff.model_dump_json(),
-                              headers=bearer_headers(_OWN_TOKEN))
-    resp.raise_for_status()
-    log.info("pushed result to %s", NEXT_AGENT)
-    audit(f"agent-{AGENT_NAME}", "pushed_to_next",
-          engagement_id=str(engagement_id), detail={"next": NEXT_AGENT})
-
-
-async def _post_progress(engagement_id: UUID, status: str, message: str = "",
-                         detail: dict | None = None) -> None:
-    assert _client is not None
-    assert _OWN_TOKEN is not None
-    update = ProgressUpdate(engagement_id=engagement_id, agent=AGENT_NAME,
-                            status=status, message=message, detail=detail or {})
-    try:
-        resp = await _client.post(
-            f"{ORCHESTRATOR_URL}/progress",
-            content=update.model_dump_json(),
-            headers=bearer_headers(_OWN_TOKEN),
-        )
-        resp.raise_for_status()
-    except Exception as exc:
-        log.error("progress post failed (%s): %s", status, exc)
-
-
-# --------------------------------------------------------------------------- #
 
 if __name__ == "__main__":
     uvicorn.run(
         "agent.main:app",
-        host="0.0.0.0", port=8443,
+        host=LISTEN_HOST, port=LISTEN_PORT,
         log_config=None,
         **uvicorn_ssl_kwargs(),
     )

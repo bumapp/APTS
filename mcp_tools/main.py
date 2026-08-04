@@ -49,6 +49,8 @@ from mcp_tools.services.audit_service import AuditService
 from mcp_tools.services.engagement_service import EngagementService
 from mcp_tools.services.guardrails_service import GuardrailsService
 from mcp_tools.services.policy_service import PolicyService
+from mcp_tools.services.tools.crawl_tool import CrawlTool
+from mcp_tools.services.tools.http_tool import HttpTool
 from mcp_tools.services.tools.registry import ToolRegistry
 from mcp_tools.services.tools.sandbox_service import SandboxService
 from mcp_tools.services.tools.stub_tools import register_stub_tools
@@ -59,16 +61,27 @@ logging_config.configure(COMPONENT)
 log = logging.getLogger(COMPONENT)
 
 
-def build_registry(client: httpx.AsyncClient, token: str) -> ToolRegistry:
+def build_registry(client: httpx.AsyncClient,
+                   token: str) -> tuple[ToolRegistry, httpx.AsyncClient]:
     """Assemble the tool registry.
 
-    The stubs are self-contained; ``sandbox`` is constructed here because it
-    needs the shared HTTP client and this container's bearer token.
+    Returns the registry and the outbound client it created, so lifespan can
+    close the latter. Two clients, deliberately: one that verifies the internal
+    trust bundle for service-to-service calls, and one for the target, which is
+    untrusted by definition and whose certificate means nothing here.
     """
     registry = ToolRegistry()
     register_stub_tools(registry)
+
+    # Real tools that reach the engagement target. They get their own client:
+    # `client` is configured to trust the internal CA for service-to-service
+    # calls, and a pentest target's certificate is nobody's business to verify.
+    target_client = httpx.AsyncClient(verify=False, follow_redirects=False)
+    registry.register("http", HttpTool(target_client))
+    registry.register("crawl", CrawlTool(target_client))
+
     registry.register("sandbox", SandboxService(client, token).execute)
-    return registry
+    return registry, target_client
 
 
 @asynccontextmanager
@@ -80,13 +93,14 @@ async def lifespan(app: FastAPI):
         timeout=httpx.Timeout(HTTP_TIMEOUT_SECONDS, connect=HTTP_CONNECT_TIMEOUT_SECONDS),
     )
     audit = AuditService(COMPONENT)
+    registry, target_client = build_registry(client, token)
 
     app.state.http_client = client
     app.state.tool_provider = ToolProvider(
         policy=PolicyService(),
         guardrails=GuardrailsService(),
         engagements=EngagementService(),
-        registry=build_registry(client, token),
+        registry=registry,
         audit=audit,
     )
 
@@ -96,6 +110,7 @@ async def lifespan(app: FastAPI):
     try:
         yield
     finally:
+        await target_client.aclose()
         await client.aclose()
         audit.record("shutdown")
 

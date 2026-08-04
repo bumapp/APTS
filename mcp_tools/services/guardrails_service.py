@@ -37,7 +37,11 @@ class GuardrailsBlocked(Exception):
 # Tools that can put packets on the wire toward the engagement target.  Only
 # these are scope-checked; ``cve``, ``attack_kb``, and ``report`` talk to
 # internal or third-party services, never to the target.
-NETWORK_TOOLS = frozenset({"scanner", "http", "sandbox"})
+#
+# Forgetting to add a new network tool here would leave it entirely unscoped, so
+# the registry deliberately has no way to register one without a policy entry —
+# and a tool absent from this set is checked against nothing.
+NETWORK_TOOLS = frozenset({"scanner", "http", "crawl", "sandbox"})
 
 # Tools whose target is embedded in free text rather than a named argument.
 _FREE_TEXT_TARGET_TOOLS = frozenset({"sandbox"})

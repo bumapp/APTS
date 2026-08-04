@@ -39,7 +39,7 @@ import uvicorn
 from fastapi import Depends, FastAPI, HTTPException
 from fastapi.responses import JSONResponse
 
-from shared import logging_config
+from shared import logging_config, pipeline
 from shared.auth import Caller, bearer_headers, load_own_token, require_auth
 from shared.db import audit, get_conn
 from shared.models import (
@@ -60,13 +60,11 @@ from orchestrator.guardrails_entry import (
 logging_config.configure("orchestrator")
 log = logging.getLogger("orchestrator")
 
-CHAIN = ["recon", "vuln", "mitre", "exploit", "script", "adviser"]
-# Critical = failure stops the whole engagement (Characterization §2.2.4).
-# Exploitation is deliberately NOT critical: it's "minor, but special" — if it
-# fails all retries the run continues, and the Adviser must mark the report
-# "weaknesses found but not confirmed" rather than presenting a confirmed test.
-CRITICAL_AGENTS = {"recon", "vuln"}
-MAX_RETRIES = 3
+# Stage order, criticality, and retry budget all live in shared.pipeline so the
+# orchestrator and the agents cannot disagree about the shape of the chain.
+CHAIN = list(pipeline.CHAIN)
+CRITICAL_AGENTS = pipeline.CRITICAL_AGENTS
+MAX_RETRIES = pipeline.MAX_RETRIES
 
 # We hold the orchestrator's own token in memory once, at startup.
 _OWN_TOKEN: str | None = None
@@ -305,8 +303,7 @@ async def _handle_agent_failure(update: ProgressUpdate) -> None:
 
 
 def _previous_agent(agent: str) -> str | None:
-    idx = CHAIN.index(agent)
-    return CHAIN[idx - 1] if idx > 0 else None
+    return pipeline.previous_agent(agent)
 
 
 def _load_prev_output(engagement_id: UUID, prev_agent: str | None) -> dict[str, Any]:

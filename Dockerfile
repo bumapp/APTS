@@ -21,7 +21,13 @@ RUN groupadd --system --gid 1000 apts \
 
 # Minimum system packages: openssl for cert manipulation, ca-certificates for
 # the base OS trust store.  Everything else comes from wheels.
-RUN apt-get update \
+#
+# Fetch over HTTPS: networks with an intercepting HTTP proxy corrupt apt's
+# clearsigned InRelease files ("got 'NOSPLIT'").  ca-certificates ships in the
+# base image, so https works before we install anything.
+RUN sed -i 's|http://deb.debian.org|https://deb.debian.org|g' \
+        /etc/apt/sources.list.d/debian.sources /etc/apt/sources.list 2>/dev/null; \
+    apt-get update \
  && apt-get install -y --no-install-recommends \
         openssl \
         ca-certificates \

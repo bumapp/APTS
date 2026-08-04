@@ -29,9 +29,9 @@ class ToolNotPermitted(Exception):
 # names registered in the tool registry.
 DEFAULT_TOOL_POLICY: dict[str, frozenset[str]] = {
     # Discovery: read the target, never execute against it.
-    "agent-recon":   frozenset({"scanner", "http"}),
+    "agent-recon":   frozenset({"scanner", "http", "crawl"}),
     # Analysis: recon's tools plus vulnerability intelligence lookups.
-    "agent-vuln":    frozenset({"scanner", "http", "cve"}),
+    "agent-vuln":    frozenset({"scanner", "http", "crawl", "cve"}),
     # Methodology: pure knowledge-base work, no network reach at all.
     "agent-mitre":   frozenset({"attack_kb"}),
     # Offense: the only component permitted to reach the sandbox executor.

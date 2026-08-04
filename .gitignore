@@ -8,3 +8,7 @@ __pycache__/
 
 # local env
 .venv/
+
+# engagement reports contain client-confidential findings
+reports/*
+!reports/.gitkeep

@@ -16,18 +16,10 @@ from typing import Any
 
 from mcp_tools.services.tools.base import ToolContext
 from mcp_tools.services.tools.registry import ToolRegistry
-from mcp_tools.utils.sanitise import strip_injection
 
 
 async def scanner_tool(args: dict[str, Any], ctx: ToolContext) -> dict[str, Any]:
     return {"findings": [{"target": args.get("url"), "hits": []}]}
-
-
-async def http_tool(args: dict[str, Any], ctx: ToolContext) -> dict[str, Any]:
-    # The body is modelled as coming back from the target, so it is sanitised
-    # on the way out — a real HTTP tool must do the same with the live response.
-    body = strip_injection(str(args.get("expected_body", "")))
-    return {"status_code": 200, "body": body}
 
 
 async def cve_tool(args: dict[str, Any], ctx: ToolContext) -> dict[str, Any]:
@@ -45,12 +37,11 @@ async def report_tool(args: dict[str, Any], ctx: ToolContext) -> dict[str, Any]:
 def register_stub_tools(registry: ToolRegistry) -> None:
     """Register every placeholder tool.
 
-    ``sandbox`` is absent deliberately — it is the one tool that really calls
-    another container, so it is built with its dependencies in
-    ``providers/sandbox_provider.py``.
+    ``http``, ``crawl``, and ``sandbox`` are absent deliberately: all three are
+    real, and all three need an HTTP client, so they are constructed with their
+    collaborators in ``main.build_registry``.
     """
     registry.register("scanner", scanner_tool)
-    registry.register("http", http_tool)
     registry.register("cve", cve_tool)
     registry.register("attack_kb", attack_kb_tool)
     registry.register("report", report_tool)

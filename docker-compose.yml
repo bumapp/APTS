@@ -127,6 +127,8 @@ services:
         target: tls.key
       - source: db_password
         target: db_password
+      - source: llm_api_key
+        target: llm_api_key
     volumes:
       - ./certs/agent-recon.crt:/etc/apts/tls.crt:ro
       - ./certs/trust-bundle.pem:/etc/apts/trust-bundle.pem:ro
@@ -148,6 +150,8 @@ services:
         target: tls.key
       - source: db_password
         target: db_password
+      - source: llm_api_key
+        target: llm_api_key
     volumes:
       - ./certs/agent-vuln.crt:/etc/apts/tls.crt:ro
       - ./certs/trust-bundle.pem:/etc/apts/trust-bundle.pem:ro
@@ -169,6 +173,8 @@ services:
         target: tls.key
       - source: db_password
         target: db_password
+      - source: llm_api_key
+        target: llm_api_key
     volumes:
       - ./certs/agent-mitre.crt:/etc/apts/tls.crt:ro
       - ./certs/trust-bundle.pem:/etc/apts/trust-bundle.pem:ro
@@ -190,6 +196,8 @@ services:
         target: tls.key
       - source: db_password
         target: db_password
+      - source: llm_api_key
+        target: llm_api_key
     volumes:
       - ./certs/agent-exploit.crt:/etc/apts/tls.crt:ro
       - ./certs/trust-bundle.pem:/etc/apts/trust-bundle.pem:ro
@@ -211,6 +219,8 @@ services:
         target: tls.key
       - source: db_password
         target: db_password
+      - source: llm_api_key
+        target: llm_api_key
     volumes:
       - ./certs/agent-script.crt:/etc/apts/tls.crt:ro
       - ./certs/trust-bundle.pem:/etc/apts/trust-bundle.pem:ro
@@ -232,10 +242,15 @@ services:
         target: tls.key
       - source: db_password
         target: db_password
+      - source: llm_api_key
+        target: llm_api_key
     volumes:
       - ./certs/agent-adviser.crt:/etc/apts/tls.crt:ro
       - ./certs/trust-bundle.pem:/etc/apts/trust-bundle.pem:ro
       - ./config:/etc/apts/config:ro
+      # The deliverable lands on the host. Adviser is the only writer, so it is
+      # the only container that gets this mounted read-write.
+      - ./reports:/var/apts/reports
 
   # ---------------------------------------------------------------------
   #  MCP tools (bundled)
@@ -244,6 +259,9 @@ services:
     <<: *service-base
     container_name: apts-mcp-tools
     hostname: mcp-tools
+    # The only component on both networks: it takes tool calls from agents on
+    # apts-net and issues the resulting requests to the target on apts-target.
+    networks: [ apts-net, apts-target ]
     depends_on:
       database: { condition: service_healthy }
     command: python -m mcp_tools.main
@@ -261,6 +279,33 @@ services:
     deploy:
       resources:
         limits: { memory: 256M, cpus: "0.5" }
+
+  # ---------------------------------------------------------------------
+  #  Practice target — OWASP Juice Shop
+  #
+  #  A deliberately vulnerable web app, so the pipeline has something real to
+  #  point at.  It sits on `apts-target`, an `internal: true` network with no
+  #  route off the host: the target cannot reach the internet, and nothing
+  #  outside the two containers joined to that network can reach the target.
+  #  That satisfies the isolation NFR (§8) for the components that exist today
+  #  and keeps a genuinely vulnerable app from being exposed by accident.
+  #
+  #  Reachable from mcp-tools (which runs the scanning tools) as
+  #  http://juice-shop:3000/.  Deliberately NOT published to the host — add a
+  #  `ports:` mapping yourself if you want to browse it, and understand that
+  #  doing so puts a vulnerable app on your network.
+  # ---------------------------------------------------------------------
+  juice-shop:
+    image: bkimminich/juice-shop:v17.1.1
+    container_name: apts-juice-shop
+    hostname: juice-shop
+    restart: unless-stopped
+    networks: [ apts-target ]
+    environment:
+      NODE_ENV: unsafe
+    deploy:
+      resources:
+        limits: { memory: 768M, cpus: "1.0" }
 
   # ---------------------------------------------------------------------
   #  Sandbox (locked-down stub)
@@ -306,9 +351,21 @@ networks:
     driver_opts:
       com.docker.network.bridge.name: apts0
 
+  # Engagement target network.  `internal: true` means Docker attaches no
+  # gateway: containers here have no route off the host.  This is the isolation
+  # boundary the Dynamic Simulation Engine will also provision into, one network
+  # per engagement.
+  apts-target:
+    driver: bridge
+    internal: true
+
 secrets:
   # DB password — mounted into the DB container AND every Python container
   db_password:            { file: ./tokens/db_password.txt }
+  # LLM provider API key — mounted into the six agent containers only.
+  # Nothing else needs it: the orchestrator coordinates, mcp-tools runs tools,
+  # and the sandbox executes commands. None of them call a model.
+  llm_api_key:            { file: ./tokens/deepseek_api_key }
   # Bearer tokens (one per Python service)
   orchestrator_token:     { file: ./tokens/orchestrator.token }
   agent_recon_token:      { file: ./tokens/agent-recon.token }
