@@ -1,181 +1,125 @@
-"""Bundled MCP tools container.
+"""Bundled MCP tools container — composition root.
 
-One HTTPS server exposing one endpoint per tool listed in Characterization §6:
+This module wires the object graph and nothing else. The only thing decided
+here is which concrete implementation each layer gets, once, at startup.
 
-======================  ================================================
-tool                    endpoint
-======================  ================================================
-scanner                 POST /tool/scanner
-http                    POST /tool/http
-cve                     POST /tool/cve
-attack_kb               POST /tool/attack_kb
-sandbox                 POST /tool/sandbox    (forwards to sandbox container)
-report                  POST /tool/report
-======================  ================================================
+Layering — each layer calls only the one below it::
 
-Every request is bearer-token authenticated and passes through the MCP
-outbound Guardrails checkpoint (:mod:`mcp_tools.guardrails_mcp`) before the
-tool logic runs.
+    controllers/   HTTP surface: routing, auth, status-code mapping
+    providers/     orchestration: composes services into one operation
+    services/      the decisions and units of work
+    repositories/  database: engagement scope reads, audit-log writes
+    utils/         pure helpers: URL parsing, response sanitisation
 
-Skeleton: each tool returns a canned response.  The sandbox endpoint is the
-only one that actually calls another container.
+A controller never reaches past its provider, and a provider never issues SQL.
+The decision services (``policy_service``, ``guardrails_service``) touch no I/O
+at all, which is what makes the security rules testable without a database, an
+HTTP client, or a running app.
+
+``repositories/`` holds every SQL statement this container issues, so the
+component's full database footprint is reviewable against the access rules in
+PRD §3.2 by reading one folder.
+
+Tools are exposed today as ``POST /tool/{name}``. When the MCP transport is
+mounted (the SDK's ``streamable_http_app()`` as a sub-app on this same server),
+it becomes another controller over the same provider — no rule moves.
 """
 from __future__ import annotations
 
 import logging
 from contextlib import asynccontextmanager
-from typing import Any
 
 import httpx
 import uvicorn
-from fastapi import Depends, FastAPI, HTTPException
+from fastapi import FastAPI
 
 from shared import logging_config
-from shared.auth import Caller, bearer_headers, load_own_token, require_auth
-from shared.db import audit
-from shared.models import SandboxExecRequest, SandboxExecResult, ToolCall, ToolResult
+from shared.auth import load_own_token
 from shared.tls import client_ssl_context, uvicorn_ssl_kwargs
 
-from mcp_tools.guardrails_mcp import (
-    GuardrailsMcpBlocked,
-    check_tool_call,
-    strip_injection,
+from mcp_tools.config import (
+    HTTP_CONNECT_TIMEOUT_SECONDS,
+    HTTP_TIMEOUT_SECONDS,
+    LISTEN_HOST,
+    LISTEN_PORT,
 )
+from mcp_tools.controllers import health_controller, tool_controller
+from mcp_tools.providers.tool_provider import ToolProvider
+from mcp_tools.services.audit_service import AuditService
+from mcp_tools.services.engagement_service import EngagementService
+from mcp_tools.services.guardrails_service import GuardrailsService
+from mcp_tools.services.policy_service import PolicyService
+from mcp_tools.services.tools.registry import ToolRegistry
+from mcp_tools.services.tools.sandbox_service import SandboxService
+from mcp_tools.services.tools.stub_tools import register_stub_tools
 
-logging_config.configure("mcp-tools")
-log = logging.getLogger("mcp-tools")
+COMPONENT = "mcp-tools"
 
-SANDBOX_URL = "https://sandbox:8443"
-_OWN_TOKEN: str | None = None
-_client: httpx.AsyncClient | None = None
+logging_config.configure(COMPONENT)
+log = logging.getLogger(COMPONENT)
 
 
-# --------------------------------------------------------------------------- #
+def build_registry(client: httpx.AsyncClient, token: str) -> ToolRegistry:
+    """Assemble the tool registry.
+
+    The stubs are self-contained; ``sandbox`` is constructed here because it
+    needs the shared HTTP client and this container's bearer token.
+    """
+    registry = ToolRegistry()
+    register_stub_tools(registry)
+    registry.register("sandbox", SandboxService(client, token).execute)
+    return registry
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    global _OWN_TOKEN, _client
-    _OWN_TOKEN = load_own_token()
-    _client = httpx.AsyncClient(
+    """Build the object graph, hold it on ``app.state``, tear it down on exit."""
+    token = load_own_token()
+    client = httpx.AsyncClient(
         verify=client_ssl_context(),
-        timeout=httpx.Timeout(15.0, connect=5.0),
+        timeout=httpx.Timeout(HTTP_TIMEOUT_SECONDS, connect=HTTP_CONNECT_TIMEOUT_SECONDS),
     )
-    log.info("mcp-tools ready")
-    audit("mcp-tools", "startup")
+    audit = AuditService(COMPONENT)
+
+    app.state.http_client = client
+    app.state.tool_provider = ToolProvider(
+        policy=PolicyService(),
+        guardrails=GuardrailsService(),
+        engagements=EngagementService(),
+        registry=build_registry(client, token),
+        audit=audit,
+    )
+
+    log.info("mcp-tools ready (tools=%s)",
+             ", ".join(app.state.tool_provider.allowed_tools("agent-exploit")) or "none")
+    audit.record("startup")
     try:
         yield
     finally:
-        await _client.aclose()
+        await client.aclose()
+        audit.record("shutdown")
 
 
-app = FastAPI(title="APTS MCP tools", lifespan=lifespan)
+def create_app() -> FastAPI:
+    """Application factory.
+
+    A factory rather than a module-level ``app`` so tests can build an instance
+    with a substituted provider. The uvicorn entry point below still passes an
+    import string, which is what keeps reload and multi-worker modes working.
+    """
+    application = FastAPI(title="APTS MCP tools", lifespan=lifespan)
+    application.include_router(health_controller.router)
+    application.include_router(tool_controller.router)
+    return application
 
 
-# --------------------------------------------------------------------------- #
+app = create_app()
 
-@app.get("/health")
-def health() -> dict[str, str]:
-    return {"status": "ok"}
-
-
-@app.post("/tool/{tool_name}", response_model=ToolResult)
-async def call_tool(tool_name: str, req: ToolCall,
-                    caller: Caller = Depends(require_auth)) -> ToolResult:
-    if not caller.component.startswith("agent-"):
-        raise HTTPException(403, f"{caller.component!r} may not call MCP tools")
-
-    if req.tool != tool_name:
-        raise HTTPException(400, "tool in URL and body must match")
-
-    audit("mcp-tools", "tool_call_received",
-          engagement_id=str(req.engagement_id),
-          detail={"tool": tool_name, "by": caller.component})
-
-    # Guardrails MCP outbound checkpoint
-    try:
-        # ``allowed_hosts`` would normally come from the engagement's scope in
-        # the database; the skeleton passes None (allow-any) so the plumbing
-        # stays testable without a real target.  Replace this with a lookup
-        # in the ``engagements`` row when the engagement store settles.
-        check_tool_call(tool_name, req.args, allowed_hosts=None)
-    except GuardrailsMcpBlocked as exc:
-        log.warning("mcp guardrails BLOCK %s: %s", tool_name, exc)
-        audit("mcp-tools", "tool_call_blocked",
-              engagement_id=str(req.engagement_id),
-              detail={"tool": tool_name, "reason": str(exc)})
-        return ToolResult(tool=tool_name, ok=False, blocked_by_guardrails=True,
-                          reason=str(exc))
-
-    # Dispatch to the correct stub
-    if tool_name == "sandbox":
-        return await _tool_sandbox(req)
-    handler = _STUBS.get(tool_name)
-    if handler is None:
-        raise HTTPException(404, f"unknown tool {tool_name!r}")
-    output = handler(req.args)
-    return ToolResult(tool=tool_name, ok=True, output=output)
-
-
-# --------------------------------------------------------------------------- #
-# Tool stubs — every one of these gets replaced with a real integration later
-# --------------------------------------------------------------------------- #
-
-def _stub_scanner(args: dict[str, Any]) -> dict[str, Any]:
-    return {"findings": [{"target": args.get("url"), "hits": []}]}
-
-
-def _stub_http(args: dict[str, Any]) -> dict[str, Any]:
-    body = strip_injection(str(args.get("expected_body", "")))
-    return {"status_code": 200, "body": body}
-
-
-def _stub_cve(args: dict[str, Any]) -> dict[str, Any]:
-    return {"query": args.get("query"), "matches": []}
-
-
-def _stub_attack_kb(args: dict[str, Any]) -> dict[str, Any]:
-    return {"technique": args.get("technique"), "description": "(stub)"}
-
-
-def _stub_report(args: dict[str, Any]) -> dict[str, Any]:
-    return {"pdf_path": "/tmp/report.pdf", "json_path": "/tmp/report.json"}
-
-
-_STUBS = {
-    "scanner":   _stub_scanner,
-    "http":      _stub_http,
-    "cve":       _stub_cve,
-    "attack_kb": _stub_attack_kb,
-    "report":    _stub_report,
-}
-
-
-async def _tool_sandbox(req: ToolCall) -> ToolResult:
-    assert _client is not None
-    assert _OWN_TOKEN is not None
-    payload = SandboxExecRequest(engagement_id=req.engagement_id,
-                                 command=str(req.args.get("command", "")))
-    resp = await _client.post(
-        f"{SANDBOX_URL}/exec",
-        content=payload.model_dump_json(),
-        headers=bearer_headers(_OWN_TOKEN),
-    )
-    resp.raise_for_status()
-    sandbox_result = SandboxExecResult(**resp.json())
-    return ToolResult(
-        tool="sandbox", ok=sandbox_result.ok,
-        output={"exit_code": sandbox_result.exit_code,
-                "stdout":    sandbox_result.stdout,
-                "stderr":    sandbox_result.stderr},
-    )
-
-
-# --------------------------------------------------------------------------- #
 
 if __name__ == "__main__":
     uvicorn.run(
         "mcp_tools.main:app",
-        host="0.0.0.0", port=8443,
+        host=LISTEN_HOST, port=LISTEN_PORT,
         log_config=None,
         **uvicorn_ssl_kwargs(),
     )

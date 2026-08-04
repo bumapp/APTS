@@ -265,6 +265,17 @@ log at ~1 KB per event. Plan for 5–10 GB free.
   salted SHA-256 hashes stored in Postgres.
 * Component-restricted endpoints: `/progress` accepts only `agent-*`, the
   sandbox `/exec` accepts only `mcp-tools`, and so on.
+* Per-agent MCP tool allowlist (`mcp_tools/tool_policy.py`) — deny-by-default
+  in both directions, so Recon is structurally unable to reach the sandbox
+  executor and an unregistered tool is unreachable by anyone.
+* MCP scope enforcement: every network-touching tool call is checked against
+  the engagement's stored scope (host, `allow_paths`, `deny_paths`), including
+  URLs scraped out of sandbox command strings. Fails closed on an unknown
+  engagement, an unreachable DB, or a scope naming no domains.
+* Intake coherence: the entry checkpoint rejects a spec whose own target falls
+  outside its own scope, so an engagement cannot start only to be blocked on
+  Recon's first request. Entry and MCP share one matcher
+  (`shared/scope_match.py`) and are tested against each other for agreement.
 * Chain-of-agents handoff, DB writes, audit log, per-agent state tracking,
   three-retry logic that pulls the previous stage's output from the DB.
 * Critical / minor agent distinction from Characterization §2.2.4 —
@@ -278,8 +289,9 @@ log at ~1 KB per event. Plan for 5–10 GB free.
 * Each agent's `do_stub_work` returns a canned result of the right shape.
 * Entry Guardrails is a placeholder: allowlist + a hard-coded prompt
   injection regex, not the real `guardrails-ai` library.
-* MCP outbound Guardrails is similarly a placeholder: scope check + a
-  short destructive-command denylist.
+* MCP outbound Guardrails is *partly* real: scope enforcement is production
+  logic, but the destructive-action check is still a short regex denylist
+  rather than the `guardrails-ai` classifier.
 * MCP tool endpoints (`scanner`, `http`, `cve`, `attack_kb`, `report`)
   return canned data; only `sandbox` actually forwards to another container.
 * Sandbox `/exec` acknowledges the command but does not execute it.

@@ -1,0 +1,10 @@
+# Test-only dependencies.  Deliberately NOT installed into the runtime image —
+# the containers ship with requirements.txt alone.
+#
+#   pip install -r requirements.txt -r requirements-dev.txt
+#   python -m pytest
+
+-r requirements.txt
+
+pytest==8.3.4
+pytest-asyncio==0.25.0

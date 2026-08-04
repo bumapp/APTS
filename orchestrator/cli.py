@@ -84,8 +84,12 @@ def main(argv: list[str] | None = None) -> int:
 
     p_start = sub.add_parser("start", help="Start a new engagement")
     p_start.add_argument("--target", required=True, help="Target URL, e.g. https://example.com/")
-    p_start.add_argument("--domain", action="append", default=[],
-                         help="Domain in scope (repeatable), e.g. '*.example.com'")
+    # Required because the entry checkpoint rejects a domainless scope outright:
+    # without one, every agent tool call is blocked and the engagement dies on
+    # Recon's first request.  Failing here gives a better error than failing there.
+    p_start.add_argument("--domain", action="append", default=[], required=True,
+                         help="Domain in scope (repeatable), e.g. '*.example.com'. "
+                              "Must cover the --target host.")
     p_start.add_argument("--allow-path", action="append", default=[],
                          help="Allowed path prefix (repeatable)")
     p_start.add_argument("--deny-path", action="append", default=[],
