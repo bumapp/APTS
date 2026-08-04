@@ -29,6 +29,21 @@ x-service-base: &service-base
 x-config-mount: &config-mount
   - ./config:/etc/apts/config:ro
 
+# LLM provider settings, shared by all six agents.
+#
+# Non-secret only.  Values come from ./.env (see .env.example) with defaults
+# that work out of the box.  The API KEY is deliberately absent: it is a
+# file-mounted Docker secret like the DB password, so it never lands in an
+# environment variable and never shows up in `docker inspect`.
+x-llm-env: &llm-env
+  APTS_LLM_BASE_URL:         ${APTS_LLM_BASE_URL:-https://api.deepseek.com}
+  APTS_LLM_MODEL:            ${APTS_LLM_MODEL:-deepseek-v4-flash}
+  APTS_LLM_REASONING_EFFORT: ${APTS_LLM_REASONING_EFFORT:-none}
+  APTS_LLM_MAX_TOKENS:       ${APTS_LLM_MAX_TOKENS:-4000}
+  APTS_LLM_TIMEOUT:          ${APTS_LLM_TIMEOUT:-120}
+  # Set to 1 to run the whole pipeline with no model and no API key at all.
+  APTS_DISABLE_LLM:          ${APTS_DISABLE_LLM:-0}
+
 # Shared resource limits for the six working agents.
 x-agent-limits: &agent-limits
   deploy:
@@ -119,6 +134,7 @@ services:
       database: { condition: service_healthy }
     command: python -m agent.main
     environment:
+      <<: *llm-env
       AGENT_NAME: recon
     secrets:
       - source: agent_recon_token
@@ -142,6 +158,7 @@ services:
       database: { condition: service_healthy }
     command: python -m agent.main
     environment:
+      <<: *llm-env
       AGENT_NAME: vuln
     secrets:
       - source: agent_vuln_token
@@ -165,6 +182,7 @@ services:
       database: { condition: service_healthy }
     command: python -m agent.main
     environment:
+      <<: *llm-env
       AGENT_NAME: mitre
     secrets:
       - source: agent_mitre_token
@@ -188,6 +206,7 @@ services:
       database: { condition: service_healthy }
     command: python -m agent.main
     environment:
+      <<: *llm-env
       AGENT_NAME: exploit
     secrets:
       - source: agent_exploit_token
@@ -211,6 +230,7 @@ services:
       database: { condition: service_healthy }
     command: python -m agent.main
     environment:
+      <<: *llm-env
       AGENT_NAME: script
     secrets:
       - source: agent_script_token
@@ -234,6 +254,7 @@ services:
       database: { condition: service_healthy }
     command: python -m agent.main
     environment:
+      <<: *llm-env
       AGENT_NAME: adviser
     secrets:
       - source: agent_adviser_token
