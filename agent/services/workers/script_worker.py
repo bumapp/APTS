@@ -21,10 +21,10 @@ import logging
 import re
 from typing import Any
 
-from shared.llm import LlmClient, LlmError
+from shared.llm import LlmClient
 from shared.models import AttackPlaybook, AttackScript
 
-from agent.services.workers.base import WorkContext, WorkFailed
+from agent.services.workers.base import WorkContext, ask_for
 
 log = logging.getLogger("agent.workers.script")
 
@@ -114,16 +114,8 @@ class ScriptWorker:
                 f"  confirmed request: {attempt.get('payload', '')}\n"
                 f"  proving signal:    {attempt.get('detection', '')}")
 
-        try:
-            raw = await self._llm.complete_json(SYSTEM_PROMPT, "\n".join(lines))
-        except LlmError as exc:
-            raise WorkFailed(f"script generation failed: {exc}") from exc
-
-        scripts = raw.get("scripts")
-        if not isinstance(scripts, list):
-            raise WorkFailed(
-                f"model returned no 'scripts' list (got keys: {sorted(raw)})")
-        return scripts
+        return await ask_for(self._llm, SYSTEM_PROMPT, "\n".join(lines),
+                             key="scripts", what="script generation")
 
     @staticmethod
     def _review(proposed: list[dict], by_id: dict,

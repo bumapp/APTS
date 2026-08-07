@@ -30,7 +30,7 @@ sequenceDiagram
     participant E as EngagementService
     participant G as GuardrailsService
     participant T as Tool handler
-    participant L as AuditService
+    participant L as AuditLog
 
     Agent->>C: POST /tool/name + Bearer token
     Note over C: require_agent<br/>token verified, caller is agent-*
@@ -109,8 +109,8 @@ boundary too.
 | --------------- | -------------------------------------------------------------- | --------------------------------------------------------------- |
 | `controllers/`  | `tool_controller.py`, `dependencies.py` | Routing, authentication, status-code mapping. No business logic. |
 | `providers/`    | `tool_provider.py` | Orchestration. Composes services and owns the order they run in. |
-| `services/`     | `policy_service.py`, `guardrails_service.py`, `engagement_service.py`, `audit_service.py`, `tools/` | The individual decisions and units of work. |
-| `repositories/` | `engagement_repository.py`, `audit_repository.py` | Every SQL statement this container issues, in one folder. |
+| `services/`     | `policy_service.py`, `guardrails_service.py`, `engagement_service.py`, `tools/` | The individual decisions and units of work. |
+| `repositories/` | `engagement_repository.py` | Every SQL statement this container issues of its own. The audit-log `INSERT` is shared with every other component and lives in `shared/db.py`, reached through `shared.audit.AuditLog`. |
 | `utils/`        | `url.py`, `sanitise.py` | Pure helpers: URL extraction, host/path splitting, injection stripping. |
 
 Each layer calls only the one below it: controller → provider → service →

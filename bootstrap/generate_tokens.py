@@ -20,10 +20,17 @@ from __future__ import annotations
 
 import argparse
 import os
-import secrets
 import subprocess
 import sys
 from pathlib import Path
+
+# Runs from the repository root, on the host, outside any container — so the
+# package has to be put on the path explicitly. ``shared.tokens`` is
+# stdlib-only by design (see its docstring), which is what makes importing it
+# here possible without installing the service dependencies.
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+
+from shared.tokens import generate_token, hash_token          # noqa: E402
 
 COMPONENTS = [
     "orchestrator",
@@ -51,12 +58,11 @@ def _hash_and_upsert(component: str, token: str) -> None:
     """Salt+hash the token and UPSERT it into ``token_hashes`` via psql.
 
     Everything happens through the ``database`` container so we don't need
-    Postgres or Python-psycopg on the host.
+    Postgres or Python-psycopg on the host. The hashing itself comes from
+    ``shared.tokens`` — the same function the services verify against, so the
+    two cannot disagree about the scheme.
     """
-    # 16-byte salt + SHA-256(salt||token) — same scheme as shared/auth.py
-    from hashlib import sha256
-    salt = secrets.token_bytes(16)
-    digest = sha256(salt + token.encode()).digest()
+    salt, digest = hash_token(token)
 
     sql = f"""
         INSERT INTO token_hashes (component, salt, digest)
@@ -79,8 +85,7 @@ def _write_token_file(component: str, token: str) -> None:
 
 
 def _generate_one(component: str, *, print_only: bool) -> None:
-    random_part = secrets.token_hex(32)
-    token = f"apts_{component}_{random_part}"
+    token = generate_token(component)
     if print_only:
         print(f"{component}: {token}")
         return

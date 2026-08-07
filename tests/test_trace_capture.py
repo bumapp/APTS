@@ -241,10 +241,12 @@ class FakeResults:
 
 
 class FakeAudit:
+    """In-memory ``AuditSink``. The component is bound by the real one, not passed."""
+
     def __init__(self):
         self.events = []
 
-    def record(self, component, event_type, engagement_id=None, detail=None):
+    def record(self, event_type, engagement_id=None, detail=None):
         self.events.append(event_type)
 
 

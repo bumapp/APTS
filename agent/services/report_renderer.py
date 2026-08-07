@@ -23,12 +23,12 @@ def render_markdown(report: EngagementReport) -> str:
     summary = report.executive_summary
     out: list[str] = []
 
-    out.append(f"# Penetration Test Report")
+    out.append("# Penetration Test Report")
     out.append("")
     out.append(f"**Target:** `{report.target_url}`  ")
     out.append(f"**Engagement:** `{report.engagement_id}`  ")
     out.append(f"**Generated:** {report.generated_at:%Y-%m-%d %H:%M UTC}  ")
-    out.append(f"**Produced by:** APTS — autonomous pipeline, no human review")
+    out.append("**Produced by:** APTS — autonomous pipeline, no human review")
     out.append("")
 
     if not report.exploitation_confirmed:
@@ -42,8 +42,8 @@ def render_markdown(report: EngagementReport) -> str:
     out.append("")
     out.append(summary.narrative)
     out.append("")
-    out.append(f"| | |")
-    out.append(f"|---|---|")
+    out.append("| | |")
+    out.append("|---|---|")
     out.append(f"| Risk score | **{summary.risk_score}** / 10 |")
     out.append(f"| Findings | {summary.total_findings} |")
     out.append(f"| Confirmed exploitable | **{summary.confirmed_count}** |")

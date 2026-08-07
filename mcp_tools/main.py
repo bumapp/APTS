@@ -8,7 +8,7 @@ Layering — each layer calls only the one below it::
     controllers/   HTTP surface: routing, auth, status-code mapping
     providers/     orchestration: composes services into one operation
     services/      the decisions and units of work
-    repositories/  database: engagement scope reads, audit-log writes
+    repositories/  database: engagement scope reads
     utils/         pure helpers: URL parsing, response sanitisation
 
 A controller never reaches past its provider, and a provider never issues SQL.
@@ -16,9 +16,12 @@ The decision services (``policy_service``, ``guardrails_service``) touch no I/O
 at all, which is what makes the security rules testable without a database, an
 HTTP client, or a running app.
 
-``repositories/`` holds every SQL statement this container issues, so the
-component's full database footprint is reviewable against the access rules in
-PRD §3.2 by reading one folder.
+``repositories/`` holds every SQL statement this container issues *of its own*,
+so the component's database footprint is reviewable against the access rules in
+PRD §3.2 by reading one folder. The audit-log ``INSERT`` is the exception and
+always was: it lives in ``shared/db.py``, reached through
+:class:`shared.audit.AuditLog`, because every component writes the same row and
+two copies of that statement is one too many.
 
 Tools are exposed today as ``POST /tool/{name}``. When the MCP transport is
 mounted (the SDK's ``streamable_http_app()`` as a sub-app on this same server),
@@ -34,6 +37,7 @@ import uvicorn
 from fastapi import FastAPI
 
 from shared import logging_config
+from shared.audit import AuditLog
 from shared.auth import load_own_token
 from shared.tls import client_ssl_context, uvicorn_ssl_kwargs
 
@@ -45,7 +49,6 @@ from mcp_tools.config import (
 )
 from mcp_tools.controllers import health_controller, tool_controller
 from mcp_tools.providers.tool_provider import ToolProvider
-from mcp_tools.services.audit_service import AuditService
 from mcp_tools.services.engagement_service import EngagementService
 from mcp_tools.services.guardrails_service import GuardrailsService
 from mcp_tools.services.policy_service import PolicyService
@@ -92,10 +95,9 @@ async def lifespan(app: FastAPI):
         verify=client_ssl_context(),
         timeout=httpx.Timeout(HTTP_TIMEOUT_SECONDS, connect=HTTP_CONNECT_TIMEOUT_SECONDS),
     )
-    audit = AuditService(COMPONENT)
+    audit = AuditLog(COMPONENT)
     registry, target_client = build_registry(client, token)
 
-    app.state.http_client = client
     app.state.tool_provider = ToolProvider(
         policy=PolicyService(),
         guardrails=GuardrailsService(),

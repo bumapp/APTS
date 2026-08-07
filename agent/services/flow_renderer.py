@@ -159,7 +159,7 @@ def render_markdown(engagement_id: str, events: list[TraceEvent]) -> str:
             "",
             "_No trace events were recorded._ Either `APTS_TRACE_ENABLED=0` was "
             "set for this run, or the `agent_trace` table is missing — check "
-            "that `database/bootstrap/init_db.sql` has been applied.",
+            "that `bootstrap/init_db.sql` has been applied.",
             "",
         ]
         return "\n".join(out)

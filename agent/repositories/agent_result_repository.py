@@ -1,8 +1,12 @@
-"""Writes to ``agent_results`` and ``audit_log``.
+"""Reads and writes ``agent_results`` — one stage's artifact for one engagement.
 
 Upsert rather than insert on the result: a retried agent must overwrite its own
 previous attempt, not accumulate rows the orchestrator would then have to
 disambiguate. ``UNIQUE (engagement_id, agent)`` in the schema enforces that.
+
+Audit writes used to live here too, in an ``AuditRepository`` this file's name
+gave no hint of. They are now :class:`shared.audit.AuditLog`, shared with
+mcp-tools, which had an identical copy.
 """
 from __future__ import annotations
 
@@ -11,7 +15,7 @@ from uuid import UUID
 
 import psycopg
 
-from shared.db import audit, get_conn
+from shared.db import get_conn
 
 
 class AgentResultRepository:
@@ -45,13 +49,3 @@ class AgentResultRepository:
             )
             row = cur.fetchone()
         return row[0] if row else None
-
-
-class AuditRepository:
-    """Appends one row to the shared audit log."""
-
-    def record(self, component: str, event_type: str,
-               engagement_id: str | None = None,
-               detail: dict | None = None) -> None:
-        audit(component, event_type,
-              engagement_id=engagement_id, detail=detail or {})

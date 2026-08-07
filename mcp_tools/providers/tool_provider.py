@@ -26,7 +26,7 @@ import logging
 
 from shared.models import ToolCall, ToolResult
 
-from mcp_tools.services.audit_service import AuditSink
+from shared.audit import AuditSink
 from mcp_tools.services.engagement_service import ScopeSource, ScopeUnavailable
 from mcp_tools.services.guardrails_service import GuardrailsBlocked, GuardrailsService
 from mcp_tools.services.policy_service import PolicyService, ToolNotPermitted

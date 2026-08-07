@@ -32,10 +32,10 @@ from typing import Any
 
 from pydantic import ValidationError
 
-from shared.llm import LlmClient, LlmError
+from shared.llm import LlmClient
 from shared.models import AttackMap
 
-from agent.services.workers.base import WorkContext, WorkFailed
+from agent.services.workers.base import WorkContext, WorkFailed, ask_for
 
 log = logging.getLogger("agent.workers.mitre")
 
@@ -95,15 +95,9 @@ class MitreWorker:
         known_ids = {w.get("id") or w.get("weakness_id") for w in weaknesses}
         known_ids.discard(None)
 
-        try:
-            raw = await self._llm.complete_json(SYSTEM_PROMPT, _describe(weaknesses))
-        except LlmError as exc:
-            raise WorkFailed(f"ATT&CK mapping call failed: {exc}") from exc
-
-        mappings = raw.get("mappings")
-        if not isinstance(mappings, dict):
-            raise WorkFailed(
-                f"model returned no 'mappings' object (got keys: {sorted(raw)})")
+        mappings = await ask_for(
+            self._llm, SYSTEM_PROMPT, _describe(weaknesses),
+            key="mappings", expect=dict, what="ATT&CK mapping call")
 
         invented = sorted(set(mappings) - known_ids)
         if invented:

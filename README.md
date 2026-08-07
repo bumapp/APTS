@@ -219,7 +219,7 @@ nothing at all.
 > Apply it to a live volume with:
 >
 > ```bash
-> docker exec -i apts-database psql -U apts -d apts < database/bootstrap/init_db.sql
+> docker exec -i apts-database psql -U apts -d apts < bootstrap/init_db.sql
 > ```
 >
 > Every statement in that file is `CREATE ... IF NOT EXISTS`, so re-applying it is
@@ -290,8 +290,10 @@ log at ~1 KB per event. Plan for 5–10 GB free.
 │   └── generate_tokens.py   # raw tokens → tokens/, hashes → DB
 │
 ├── shared/                  # imported by every Python service
-│   ├── auth.py              # bearer-token parse / verify / require_*
-│   ├── db.py                # short-lived psycopg connections + audit()
+│   ├── tokens.py            # token format + hashing (stdlib only, so bootstrap can use it)
+│   ├── auth.py              # bearer-token verification + FastAPI dependency
+│   ├── db.py                # short-lived psycopg connections + the audit INSERT
+│   ├── audit.py             # audit trail bound to one component
 │   ├── trace.py             # execution trace: prompts, tool calls, stage I/O
 │   ├── tls.py               # server + client SSL contexts
 │   ├── logging_config.py
@@ -307,8 +309,8 @@ log at ~1 KB per event. Plan for 5–10 GB free.
 │   ├── controllers/         # POST /run, GET /health
 │   ├── providers/           # runs one pipeline stage end to end
 │   ├── services/workers/    # the actual work, one module per stage
-│   ├── services/            # + report_renderer, flow_renderer
-│   └── repositories/        # agent_results, audit_log, report + flow files
+│   ├── services/            # + report_renderer, flow_renderer, fault_injection
+│   └── repositories/        # agent_results, agent_trace, report + flow files
 │
 ├── mcp_tools/
 │   ├── main.py              # /tool/{scanner,http,cve,attack_kb,sandbox,report}

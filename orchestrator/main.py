@@ -24,12 +24,8 @@ Retry logic.
 """
 from __future__ import annotations
 
-import asyncio
 import logging
-import os
-import ssl
 from contextlib import asynccontextmanager
-from datetime import datetime
 from typing import Any
 from uuid import UUID, uuid4
 
@@ -37,7 +33,6 @@ import httpx
 import psycopg
 import uvicorn
 from fastapi import Depends, FastAPI, HTTPException
-from fastapi.responses import JSONResponse
 
 from shared import logging_config, pipeline, trace
 from shared.auth import Caller, bearer_headers, load_own_token, require_auth

@@ -140,10 +140,13 @@ async def test_invented_asset_is_dropped():
 async def test_asset_returning_404_is_dropped():
     mcp = FakeMcp(statuses={"/api/Users": 404})
     async with (llm := llm_proposing(candidate(asset="/api/Users"))):
-        result = await VulnWorker(llm, FakeMcp(statuses={"/api/Users": 404}))(ctx())
+        result = await VulnWorker(llm, mcp)(ctx())
 
     assert result["weaknesses"] == []
     assert result["candidates_dropped"] == 1
+    # The probe did happen — a 404 is the hallucination signal, and dropping the
+    # candidate without asking would pass this test for the wrong reason.
+    assert len(mcp.probed) == 1 and mcp.probed[0].endswith("/api/Users")
 
 
 async def test_unreachable_asset_is_dropped():

@@ -33,7 +33,7 @@ from shared.models import Scope                                       # noqa: E4
 from mcp_tools.controllers.dependencies import get_tool_provider      # noqa: E402
 from mcp_tools.main import create_app                                 # noqa: E402
 from mcp_tools.providers.tool_provider import ToolProvider            # noqa: E402
-from mcp_tools.services.audit_service import AuditService             # noqa: E402
+from shared.audit import AuditLog                                     # noqa: E402
 from mcp_tools.services.engagement_service import EngagementService   # noqa: E402
 from mcp_tools.services.guardrails_service import GuardrailsService   # noqa: E402
 from mcp_tools.services.policy_service import PolicyService           # noqa: E402
@@ -52,7 +52,9 @@ class FakeEngagementRepository:
         return SCOPE
 
 
-class RecordingAuditRepository:
+class RecordingAuditWriter:
+    """Stands in for ``shared.db.audit`` — same signature, no database."""
+
     def __init__(self):
         self.rows = []
 
@@ -76,7 +78,7 @@ async def fake_sandbox(args, ctx):
 
 
 def build(caller: str):
-    audit_repo = RecordingAuditRepository()
+    audit_writer = RecordingAuditWriter()
     registry = ToolRegistry()
     register_stub_tools(registry)
     registry.register("sandbox", fake_sandbox)
@@ -86,12 +88,12 @@ def build(caller: str):
         guardrails=GuardrailsService(),
         engagements=EngagementService(repository=FakeEngagementRepository()),
         registry=registry,
-        audit=AuditService("mcp-tools", repository=audit_repo),
+        audit=AuditLog("mcp-tools", writer=audit_writer.record),
     )
     app = create_app()
     app.dependency_overrides[require_auth] = lambda: Caller(component=caller)
     app.dependency_overrides[get_tool_provider] = lambda: provider
-    return TestClient(app), audit_repo
+    return TestClient(app), audit_writer
 
 
 def colour_for(status: int, blocked: bool) -> str:
@@ -123,7 +125,7 @@ def main() -> int:
     print(f"  {'─' * 15} {'─' * 10} {'─' * 8} {'─' * 45} {'─' * 26}")
 
     for caller, tool, args, label in CASES:
-        client, audit_repo = build(caller)
+        client, audit_writer = build(caller)
         response = client.post(
             f"/tool/{tool}",
             json={"engagement_id": str(ENGAGEMENT), "tool": tool, "args": args},
@@ -131,7 +133,7 @@ def main() -> int:
         body = response.json() if response.headers.get("content-type", "").startswith(
             "application/json") else {}
         blocked = bool(body.get("blocked_by_guardrails"))
-        trail = " → ".join(audit_repo.drain()) or "(none)"
+        trail = " → ".join(audit_writer.drain()) or "(none)"
         tone = colour_for(response.status_code, blocked)
         verdict = f"{response.status_code}{' blocked' if blocked else ''}"
 

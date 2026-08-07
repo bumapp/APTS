@@ -38,15 +38,14 @@ import time
 import traceback
 
 from shared import trace
+from shared.audit import AuditSink
 from shared.models import ChainHandoff
 from shared.pipeline import is_terminal, next_agent
 
-from agent.repositories.agent_result_repository import (
-    AgentResultRepository,
-    AuditRepository,
-)
+from agent.repositories.agent_result_repository import AgentResultRepository
 from agent.repositories.flow_repository import FlowRepository
 from agent.repositories.trace_repository import TraceRepository
+from agent.services.fault_injection import maybe_fail
 from agent.services.orchestrator_service import HandoffService, OrchestratorService
 from agent.services.workers.base import WorkContext, Worker
 
@@ -74,7 +73,7 @@ class RunProvider:
 
     def __init__(self, agent: str, worker: Worker,
                  orchestrator: OrchestratorService, handoff: HandoffService,
-                 results: AgentResultRepository, audit: AuditRepository,
+                 results: AgentResultRepository, audit: AuditSink,
                  traces: TraceRepository | None = None,
                  flows: FlowRepository | None = None,
                  failure_rate: float = 0.0) -> None:
@@ -102,7 +101,6 @@ class RunProvider:
             await self._orchestrator.report(engagement_id, "started", "beginning work")
             self._trace_input(handoff)
 
-            from agent.services.workers.stub_worker import maybe_fail
             await maybe_fail(self._failure_rate)
 
             result = await self._worker(WorkContext(
@@ -113,7 +111,7 @@ class RunProvider:
             ))
 
             self._results.save(engagement_id, self._agent, result)
-            self._audit.record(self._component, "result_written",
+            self._audit.record("result_written",
                                engagement_id=str(engagement_id))
             trace.record("stage_output",
                          {"artifact": result, "summary": _summarise(result)},
@@ -124,7 +122,7 @@ class RunProvider:
                 await self._handoff.push(
                     successor, engagement_id, handoff.target_url,
                     handoff.scope, handoff.time_window, result)
-                self._audit.record(self._component, "pushed_to_next",
+                self._audit.record("pushed_to_next",
                                    engagement_id=str(engagement_id),
                                    detail={"next": successor})
                 trace.record("handoff", {"next_agent": successor})
@@ -180,7 +178,7 @@ class RunProvider:
             events = self._traces.load(engagement_id)
             paths = self._flows.save(engagement_id, events)
             log.info("flow file: %d events → %s", len(events), ", ".join(paths))
-            self._audit.record(self._component, "flow_written",
+            self._audit.record("flow_written",
                                engagement_id=str(engagement_id),
                                detail={"paths": paths, "events": len(events)})
         except Exception as exc:

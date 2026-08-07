@@ -7,12 +7,27 @@ Layering — each layer calls only the one below it::
 
     controllers/   HTTP surface: routing, auth, status codes
     providers/     orchestration: composes one stage run
-    services/      units of work: the stage worker, progress, handoff
-    repositories/  database: agent_results and audit_log writes
+    services/      units of work: the stage workers, progress, handoff, renderers
+    repositories/  persistence: agent_results, agent_trace, report + flow files
 
-Only this module decides which concrete worker a given agent gets, and it is
-the one place that knows an LLM exists. Swapping a stub for a real model is a
-line in :func:`build_worker`.
+Two notes on where things sit, both of which have caught someone out:
+
+* **Audit writes are not in ``repositories/``.** They go through
+  :class:`shared.audit.AuditLog`, because mcp-tools needs the identical thing
+  and the ``INSERT`` has always lived in ``shared/db.py``. A per-package copy
+  bought a class name, not an encapsulation boundary.
+
+* **``repositories/`` is persistence, not "the database".** ``report_repository``
+  and ``flow_repository`` write files. The medium is not the point; the point is
+  that a worker should no more know a filesystem path than it knows SQL.
+
+The renderers are pure — model in, string out — but they live in ``services/``
+rather than a ``utils/`` package. mcp-tools reserves ``utils/`` for small
+primitives (URL parsing, sanitisation); a 300-line document renderer is a unit
+of work that happens to have no I/O, not a helper.
+
+Only this module decides which concrete worker a given agent gets, and it is the
+one place that knows an LLM exists.
 """
 from __future__ import annotations
 
@@ -24,6 +39,7 @@ import uvicorn
 from fastapi import FastAPI
 
 from shared import logging_config
+from shared.audit import AuditLog
 from shared.auth import load_own_token
 from shared.llm import LlmClient
 from shared.tls import client_ssl_context, uvicorn_ssl_kwargs
@@ -40,10 +56,7 @@ from agent.config import (
 )
 from agent.controllers import run_controller
 from agent.providers.run_provider import RunProvider
-from agent.repositories.agent_result_repository import (
-    AgentResultRepository,
-    AuditRepository,
-)
+from agent.repositories.agent_result_repository import AgentResultRepository
 from agent.repositories.flow_repository import FlowRepository
 from agent.repositories.trace_repository import TraceRepository
 from agent.services.mcp_service import McpService
@@ -56,14 +69,15 @@ from agent.services.workers.exploit_worker import ExploitWorker
 from agent.services.workers.recon_worker import ReconWorker
 from agent.services.workers.script_worker import ScriptWorker
 from agent.services.workers.vuln_worker import VulnWorker
-from agent.services.workers.stub_worker import StubWorker
 
 logging_config.configure(COMPONENT)
 log = logging.getLogger(COMPONENT)
 
-# Stages backed by a real model. Everything absent from this set and from
-# TOOL_BACKED still runs the canned StubWorker, so the pipeline stays runnable
-# while stages are migrated one at a time.
+# Stages backed by a real model. Together with TOOL_BACKED this must cover every
+# stage in ``shared.pipeline.CHAIN``; :func:`build_worker` raises if it does not.
+# There is no longer a canned-stub fallback — all six stages are implemented, and
+# a silent stub standing in for a missing worker would report a stage as "done"
+# having produced a fabricated artifact.
 LLM_BACKED = {"vuln", "mitre", "exploit", "script", "adviser"}
 
 # Stages that do real work through MCP tools but need no model. Recon belongs
@@ -87,7 +101,9 @@ def build_worker(mcp: McpService, results: AgentResultRepository,
         raise RuntimeError(f"{AGENT_NAME!r} is marked tool-backed but has no worker")
 
     if AGENT_NAME not in LLM_BACKED:
-        return StubWorker(AGENT_NAME)
+        raise RuntimeError(
+            f"{AGENT_NAME!r} is in the pipeline but is neither tool-backed nor "
+            f"LLM-backed; it has no worker")
 
     llm = LlmClient(AGENT_NAME)
     exit_stack.append(llm)
@@ -115,7 +131,7 @@ async def lifespan(app: FastAPI):
         verify=client_ssl_context(),
         timeout=httpx.Timeout(HTTP_TIMEOUT_SECONDS, connect=HTTP_CONNECT_TIMEOUT_SECONDS),
     )
-    audit = AuditRepository()
+    audit = AuditLog(COMPONENT)
 
     mcp = McpService(client, token)
     results = AgentResultRepository()
@@ -124,7 +140,6 @@ async def lifespan(app: FastAPI):
     for resource in opened:
         await resource.__aenter__()
 
-    app.state.http_client = client
     app.state.run_provider = RunProvider(
         agent=AGENT_NAME,
         worker=worker,
@@ -141,14 +156,14 @@ async def lifespan(app: FastAPI):
     )
 
     log.info("agent %s ready (worker=%s)", AGENT_NAME, type(worker).__name__)
-    audit.record(COMPONENT, "startup")
+    audit.record("startup")
     try:
         yield
     finally:
         for resource in reversed(opened):
             await resource.__aexit__(None, None, None)
         await client.aclose()
-        audit.record(COMPONENT, "shutdown")
+        audit.record("shutdown")
 
 
 def create_app() -> FastAPI:

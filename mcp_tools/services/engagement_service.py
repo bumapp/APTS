@@ -61,9 +61,6 @@ class EngagementService:
         self._remember(key, scope)
         return scope
 
-    def clear_cache(self) -> None:
-        self._cache.clear()
-
     def _remember(self, key: str, scope: Scope) -> None:
         if self._cache_size == 0:
             return

@@ -29,7 +29,7 @@ from mcp_tools.controllers.dependencies import get_tool_provider
 from mcp_tools.main import create_app
 from mcp_tools.providers.tool_provider import ToolProvider
 from mcp_tools.repositories.engagement_repository import ScopeUnavailable
-from mcp_tools.services.audit_service import AuditService
+from shared.audit import AuditLog
 from mcp_tools.services.engagement_service import EngagementService
 from mcp_tools.services.guardrails_service import GuardrailsService
 from mcp_tools.services.policy_service import PolicyService
@@ -55,7 +55,9 @@ class FakeEngagementRepository:
         return self._scope
 
 
-class FakeAuditRepository:
+class FakeAuditWriter:
+    """Stands in for ``shared.db.audit`` — same signature, no database."""
+
     def __init__(self) -> None:
         self.rows: list[tuple[str, str]] = []
 
@@ -86,7 +88,7 @@ class Rig:
 
     def __init__(self, caller: str = "agent-recon", scope: Scope | None = SCOPE) -> None:
         self.engagements_repo = FakeEngagementRepository(scope)
-        self.audit_repo = FakeAuditRepository()
+        self.audit = FakeAuditWriter()
         self.scanner, self.sandbox = SpyTool(), SpyTool()
 
         registry = ToolRegistry()
@@ -98,7 +100,7 @@ class Rig:
             guardrails=GuardrailsService(),
             engagements=EngagementService(repository=self.engagements_repo),
             registry=registry,
-            audit=AuditService("mcp-tools", repository=self.audit_repo),
+            audit=AuditLog("mcp-tools", writer=self.audit.record),
         )
 
         self.app = create_app()
@@ -150,7 +152,7 @@ def test_in_scope_call_runs_and_is_recorded(rig):
     assert r.json() == {"tool": "scanner", "ok": True, "output": {"ran": True},
                         "blocked_by_guardrails": False, "reason": None}
     assert rig.scanner.ran
-    assert rig.audit_repo.events == ["tool_call_received", "tool_call_completed"]
+    assert rig.audit.events == ["tool_call_received", "tool_call_completed"]
 
 
 def test_scope_is_read_once_then_cached(rig):
@@ -184,7 +186,7 @@ def test_tool_outside_allowlist_is_403(rig):
 
     assert r.status_code == 403
     assert not rig.sandbox.ran
-    assert "tool_call_denied" in rig.audit_repo.events
+    assert "tool_call_denied" in rig.audit.events
 
 
 def test_out_of_scope_host_is_200_but_blocked(rig):
@@ -195,7 +197,7 @@ def test_out_of_scope_host_is_200_but_blocked(rig):
     assert body["blocked_by_guardrails"] is True and body["ok"] is False
     assert "outside the approved scope" in body["reason"]
     assert not rig.scanner.ran
-    assert "tool_call_blocked" in rig.audit_repo.events
+    assert "tool_call_blocked" in rig.audit.events
 
 
 def test_denied_path_is_blocked(rig):

@@ -38,11 +38,11 @@ from pydantic import ValidationError
 
 from shared.cvss import CvssError, base_score, severity_label
 from shared.cvss_reference import clamp
-from shared.llm import LlmClient, LlmError
+from shared.llm import LlmClient
 from shared.models import Evidence, VulnerabilityRegister, Weakness
 
 from agent.services.mcp_service import McpService, ToolCallFailed
-from agent.services.workers.base import WorkContext, WorkFailed
+from agent.services.workers.base import WorkContext, ask_for
 
 log = logging.getLogger("agent.workers.vuln")
 
@@ -150,16 +150,9 @@ class VulnWorker:
         return assets
 
     async def _propose(self, asset_map: dict[str, Any]) -> list[dict]:
-        try:
-            raw = await self._llm.complete_json(
-                SYSTEM_PROMPT, _summarise_assets(asset_map))
-        except LlmError as exc:
-            raise WorkFailed(f"assessment call failed: {exc}") from exc
-
-        candidates = raw.get("candidates")
-        if not isinstance(candidates, list):
-            raise WorkFailed(
-                f"model returned no 'candidates' list (got keys: {sorted(raw)})")
+        candidates = await ask_for(
+            self._llm, SYSTEM_PROMPT, _summarise_assets(asset_map),
+            key="candidates", what="assessment call")
         return candidates[:MAX_CANDIDATES]
 
     async def _verify(self, candidates: list[dict], known: set[str],

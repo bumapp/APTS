@@ -36,5 +36,3 @@ class ToolRegistry:
     def has(self, name: str) -> bool:
         return name in self._handlers
 
-    def names(self) -> list[str]:
-        return sorted(self._handlers)

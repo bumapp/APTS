@@ -10,7 +10,12 @@
 # ---------------------------------------------------------------------------
 # Prerequisites (relative to the directory this file lives in)
 # ---------------------------------------------------------------------------
-#   * ./init_db.sql         — schema init script
+#   * ./bootstrap/init_db.sql         — schema init script
+#
+# There is deliberately no second copy of the schema in this directory. Copy
+# the repository's canonical ``bootstrap/`` into the deployment archive; a
+# snapshot kept here would drift from it, and the schema silently missing a
+# table is the exact failure that produces.
 #   * ./certs/database.crt            — TLS certificate (mode 644, UID 999)
 #   * ./certs/database.key            — TLS private key (mode 600, UID 999)
 #   * ./certs/trust-bundle.pem        — combined trust store (mode 644)
@@ -52,7 +57,7 @@ services:
       POSTGRES_PASSWORD_FILE: /run/secrets/db_password
     volumes:
       - db_data:/var/lib/postgresql/data
-      - ./init_db.sql:/docker-entrypoint-initdb.d/00-init.sql:ro
+      - ./bootstrap/init_db.sql:/docker-entrypoint-initdb.d/00-init.sql:ro
       - ./certs/database.crt:/var/lib/postgresql/server.crt:ro
       - ./certs/database.key:/var/lib/postgresql/server.key:ro
       - ./certs/trust-bundle.pem:/var/lib/postgresql/trust-bundle.pem:ro
