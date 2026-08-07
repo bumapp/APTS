@@ -13,12 +13,14 @@ recon behaviour, not a failure. Only transport faults and refusals raise.
 from __future__ import annotations
 
 import logging
+import time
 from dataclasses import dataclass
 from typing import Any
 from uuid import UUID
 
 import httpx
 
+from shared import trace
 from shared.auth import bearer_headers
 from shared.models import ToolCall
 
@@ -48,6 +50,28 @@ class McpService:
 
     async def call(self, tool: str, engagement_id: UUID,
                    **args: Any) -> ToolOutcome:
+        """Invoke ``tool`` and record the exchange in the execution trace.
+
+        mcp-tools already audits that the call happened and what Guardrails
+        decided; what it does not keep is the arguments and the response body.
+        Those are recorded here, on the agent side, where the call is already
+        attributed to a stage — the same request seen from mcp-tools is
+        attributed to a bearer token instead, and reconstructing which stage
+        made it would mean joining two logs on a timestamp.
+        """
+        started = time.perf_counter()
+        try:
+            outcome = await self._call(tool, engagement_id, args)
+        except ToolCallFailed as exc:
+            self._trace(tool, args, started, error=str(exc))
+            raise
+        self._trace(tool, args, started, outcome=outcome)
+        return outcome
+
+    # ----------------------------------------------------------------- #
+
+    async def _call(self, tool: str, engagement_id: UUID,
+                    args: dict[str, Any]) -> ToolOutcome:
         payload = ToolCall(engagement_id=engagement_id, tool=tool, args=args)
         try:
             response = await self._client.post(
@@ -75,3 +99,19 @@ class McpService:
             return ToolOutcome(ok=False, output={}, blocked=True, reason=reason)
 
         return ToolOutcome(ok=bool(body.get("ok")), output=body.get("output") or {})
+
+    @staticmethod
+    def _trace(tool: str, args: dict[str, Any], started: float,
+               outcome: ToolOutcome | None = None, error: str = "") -> None:
+        event: dict[str, Any] = {"tool": tool, "args": args}
+        if error:
+            event["error"] = error
+        elif outcome is not None:
+            event["ok"] = outcome.ok
+            event["blocked"] = outcome.blocked
+            if outcome.blocked:
+                event["reason"] = outcome.reason
+            else:
+                event["output"] = outcome.output
+        trace.record("tool_call", event,
+                     duration_ms=int((time.perf_counter() - started) * 1000))

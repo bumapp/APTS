@@ -44,6 +44,8 @@ from agent.repositories.agent_result_repository import (
     AgentResultRepository,
     AuditRepository,
 )
+from agent.repositories.flow_repository import FlowRepository
+from agent.repositories.trace_repository import TraceRepository
 from agent.services.mcp_service import McpService
 from agent.services.orchestrator_service import HandoffService, OrchestratorService
 from agent.services.workers.base import Worker
@@ -130,6 +132,11 @@ async def lifespan(app: FastAPI):
         handoff=HandoffService(client, token, AGENT_NAME),
         results=results,
         audit=audit,
+        # Only the terminal stage reads the trace back and writes the flow file,
+        # but every agent is wired the same way — which stage is terminal is
+        # shared.pipeline's decision, not this composition root's.
+        traces=TraceRepository(),
+        flows=FlowRepository(),
         failure_rate=stub_failure_rate(),
     )
 

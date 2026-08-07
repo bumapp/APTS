@@ -98,7 +98,9 @@ docker compose logs -f database   # wait for "database system is ready to accept
 ```
 
 The schema in `bootstrap/init_db.sql` is loaded automatically on first
-start (via the Postgres image's `docker-entrypoint-initdb.d` hook).
+start (via the Postgres image's `docker-entrypoint-initdb.d` hook). That hook
+runs *only* against an empty data directory — if the `db_data` volume already
+exists, apply schema changes by hand (see §9a).
 
 ### 5. Generate tokens and seed hashes
 
@@ -167,6 +169,62 @@ docker exec -it apts-database psql -U apts -d apts \
 You should see one `agent_results` row per agent and a dense audit trail
 covering every kickoff, handoff, and progress update.
 
+### 9a. Read the execution flow
+
+Every engagement writes a **flow file** next to its report — the whole run from
+the request to the generated report, including each stage's input and output,
+every LLM prompt and raw reply, and every tool call's arguments and response:
+
+```bash
+ls reports/
+# report-<id>.json   report-<id>.md    ← the deliverable
+# flow-<id>.json     flow-<id>.md      ← how it was produced
+```
+
+`flow-<id>.md` opens with a timeline and a per-agent token-spend table, then a
+section per stage with the prompts and payloads in collapsible blocks. The JSON
+form is the raw event list, so anything the renderer omits is still recoverable.
+
+The same data is queryable in `agent_trace`:
+
+```bash
+# What did each stage do, in order?
+docker exec -it apts-database psql -U apts -d apts \
+    -c "SELECT agent, seq, event_type, duration_ms FROM agent_trace
+        WHERE engagement_id = '6b4c...' ORDER BY id;"
+
+# What exactly did we ask the model, and what came back?
+docker exec -it apts-database psql -U apts -d apts \
+    -c "SELECT agent, payload->>'system_prompt', payload->>'raw_response'
+        FROM agent_trace WHERE event_type = 'llm_call'
+          AND engagement_id = '6b4c...' ORDER BY id;"
+
+# Which tool calls did Guardrails block, and why?
+docker exec -it apts-database psql -U apts -d apts \
+    -c "SELECT agent, payload->>'tool', payload->>'reason' FROM agent_trace
+        WHERE event_type = 'tool_call' AND payload->>'blocked' = 'true';"
+```
+
+`agent_trace` is deliberately separate from `audit_log`: that table is the
+security trail (§8) and is small, uniform, and worth keeping forever, while this
+one carries prompts and response bodies and exists to answer "why did the report
+say that?". Fields are capped — 8 KB per string, 200 items per list — and each
+truncated value states its original size. Set `APTS_TRACE_ENABLED=0` to record
+nothing at all.
+
+> **Upgrading an existing database.** `init_db.sql` is mounted into
+> `/docker-entrypoint-initdb.d/`, which Postgres runs **only when initialising an
+> empty data directory**. A stack that has already run engagements therefore will
+> not have `agent_trace`, and the flow file will say so instead of appearing.
+> Apply it to a live volume with:
+>
+> ```bash
+> docker exec -i apts-database psql -U apts -d apts < database/bootstrap/init_db.sql
+> ```
+>
+> Every statement in that file is `CREATE ... IF NOT EXISTS`, so re-applying it is
+> safe and touches nothing that already exists.
+
 ### 10. Test the retry path
 
 ```bash
@@ -225,7 +283,8 @@ log at ~1 KB per event. Plan for 5–10 GB free.
 │
 ├── bootstrap/
 │   ├── init_db.sql          # schema: engagements, agent_results, audit_log,
-│   │                        #         token_hashes, engagement_state
+│   │                        #         agent_trace, token_hashes,
+│   │                        #         engagement_state
 │   ├── generate_password.sh # idempotent DB password → tokens/db_password.txt
 │   ├── generate_certs.sh    # self-signed cert per component + trust bundle
 │   └── generate_tokens.py   # raw tokens → tokens/, hashes → DB
@@ -233,6 +292,7 @@ log at ~1 KB per event. Plan for 5–10 GB free.
 ├── shared/                  # imported by every Python service
 │   ├── auth.py              # bearer-token parse / verify / require_*
 │   ├── db.py                # short-lived psycopg connections + audit()
+│   ├── trace.py             # execution trace: prompts, tool calls, stage I/O
 │   ├── tls.py               # server + client SSL contexts
 │   ├── logging_config.py
 │   └── models.py            # Pydantic wire types (ChainHandoff, ProgressUpdate, ...)
@@ -247,7 +307,8 @@ log at ~1 KB per event. Plan for 5–10 GB free.
 │   ├── controllers/         # POST /run, GET /health
 │   ├── providers/           # runs one pipeline stage end to end
 │   ├── services/workers/    # the actual work, one module per stage
-│   └── repositories/        # agent_results + audit_log writes
+│   ├── services/            # + report_renderer, flow_renderer
+│   └── repositories/        # agent_results, audit_log, report + flow files
 │
 ├── mcp_tools/
 │   ├── main.py              # /tool/{scanner,http,cve,attack_kb,sandbox,report}

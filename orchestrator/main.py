@@ -39,7 +39,7 @@ import uvicorn
 from fastapi import Depends, FastAPI, HTTPException
 from fastapi.responses import JSONResponse
 
-from shared import logging_config, pipeline
+from shared import logging_config, pipeline, trace
 from shared.auth import Caller, bearer_headers, load_own_token, require_auth
 from shared.db import audit, get_conn
 from shared.models import (
@@ -166,6 +166,17 @@ async def admin_start(spec: EngagementSpec) -> StartEngagementResponse:
     audit("orchestrator", "engagement_created",
           engagement_id=str(engagement_id), detail={"target_url": spec.target_url})
 
+    # The first row of the flow file: the request, exactly as accepted. Recorded
+    # after the engagement row exists, because agent_trace has a foreign key to
+    # it. A spec rejected at the entry checkpoint never gets an engagement ID and
+    # so has no trace — that rejection lives in audit_log alone.
+    trace.record_for(engagement_id, "orchestrator", "engagement_requested", {
+        "target_url": spec.target_url,
+        "scope": spec.scope.model_dump(mode="json"),
+        "time_window": spec.time_window.model_dump(mode="json") if spec.time_window else {},
+        "chain": CHAIN,
+    })
+
     handoff = ChainHandoff(
         engagement_id=engagement_id,
         from_component="orchestrator",
@@ -229,6 +240,7 @@ def _mark_engagement_complete(engagement_id: UUID) -> None:
         )
     log.info("engagement %s complete", engagement_id)
     audit("orchestrator", "engagement_complete", engagement_id=str(engagement_id))
+    trace.record_for(engagement_id, "orchestrator", "engagement_complete")
 
 
 def _read_status(engagement_id: UUID) -> EngagementStatus:
@@ -299,6 +311,10 @@ async def _handle_agent_failure(update: ProgressUpdate) -> None:
     audit("orchestrator", "retry_launched",
           engagement_id=str(update.engagement_id),
           detail={"agent": agent, "attempt": retry_count})
+    trace.record_for(update.engagement_id, "orchestrator", "retry_launched",
+                     {"agent": agent, "attempt": retry_count,
+                      "reason": update.message,
+                      "replayed_from": prev_agent or "(engagement spec)"})
     await _kickoff_agent(agent, handoff)
 
 
@@ -340,6 +356,8 @@ def _mark_engagement_failed(engagement_id: UUID, reason: str) -> None:
     log.error("engagement %s failed: %s", engagement_id, reason)
     audit("orchestrator", "engagement_failed",
           engagement_id=str(engagement_id), detail={"reason": reason})
+    trace.record_for(engagement_id, "orchestrator", "engagement_failed",
+                     {"reason": reason})
 
 
 # --------------------------------------------------------------------------- #
@@ -357,11 +375,15 @@ async def _kickoff_agent(agent: str, handoff: ChainHandoff) -> None:
             headers=bearer_headers(_OWN_TOKEN),
         )
         resp.raise_for_status()
+        trace.record_for(handoff.engagement_id, "orchestrator", "kickoff",
+                         {"agent": agent, "url": url})
     except Exception as exc:
         log.error("failed to kick off %s: %s", agent, exc)
         audit("orchestrator", "kickoff_failed",
               engagement_id=str(handoff.engagement_id),
               detail={"agent": agent, "error": str(exc)})
+        trace.record_for(handoff.engagement_id, "orchestrator", "kickoff_failed",
+                         {"agent": agent, "url": url, "error": str(exc)})
         # We don't retry the kickoff itself here; the failure will surface when
         # the agent's status stays 'pending'.  Stall detection is a TODO.
         raise

@@ -147,6 +147,39 @@ From an actual run against Juice Shop:
 The report says all of that plainly. It does **not** say "13 issues found" and
 leave you to assume they're real.
 
+### Seeing how it got there
+
+The report is the *claim*. Alongside it, every run writes a **flow file** —
+the record of how the claim was reached:
+
+```
+reports/report-<id>.md    what we found
+reports/flow-<id>.md      how we found it
+```
+
+Open the flow file and you get, in order:
+
+1. **A timeline.** Every step from the request arriving to the report being
+   written, with how long each took. One line each.
+2. **A cost table.** Tokens spent per agent, with hidden "thinking" tokens
+   listed separately so an expensive agent can't look cheap.
+3. **A section per agent.** What it was handed, every question it asked the AI
+   and the exact answer that came back, every tool call with its arguments and
+   the response, and what it produced.
+
+This is the thing to open when the report says something surprising. If a
+finding looks wrong, the flow file shows you the prompt that produced it and the
+HTTP response that was used as evidence. If the two disagree with the report,
+the flow file is the one telling the truth.
+
+It also answers the question a demo always gets asked — *"how do you know the AI
+didn't just make that up?"* — by showing the actual exchange rather than
+describing the safeguards.
+
+The same data lives in the `agent_trace` database table if you'd rather query
+it. Prompts and response bodies are capped at 8 KB each, and anything cut says
+so along with its original size — a shortened prompt never pretends to be whole.
+
 ---
 
 ## 5. Where the code lives
@@ -174,6 +207,8 @@ Where the important bits are:
 | Change who can use which tool | `mcp_tools/services/policy_service.py` |
 | Change the safety rules | `mcp_tools/services/guardrails_service.py` |
 | Change how the report looks | `agent/services/report_renderer.py` |
+| Change how the flow file looks | `agent/services/flow_renderer.py` |
+| Change what gets traced | `shared/trace.py` |
 | Change severity maths | `shared/cvss.py` |
 
 ---
@@ -225,7 +260,7 @@ docker exec apts-agent-recon python -c "import httpx;httpx.get('http://juice-sho
 
 ## 7. Running the tests
 
-189 tests, no network or database needed:
+250 tests, no network or database needed:
 
 ```bash
 docker build -t apts-skeleton:latest .
@@ -272,6 +307,7 @@ Be honest about this in any demo:
 | **Artifact** | The typed result one agent hands to the next |
 | **MCP** | The container holding every tool agents can use |
 | **Guardrails** | The safety checks that block unsafe requests |
+| **Flow file** | The record of how a report was produced, written beside it |
 | **CVSS** | Industry-standard 0–10 severity score |
 | **ATT&CK** | Industry-standard catalogue of attacker techniques |
 | **Juice Shop** | A deliberately broken practice website |

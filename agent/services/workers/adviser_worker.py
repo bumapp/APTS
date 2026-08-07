@@ -29,6 +29,7 @@ from __future__ import annotations
 import logging
 from typing import Any
 
+from shared import trace
 from shared.cvss import severity_label
 from shared.llm import LlmClient, LlmError
 from shared.models import (
@@ -99,6 +100,12 @@ class AdviserWorker:
         log.info("report: %d findings (%d confirmed) → %s",
                  len(findings), report.executive_summary.confirmed_count,
                  ", ".join(paths))
+        trace.record("report_written", {
+            "paths": paths,
+            "findings": len(findings),
+            "confirmed": report.executive_summary.confirmed_count,
+            "risk_score": report.executive_summary.risk_score,
+        })
 
         payload = report.model_dump(mode="json")
         payload["report_files"] = paths

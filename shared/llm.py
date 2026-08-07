@@ -35,10 +35,13 @@ from __future__ import annotations
 import json
 import logging
 import os
+import time
 from dataclasses import dataclass
 from typing import Any
 
 import httpx
+
+from shared import trace
 
 log = logging.getLogger("shared.llm")
 
@@ -165,8 +168,18 @@ class LlmClient:
 
         last_error: str = ""
         for attempt in range(retries + 1):
-            content, usage = await self._post(payload)
+            started = time.perf_counter()
+            try:
+                content, usage = await self._post(payload)
+            except LlmError as exc:
+                # Record the failed call before re-raising. A stage that failed
+                # because the model was unreachable is exactly the case where
+                # the trace needs to show the attempt was made.
+                self._trace(system, user, "", Usage(), attempt, started,
+                            error=str(exc))
+                raise
             self._log_usage(usage, attempt)
+            self._trace(system, user, content, usage, attempt, started)
 
             if not content.strip():
                 # Almost always the thinking-mode budget exhaustion described in
@@ -234,4 +247,36 @@ class LlmClient:
             self._agent, self._model, attempt + 1,
             usage.prompt_tokens, usage.cached_tokens,
             usage.completion_tokens, usage.reasoning_tokens,
+        )
+
+    def _trace(self, system: str, user: str, content: str, usage: Usage,
+               attempt: int, started: float, error: str = "") -> None:
+        """Write the call to the execution trace.
+
+        Records the *raw* content, not the parsed object. When a stage fails on
+        malformed output, the parsed object is the thing that does not exist —
+        the raw string is the evidence. The parsed result is visible anyway as
+        the next stage's ``stage_input``.
+
+        No-op outside a stage run (see :mod:`shared.trace`), so this costs a
+        context lookup in tests and in any non-engagement code path.
+        """
+        trace.record(
+            "llm_call",
+            {
+                "model": self._model,
+                "attempt": attempt + 1,
+                "system_prompt": system,
+                "user_prompt": user,
+                "raw_response": content,
+                "reasoning_effort": REASONING_EFFORT,
+                "usage": {
+                    "prompt_tokens": usage.prompt_tokens,
+                    "completion_tokens": usage.completion_tokens,
+                    "reasoning_tokens": usage.reasoning_tokens,
+                    "cached_tokens": usage.cached_tokens,
+                },
+                **({"error": error} if error else {}),
+            },
+            duration_ms=int((time.perf_counter() - started) * 1000),
         )
