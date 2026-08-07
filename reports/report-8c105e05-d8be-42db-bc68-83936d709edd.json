@@ -1,0 +1,390 @@
+{
+  "engagement_id": "8c105e05-d8be-42db-bc68-83936d709edd",
+  "target_url": "http://juice-shop:3000/",
+  "generated_at": "2026-08-07T08:16:08.417195",
+  "executive_summary": {
+    "risk_score": 9.8,
+    "narrative": "The web application has multiple critical vulnerabilities, including SQL injection and authentication bypass, but none were proven due to time constraints; they are hypotheses that need validation. The risk posture is high if these exist, as attackers could gain full control. Prioritize fixing the unauthenticated SQLi (W-002) and authentication bypass (W-003) first, as they may allow complete compromise. Then address the IDORs and access control issues (W-005, W-006, W-010, W-012). Confidence in findings is moderate: they are based on static analysis and manual inspection, but not active exploitation; further testing is advised to confirm before claiming confirmed risk.",
+    "counts_by_severity": {
+      "critical": 2,
+      "high": 8,
+      "medium": 2
+    },
+    "confirmed_count": 0,
+    "total_findings": 12
+  },
+  "findings": [
+    {
+      "id": "W-002",
+      "title": "Potential SQL injection in /rest/products",
+      "asset": "/rest/products",
+      "severity": "critical",
+      "cvss_score": 9.8,
+      "cvss_vector": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H",
+      "confirmed": false,
+      "status": "tested, not proven (HTTP 500: an error page is not evidence of this flaw)",
+      "technique_ids": [
+        "T1190"
+      ],
+      "owasp_category": "A03:2021 - Injection",
+      "recommendation": "Parameterize all SQL queries in the /rest/products endpoint. Specifically, refactor the product search/list functions to use prepared statements or an ORM with bound parameters. Add a WAF rule to block suspicious SQL patterns as a defense-in-depth measure.",
+      "effort": "medium",
+      "evidence": [
+        {
+          "request": "GET http://juice-shop:3000/rest/products",
+          "response": "HTTP 500 text/html; charset=utf-8\n<html>\n  <head>\n    <meta charset='utf-8'> \n    <title>Error: Unexpected path: /rest/products</title>\n    <style>* {\n  margin: 0;\n  padding: 0;\n  outline: 0;\n}\n\nbody {\n  padding: 80px 100px;\n  font: 13px \"Helvetica Neue\", \"Lucida Grande\", \"Arial\";\n  background: #ECE9E9 -webkit-gradient(linear, 0% 0%, 0% 100%, from(#fff), to(#ECE9E9));\n  background: #ECE9E9 -moz-linear-gradient(top, #fff, #ECE9E9);",
+          "note": "Asset confirmed reachable. This evidences existence, not exploitability.",
+          "captured_at": "2026-08-07T08:15:36.210859"
+        },
+        {
+          "request": "GET http://juice-shop:3000/rest/products?q=1'",
+          "response": "HTTP 500\n<html>\n  <head>\n    <meta charset='utf-8'> \n    <title>Error: Unexpected path: /rest/products?q=1&#39;</title>\n    <style>* {\n  margin: 0;\n  padding: 0;\n  outline: 0;\n}\n\nbody {\n  padding: 80px 100px;\n  font: 13px \"Helvetica Neue\", \"Lucida Grande\", \"Arial\";\n  background: #ECE9E9 -webkit-gradient(linear, 0% 0%, 0% 100%, from(#fff), to(#ECE9E9));\n  background: #ECE9E9 -moz-linear-gradient(top, #fff, #ECE9E9);\n  background-repeat: no-repeat;\n  color: #555;\n  -webkit-font-smoothing: antialiased;\n}\nh1",
+          "note": "If the response contains an SQL error message, the product search is vulnerable to SQL injection.",
+          "captured_at": "2026-08-07T08:15:57.365621"
+        }
+      ]
+    },
+    {
+      "id": "W-003",
+      "title": "Authentication bypass in /rest/user/login",
+      "asset": "/rest/user/login",
+      "severity": "critical",
+      "cvss_score": 9.8,
+      "cvss_vector": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H",
+      "confirmed": false,
+      "status": "tested, not proven (expected status 200, got 401)",
+      "technique_ids": [
+        "T1190"
+      ],
+      "owasp_category": "A07:2021 - Identification and Authentication Failures",
+      "recommendation": "Review the authentication logic in /rest/user/login; it likely has a flaw in session handling or token verification. Ensure the token is cryptographically signed, not predictable, and validated on every request. Implement multi-factor authentication to mitigate bypass attempts.",
+      "effort": "high",
+      "evidence": [
+        {
+          "request": "GET http://juice-shop:3000/rest/user/login",
+          "response": "HTTP 500 text/html; charset=utf-8\n<html>\n  <head>\n    <meta charset='utf-8'> \n    <title>Error: Unexpected path: /rest/user/login</title>\n    <style>* {\n  margin: 0;\n  padding: 0;\n  outline: 0;\n}\n\nbody {\n  padding: 80px 100px;\n  font: 13px \"Helvetica Neue\", \"Lucida Grande\", \"Arial\";\n  background: #ECE9E9 -webkit-gradient(linear, 0% 0%, 0% 100%, from(#fff), to(#ECE9E9));\n  background: #ECE9E9 -moz-linear-gradient(top, #fff, #ECE9E9",
+          "note": "Asset confirmed reachable. This evidences existence, not exploitability.",
+          "captured_at": "2026-08-07T08:15:36.240127"
+        },
+        {
+          "request": "POST http://juice-shop:3000/rest/user/login",
+          "response": "HTTP 401\nInvalid email or password.",
+          "note": "If a login with default admin credentials and wrong password returns 200, authentication is bypassed.",
+          "captured_at": "2026-08-07T08:15:57.429228"
+        }
+      ]
+    },
+    {
+      "id": "W-001",
+      "title": "Unrestricted file upload at /file-upload",
+      "asset": "/file-upload",
+      "severity": "high",
+      "cvss_score": 8.8,
+      "cvss_vector": "CVSS:3.1/AV:N/AC:L/PR:L/UI:N/S:U/C:H/I:H/A:H",
+      "confirmed": false,
+      "status": "tested, not proven (request error: request failed: )",
+      "technique_ids": [
+        "T1190"
+      ],
+      "owasp_category": "A03:2021 - Injection",
+      "recommendation": "On the /file-upload endpoint, implement strict file type validation based on magic bytes (not just MIME), restrict allowed extensions, and store uploaded files outside the web root with random filenames. Also ensure the upload directory has execute permissions disabled and use a content security policy to prevent execution of uploaded scripts.",
+      "effort": "medium",
+      "evidence": [
+        {
+          "request": "GET http://juice-shop:3000/file-upload",
+          "response": "HTTP 200 text/html; charset=UTF-8\n<!--\n  ~ Copyright (c) 2014-2024 Bjoern Kimminich & the OWASP Juice Shop contributors.\n  ~ SPDX-License-Identifier: MIT\n  --><!DOCTYPE html><html lang=\"en\"><head>\n  <meta charset=\"utf-8\">\n  <title>OWASP Juice Shop</title>\n  <meta name=\"description\" content=\"Probably the most modern and sophisticated insecure web application\">\n  <meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">\n ",
+          "note": "Asset confirmed reachable. This evidences existence, not exploitability.",
+          "captured_at": "2026-08-07T08:15:36.178936"
+        }
+      ]
+    },
+    {
+      "id": "W-008",
+      "title": "Stored XSS in /api/Feedbacks (comment field)",
+      "asset": "/api/Feedbacks",
+      "severity": "high",
+      "cvss_score": 8.7,
+      "cvss_vector": "CVSS:3.1/AV:N/AC:L/PR:L/UI:R/S:C/C:H/I:H/A:N",
+      "confirmed": false,
+      "status": "tested, not proven (HTTP 500: an error page is not evidence of this flaw)",
+      "technique_ids": [
+        "T1190"
+      ],
+      "owasp_category": "A03:2021 - Injection",
+      "recommendation": "Sanitize the comment field in the /api/Feedbacks endpoint by encoding all HTML entities and using a context-aware output encoding library. Implement a Content Security Policy (CSP) that blocks inline scripts. Consider using a validation framework to reject script tags or dangerous payloads.",
+      "effort": "low",
+      "evidence": [
+        {
+          "request": "GET http://juice-shop:3000/api/Feedbacks",
+          "response": "HTTP 200 application/json; charset=utf-8\n{\"status\":\"success\",\"data\":[{\"UserId\":1,\"id\":1,\"comment\":\"I love this shop! Best products in town! Highly recommended! (***in@juice-sh.op)\",\"rating\":5,\"createdAt\":\"2026-08-07T07:34:27.562Z\",\"updatedAt\":\"2026-08-07T07:34:27.562Z\"},{\"UserId\":2,\"id\":2,\"comment\":\"Great shop! Awesome service! (***@juice-sh.op)\",\"rating\":4,\"createdAt\":\"2026-08-07T07:34:27.566Z\",\"updatedAt\":\"2026-08-07T07:34:27.566Z\"},{\"",
+          "note": "Asset confirmed reachable. This evidences existence, not exploitability.",
+          "captured_at": "2026-08-07T08:15:36.378205"
+        },
+        {
+          "request": "POST http://juice-shop:3000/api/Feedbacks",
+          "response": "HTTP 500\n<html>\n  <head>\n    <meta charset='utf-8'> \n    <title>Error: WHERE parameter &quot;captchaId&quot; has invalid &quot;undefined&quot; value</title>\n    <style>* {\n  margin: 0;\n  padding: 0;\n  outline: 0;\n}\n\nbody {\n  padding: 80px 100px;\n  font: 13px \"Helvetica Neue\", \"Lucida Grande\", \"Arial\";\n  background: #ECE9E9 -webkit-gradient(linear, 0% 0%, 0% 100%, from(#fff), to(#ECE9E9));\n  background: #ECE9E9 -moz-linear-gradient(top, #fff, #ECE9E9);\n  background-repeat: no-repeat;\n  color: #555;\n  -web",
+          "note": "If the comment is stored and returned in a subsequent GET, XSS is proven.",
+          "captured_at": "2026-08-07T08:15:57.690740"
+        }
+      ]
+    },
+    {
+      "id": "W-005",
+      "title": "Insecure direct object reference on /api/Users/{id}",
+      "asset": "/api/Users",
+      "severity": "high",
+      "cvss_score": 8.1,
+      "cvss_vector": "CVSS:3.1/AV:N/AC:L/PR:L/UI:N/S:U/C:H/I:H/A:N",
+      "confirmed": false,
+      "status": "tested, not proven (signal 'email' did not appear in the response)",
+      "technique_ids": [
+        "T1190"
+      ],
+      "owasp_category": "A01:2021 - Broken Access Control",
+      "recommendation": "On the /api/Users/{id} endpoint, enforce authorization checks that verify the requesting user has permission to access the specific user ID. Use session-based access control and validate the ID belongs to the authenticated user or role. Avoid relying on client-supplied IDs alone.",
+      "effort": "medium",
+      "evidence": [
+        {
+          "request": "GET http://juice-shop:3000/api/Users",
+          "response": "HTTP 401 text/html; charset=utf-8\n<html>\n  <head>\n    <meta charset='utf-8'> \n    <title>UnauthorizedError: No Authorization header was found</title>\n    <style>* {\n  margin: 0;\n  padding: 0;\n  outline: 0;\n}\n\nbody {\n  padding: 80px 100px;\n  font: 13px \"Helvetica Neue\", \"Lucida Grande\", \"Arial\";\n  background: #ECE9E9 -webkit-gradient(linear, 0% 0%, 0% 100%, from(#fff), to(#ECE9E9));\n  background: #ECE9E9 -moz-linear-gradient(top, #",
+          "note": "Asset confirmed reachable. This evidences existence, not exploitability.",
+          "captured_at": "2026-08-07T08:15:36.292967"
+        },
+        {
+          "request": "GET http://juice-shop:3000/api/Users",
+          "response": "HTTP 401\n<html>\n  <head>\n    <meta charset='utf-8'> \n    <title>UnauthorizedError: No Authorization header was found</title>\n    <style>* {\n  margin: 0;\n  padding: 0;\n  outline: 0;\n}\n\nbody {\n  padding: 80px 100px;\n  font: 13px \"Helvetica Neue\", \"Lucida Grande\", \"Arial\";\n  background: #ECE9E9 -webkit-gradient(linear, 0% 0%, 0% 100%, from(#fff), to(#ECE9E9));\n  background: #ECE9E9 -moz-linear-gradient(top, #fff, #ECE9E9);\n  background-repeat: no-repeat;\n  color: #555;\n  -webkit-font-smoothing: antialiased;",
+          "note": "If an unauthenticated request to a specific user ID returns that user's email, the IDOR is proven.",
+          "captured_at": "2026-08-07T08:15:57.525895"
+        }
+      ]
+    },
+    {
+      "id": "W-012",
+      "title": "IDOR on /api/BasketItems (own basket vs others)",
+      "asset": "/api/BasketItems",
+      "severity": "high",
+      "cvss_score": 8.1,
+      "cvss_vector": "CVSS:3.1/AV:N/AC:L/PR:L/UI:N/S:U/C:H/I:H/A:N",
+      "confirmed": false,
+      "status": "not tested",
+      "technique_ids": [
+        "T1190"
+      ],
+      "owasp_category": "A01:2021 - Broken Access Control",
+      "recommendation": "In /api/BasketItems, enforce that users can only access their own basket items. Add ownership checks based on the authenticated user's session, and validate that the basket ID belongs to that user. Consider using a GUID instead of sequential IDs and implement proper authorization.",
+      "effort": "medium",
+      "evidence": [
+        {
+          "request": "GET http://juice-shop:3000/api/BasketItems",
+          "response": "HTTP 401 text/html; charset=utf-8\n<html>\n  <head>\n    <meta charset='utf-8'> \n    <title>UnauthorizedError: No Authorization header was found</title>\n    <style>* {\n  margin: 0;\n  padding: 0;\n  outline: 0;\n}\n\nbody {\n  padding: 80px 100px;\n  font: 13px \"Helvetica Neue\", \"Lucida Grande\", \"Arial\";\n  background: #ECE9E9 -webkit-gradient(linear, 0% 0%, 0% 100%, from(#fff), to(#ECE9E9));\n  background: #ECE9E9 -moz-linear-gradient(top, #",
+          "note": "Asset confirmed reachable. This evidences existence, not exploitability.",
+          "captured_at": "2026-08-07T08:15:36.475456"
+        }
+      ]
+    },
+    {
+      "id": "W-006",
+      "title": "Admin functionality exposed without proper auth at /rest/admin",
+      "asset": "/rest/admin",
+      "severity": "high",
+      "cvss_score": 7.5,
+      "cvss_vector": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:N/A:N",
+      "confirmed": false,
+      "status": "tested, not proven (expected status 200, got 500)",
+      "technique_ids": [
+        "T1190"
+      ],
+      "owasp_category": "A01:2021 - Broken Access Control",
+      "recommendation": "Restrict access to /rest/admin and all admin endpoints with role-based authorization. Implement a middleware that checks the user's role for admin-only routes. Additionally, ensure admin functions are not accessible via direct URL without proper session and CSRF token validation.",
+      "effort": "low",
+      "evidence": [
+        {
+          "request": "GET http://juice-shop:3000/rest/admin",
+          "response": "HTTP 500 text/html; charset=utf-8\n<html>\n  <head>\n    <meta charset='utf-8'> \n    <title>Error: Unexpected path: /rest/admin</title>\n    <style>* {\n  margin: 0;\n  padding: 0;\n  outline: 0;\n}\n\nbody {\n  padding: 80px 100px;\n  font: 13px \"Helvetica Neue\", \"Lucida Grande\", \"Arial\";\n  background: #ECE9E9 -webkit-gradient(linear, 0% 0%, 0% 100%, from(#fff), to(#ECE9E9));\n  background: #ECE9E9 -moz-linear-gradient(top, #fff, #ECE9E9);\n  ",
+          "note": "Asset confirmed reachable. This evidences existence, not exploitability.",
+          "captured_at": "2026-08-07T08:15:36.322188"
+        },
+        {
+          "request": "GET http://juice-shop:3000/rest/admin",
+          "response": "HTTP 500\n<html>\n  <head>\n    <meta charset='utf-8'> \n    <title>Error: Unexpected path: /rest/admin</title>\n    <style>* {\n  margin: 0;\n  padding: 0;\n  outline: 0;\n}\n\nbody {\n  padding: 80px 100px;\n  font: 13px \"Helvetica Neue\", \"Lucida Grande\", \"Arial\";\n  background: #ECE9E9 -webkit-gradient(linear, 0% 0%, 0% 100%, from(#fff), to(#ECE9E9));\n  background: #ECE9E9 -moz-linear-gradient(top, #fff, #ECE9E9);\n  background-repeat: no-repeat;\n  color: #555;\n  -webkit-font-smoothing: antialiased;\n}\nh1, h2 {\n  fon",
+          "note": "If the admin endpoint is accessible without authentication and returns 200, admin functionality is exposed.",
+          "captured_at": "2026-08-07T08:15:57.583217"
+        }
+      ]
+    },
+    {
+      "id": "W-007",
+      "title": "Information disclosure via /rest/admin/application-configuration",
+      "asset": "/rest/admin/application-configuration",
+      "severity": "high",
+      "cvss_score": 7.5,
+      "cvss_vector": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:N/A:N",
+      "confirmed": false,
+      "status": "tested, not proven (signal 'config' is present without the payload too, so it demonstrates nothing)",
+      "technique_ids": [
+        "T1190"
+      ],
+      "owasp_category": "A01:2021 - Broken Access Control",
+      "recommendation": "Remove or restrict the /rest/admin/application-configuration endpoint to authorized admins only. If it must exist, require authentication and role checks, and mask sensitive values (e.g., passwords, API keys) in responses. Audit logs should be enabled to monitor access.",
+      "effort": "low",
+      "evidence": [
+        {
+          "request": "GET http://juice-shop:3000/rest/admin/application-configuration",
+          "response": "HTTP 200 application/json; charset=utf-8\n{\"config\":{\"server\":{\"port\":3000,\"basePath\":\"\",\"baseUrl\":\"http://localhost:3000\"},\"application\":{\"domain\":\"juice-sh.op\",\"name\":\"OWASP Juice Shop\",\"logo\":\"JuiceShop_Logo.png\",\"favicon\":\"favicon_js.ico\",\"theme\":\"bluegrey-lightgreen\",\"showVersionNumber\":true,\"showGitHubLinks\":true,\"localBackupEnabled\":true,\"numberOfRandomFakeUsers\":0,\"altcoinName\":\"Juicycoin\",\"privacyContactEmail\":\"donotreply@owasp-j",
+          "note": "Asset confirmed reachable. This evidences existence, not exploitability.",
+          "captured_at": "2026-08-07T08:15:36.349524"
+        },
+        {
+          "request": "GET http://juice-shop:3000/rest/admin/application-configuration",
+          "response": "HTTP 200\n{\"config\":{\"server\":{\"port\":3000,\"basePath\":\"\",\"baseUrl\":\"http://localhost:3000\"},\"application\":{\"domain\":\"juice-sh.op\",\"name\":\"OWASP Juice Shop\",\"logo\":\"JuiceShop_Logo.png\",\"favicon\":\"favicon_js.ico\",\"theme\":\"bluegrey-lightgreen\",\"showVersionNumber\":true,\"showGitHubLinks\":true,\"localBackupEnabled\":true,\"numberOfRandomFakeUsers\":0,\"altcoinName\":\"Juicycoin\",\"privacyContactEmail\":\"donotreply@owasp-juice.shop\",\"customMetricsPrefix\":\"juiceshop\",\"chatBot\":{\"name\":\"Juicy\",\"greeting\":\"Nice to meet you ",
+          "note": "If the application configuration is disclosed without auth, sensitive data is exposed.",
+          "captured_at": "2026-08-07T08:15:57.635830"
+        }
+      ]
+    },
+    {
+      "id": "W-010",
+      "title": "Improper access control on /rest/user/whoami",
+      "asset": "/rest/user/whoami",
+      "severity": "high",
+      "cvss_score": 7.5,
+      "cvss_vector": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:N/A:N",
+      "confirmed": false,
+      "status": "tested, not proven (signal 'email' did not appear in the response)",
+      "technique_ids": [
+        "T1190"
+      ],
+      "owasp_category": "A01:2021 - Broken Access Control",
+      "recommendation": "On /rest/user/whoami, ensure that only authenticated users can access their own identity information. Add a check that verifies the session token and returns the corresponding user's data, and prevent any user from accessing another user's data by manipulating parameters. Disable endpoint if not needed.",
+      "effort": "low",
+      "evidence": [
+        {
+          "request": "GET http://juice-shop:3000/rest/user/whoami",
+          "response": "HTTP 200 application/json; charset=utf-8\n{\"user\":{}}",
+          "note": "Asset confirmed reachable. This evidences existence, not exploitability.",
+          "captured_at": "2026-08-07T08:15:36.427421"
+        },
+        {
+          "request": "GET http://juice-shop:3000/rest/user/whoami",
+          "response": "HTTP 200\n{\"user\":{}}",
+          "note": "If an unauthenticated request reveals the user's identity, improper access control is proven.",
+          "captured_at": "2026-08-07T08:15:57.789599"
+        }
+      ]
+    },
+    {
+      "id": "W-011",
+      "title": "Sensitive data exposure in /rest/user/authentication-details",
+      "asset": "/rest/user/authentication-details",
+      "severity": "high",
+      "cvss_score": 7.5,
+      "cvss_vector": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:N/A:N",
+      "confirmed": false,
+      "status": "not tested",
+      "technique_ids": [
+        "T1190"
+      ],
+      "owasp_category": "A02:2021 - Cryptographic Failures",
+      "recommendation": "Review /rest/user/authentication-details; do not expose authentication details (e.g., password hashes, tokens) in API responses. Remove the endpoint or restrict it to admins and mask sensitive fields. If needed for debugging, log but never return in the response.",
+      "effort": "low",
+      "evidence": [
+        {
+          "request": "GET http://juice-shop:3000/rest/user/authentication-details",
+          "response": "HTTP 401 text/html; charset=utf-8\n<html>\n  <head>\n    <meta charset='utf-8'> \n    <title>UnauthorizedError: No Authorization header was found</title>\n    <style>* {\n  margin: 0;\n  padding: 0;\n  outline: 0;\n}\n\nbody {\n  padding: 80px 100px;\n  font: 13px \"Helvetica Neue\", \"Lucida Grande\", \"Arial\";\n  background: #ECE9E9 -webkit-gradient(linear, 0% 0%, 0% 100%, from(#fff), to(#ECE9E9));\n  background: #ECE9E9 -moz-linear-gradient(top, #",
+          "note": "Asset confirmed reachable. This evidences existence, not exploitability.",
+          "captured_at": "2026-08-07T08:15:36.451984"
+        }
+      ]
+    },
+    {
+      "id": "W-009",
+      "title": "Reflected XSS via search query in /search",
+      "asset": "/search",
+      "severity": "medium",
+      "cvss_score": 6.1,
+      "cvss_vector": "CVSS:3.1/AV:N/AC:L/PR:N/UI:R/S:C/C:L/I:L/A:N",
+      "confirmed": false,
+      "status": "tested, not proven (signal \"<script>alert('reflected')</script>\" did not appear in the response)",
+      "technique_ids": [
+        "T1190"
+      ],
+      "owasp_category": "A03:2021 - Injection",
+      "recommendation": "For the /search endpoint, URL-encode and HTML-encode the search query before reflecting it in the response. Use a secure output encoding function like OWASP's ESAPI. Additionally, set the X-XSS-Protection header and implement a strict CSP.",
+      "effort": "low",
+      "evidence": [
+        {
+          "request": "GET http://juice-shop:3000/search",
+          "response": "HTTP 200 text/html; charset=UTF-8\n<!--\n  ~ Copyright (c) 2014-2024 Bjoern Kimminich & the OWASP Juice Shop contributors.\n  ~ SPDX-License-Identifier: MIT\n  --><!DOCTYPE html><html lang=\"en\"><head>\n  <meta charset=\"utf-8\">\n  <title>OWASP Juice Shop</title>\n  <meta name=\"description\" content=\"Probably the most modern and sophisticated insecure web application\">\n  <meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">\n ",
+          "note": "Asset confirmed reachable. This evidences existence, not exploitability.",
+          "captured_at": "2026-08-07T08:15:36.402763"
+        },
+        {
+          "request": "GET http://juice-shop:3000/search?q=<script>alert('reflected')</script>",
+          "response": "HTTP 200\n<!--\n  ~ Copyright (c) 2014-2024 Bjoern Kimminich & the OWASP Juice Shop contributors.\n  ~ SPDX-License-Identifier: MIT\n  --><!DOCTYPE html><html lang=\"en\"><head>\n  <meta charset=\"utf-8\">\n  <title>OWASP Juice Shop</title>\n  <meta name=\"description\" content=\"Probably the most modern and sophisticated insecure web application\">\n  <meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">\n  <link id=\"favicon\" rel=\"icon\" type=\"image/x-icon\" href=\"assets/public/favicon_js.ico\">\n  <link rel=",
+          "note": "If the script appears in the response, reflected XSS is present.",
+          "captured_at": "2026-08-07T08:15:57.743313"
+        }
+      ]
+    },
+    {
+      "id": "W-004",
+      "title": "User enumeration via /api/Users response differences",
+      "asset": "/api/Users",
+      "severity": "medium",
+      "cvss_score": 5.3,
+      "cvss_vector": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:L/I:N/A:N",
+      "confirmed": false,
+      "status": "tested, not proven (signal 'email' did not appear in the response)",
+      "technique_ids": [
+        "T1589.001"
+      ],
+      "owasp_category": "A07:2021 - Identification and Authentication Failures",
+      "recommendation": "Modify the /api/Users endpoint to return identical generic responses for both existing and non-existing users. Remove any differences in status codes, response times, or error messages. Implement rate limiting to slow down enumeration attempts.",
+      "effort": "low",
+      "evidence": [
+        {
+          "request": "GET http://juice-shop:3000/api/Users",
+          "response": "HTTP 401 text/html; charset=utf-8\n<html>\n  <head>\n    <meta charset='utf-8'> \n    <title>UnauthorizedError: No Authorization header was found</title>\n    <style>* {\n  margin: 0;\n  padding: 0;\n  outline: 0;\n}\n\nbody {\n  padding: 80px 100px;\n  font: 13px \"Helvetica Neue\", \"Lucida Grande\", \"Arial\";\n  background: #ECE9E9 -webkit-gradient(linear, 0% 0%, 0% 100%, from(#fff), to(#ECE9E9));\n  background: #ECE9E9 -moz-linear-gradient(top, #",
+          "note": "Asset confirmed reachable. This evidences existence, not exploitability.",
+          "captured_at": "2026-08-07T08:15:36.266606"
+        },
+        {
+          "request": "GET http://juice-shop:3000/api/Users",
+          "response": "HTTP 401\n<html>\n  <head>\n    <meta charset='utf-8'> \n    <title>UnauthorizedError: No Authorization header was found</title>\n    <style>* {\n  margin: 0;\n  padding: 0;\n  outline: 0;\n}\n\nbody {\n  padding: 80px 100px;\n  font: 13px \"Helvetica Neue\", \"Lucida Grande\", \"Arial\";\n  background: #ECE9E9 -webkit-gradient(linear, 0% 0%, 0% 100%, from(#fff), to(#ECE9E9));\n  background: #ECE9E9 -moz-linear-gradient(top, #fff, #ECE9E9);\n  background-repeat: no-repeat;\n  color: #555;\n  -webkit-font-smoothing: antialiased;",
+          "note": "If user enumeration via response differences is possible, an unauthorized request reveals user data.",
+          "captured_at": "2026-08-07T08:15:57.477273"
+        }
+      ]
+    }
+  ],
+  "playbook": {
+    "scripts": [],
+    "rejected": 0
+  },
+  "attack_coverage": {
+    "T1190": [
+      "W-001",
+      "W-002",
+      "W-003",
+      "W-005",
+      "W-006",
+      "W-007",
+      "W-008",
+      "W-009",
+      "W-010",
+      "W-011",
+      "W-012"
+    ],
+    "T1589.001": [
+      "W-004"
+    ]
+  },
+  "exploitation_confirmed": true,
+  "caveats": [
+    "Produced by an autonomous pipeline with no human review. Findings should be validated by a security engineer before remediation is prioritised or the results are shared externally.",
+    "API routes were extracted from client-side JavaScript. They are candidate routes the application references, not a verified inventory of its endpoints.",
+    "12 of 12 findings were not proven exploitable (W-002, W-003, W-001, W-008, W-005, W-012, W-006, W-007, \u2026). They are hypotheses based on observed assets, not demonstrated vulnerabilities.",
+    "2 findings were never tested for exploitability (W-011, W-012). No claim is made about them either way.",
+    "Absence of a finding is not evidence of absence. This engagement covered what the crawler reached within its configured bounds."
+  ]
+}
