@@ -70,11 +70,15 @@ def cmd_watch(args: argparse.Namespace) -> int:
             if last.get(agent) != state:
                 print(f"[{agent:>8}]  {state}")
                 last[agent] = state
-        if body["status"] in ("complete", "failed"):
+        if body["status"] in ("complete", "failed", "complete_with_warnings"):
             print(f"\n== engagement {body['status']} ==")
             return 0
         time.sleep(args.interval)
 
+def cmd_tui(args: argparse.Namespace) -> int:
+    """Launch the interactive TUI."""
+    from orchestrator.tui import run_tui
+    return run_tui(args)
 
 # --------------------------------------------------------------------------- #
 
@@ -100,7 +104,11 @@ def main(argv: list[str] | None = None) -> int:
     p_watch.add_argument("engagement_id")
     p_watch.add_argument("--interval", type=float, default=2.0)
     p_watch.set_defaults(func=cmd_watch)
-
+    
+    p_tui = sub.add_parser("tui",
+        help="Interactive engagement setup with live event streaming")
+    p_tui.set_defaults(func=cmd_tui)
+    
     args = parser.parse_args(argv)
     return args.func(args)
 

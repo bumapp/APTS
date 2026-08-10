@@ -61,12 +61,11 @@ logging_config.configure("orchestrator")
 log = logging.getLogger("orchestrator")
 
 CHAIN = ["recon", "vuln", "mitre", "exploit", "script", "adviser"]
-# Critical = failure stops the whole engagement (Characterization §2.2.4).
-# Exploitation is deliberately NOT critical: it's "minor, but special" — if it
-# fails all retries the run continues, and the Adviser must mark the report
-# "weaknesses found but not confirmed" rather than presenting a confirmed test.
-CRITICAL_AGENTS = {"recon", "vuln"}
-MAX_RETRIES = 3
+CRITICAL_AGENTS = {"recon", "vuln", "exploit"}
+MINOR_AGENTS   = {"mitre", "script", "adviser"}
+MAX_RETRIES    = 3  
+STALL_TIMEOUT_SECONDS = 60
+STALL_SCAN_INTERVAL   = 10
 
 # We hold the orchestrator's own token in memory once, at startup.
 _OWN_TOKEN: str | None = None
@@ -90,15 +89,22 @@ async def lifespan(app: FastAPI):
     )
     log.info("orchestrator ready (chain=%s)", CHAIN)
     audit("orchestrator", "startup")
+
+    # Background: stall detection (§8)
+    scanner = asyncio.create_task(_stall_scanner(), name="stall_scanner")
+
     try:
         yield
     finally:
+        scanner.cancel()
+        try:
+            await scanner
+        except asyncio.CancelledError:
+            pass
         await _client.aclose()
         audit("orchestrator", "shutdown")
 
-
 app = FastAPI(title="APTS Orchestrator", lifespan=lifespan)
-
 
 # --------------------------------------------------------------------------- #
 # Public HTTPS API (port 8443, token-authenticated)
@@ -177,7 +183,9 @@ async def admin_start(spec: EngagementSpec) -> StartEngagementResponse:
         results={},
     )
 
-    await _kickoff_agent("recon", handoff)
+    ok = await _kickoff_agent_or_fail("recon", handoff)
+    if not ok:
+        pass
     return StartEngagementResponse(engagement_id=engagement_id, status="running")
 
 
@@ -232,6 +240,37 @@ def _mark_engagement_complete(engagement_id: UUID) -> None:
     log.info("engagement %s complete", engagement_id)
     audit("orchestrator", "engagement_complete", engagement_id=str(engagement_id))
 
+def _mark_engagement_complete_partial(engagement_id: UUID, reason: str) -> None:
+    """Mark an engagement complete despite one or more minor agents having failed.
+
+    Used when a minor agent (MITRE, Script, Adviser) exhausted its retries
+    and the chain either continued with a backup path or ended without a
+    final report from the Adviser.  The engagement is still 'complete' from
+    the operator's point of view — only the record notes what was skipped.
+    """
+    with get_conn() as conn, conn.cursor() as cur:
+        cur.execute(
+            """UPDATE engagements SET status = 'complete_with_warnings',
+                                       completed_at = NOW()
+               WHERE id = %s""",
+            (str(engagement_id),),
+        )
+    log.warning("engagement %s complete with warnings: %s", engagement_id, reason)
+    audit("orchestrator", "engagement_complete_with_warnings",
+          engagement_id=str(engagement_id), detail={"reason": reason})
+
+
+def _mark_agent_skipped(engagement_id: UUID, agent: str) -> None:
+    """Record that a minor agent was skipped after retries exhausted."""
+    with get_conn() as conn, conn.cursor() as cur:
+        cur.execute(
+            """UPDATE engagement_state
+               SET status = 'skipped', updated_at = NOW()
+               WHERE engagement_id = %s AND agent = %s""",
+            (str(engagement_id), agent),
+        )
+    audit("orchestrator", "minor_agent_skipped",
+          engagement_id=str(engagement_id), detail={"agent": agent})
 
 def _read_status(engagement_id: UUID) -> EngagementStatus:
     with get_conn() as conn, conn.cursor() as cur:
@@ -275,14 +314,22 @@ async def _handle_agent_failure(update: ProgressUpdate) -> None:
         )
         (retry_count,) = cur.fetchone()
 
-    if retry_count > MAX_RETRIES:
+    if retry_count >= MAX_RETRIES:
         log.error("%s exhausted retries (%d) for engagement %s",
                   agent, MAX_RETRIES, update.engagement_id)
         audit("orchestrator", "retries_exhausted",
               engagement_id=str(update.engagement_id),
               detail={"agent": agent, "retry_count": retry_count})
+
         if agent in CRITICAL_AGENTS:
-            _mark_engagement_failed(update.engagement_id, reason=f"{agent} failed 3 times")
+            # §2.2.4 (annotated): a critical agent that cannot produce output
+            # ends the run — no downstream agent can proceed without it.
+            _mark_engagement_failed(update.engagement_id,
+                                    reason=f"{agent} failed {MAX_RETRIES} times")
+            return
+
+        # Minor agent — skip it and continue the chain from the next stage.
+        await _handle_minor_exhausted(update.engagement_id, agent)
         return
 
     # Re-launch this agent with the *previous* stage's stored output
@@ -301,13 +348,57 @@ async def _handle_agent_failure(update: ProgressUpdate) -> None:
     audit("orchestrator", "retry_launched",
           engagement_id=str(update.engagement_id),
           detail={"agent": agent, "attempt": retry_count})
-    await _kickoff_agent(agent, handoff)
+    await _kickoff_agent_or_fail(agent, handoff)
 
+async def _handle_minor_exhausted(engagement_id: UUID, agent: str) -> None:
+    """A minor agent exhausted its retries.  Skip it, continue the chain.
+
+    Backup paths (§2.2.4 annotated):
+      * MITRE  → Exploit runs on Vuln's raw weakness list
+      * Script → Adviser runs on Exploit's evidence (Adviser reads from DB)
+      * Adviser → engagement is complete-with-warnings
+    """
+    _mark_agent_skipped(engagement_id, agent)
+
+    next_agent = _next_agent(agent)
+    if next_agent is None:
+        # Adviser is the terminal agent — nothing to hand off to.
+        _mark_engagement_complete_partial(
+            engagement_id,
+            reason=f"{agent} skipped after {MAX_RETRIES} retries; no final report")
+        return
+
+    # Feed the next agent the output of the stage BEFORE the failed one, so
+    # it starts with the same input the failed agent would have processed.
+    predecessor_of_failed = _previous_agent(agent)
+    payload = _load_prev_output(engagement_id, predecessor_of_failed)
+
+    handoff = ChainHandoff(
+        engagement_id=engagement_id,
+        from_component="orchestrator",
+        target_url=payload["target_url"],
+        scope=payload["scope"],
+        time_window=payload.get("time_window"),
+        results=payload.get("results", {}),
+    )
+
+    log.warning("minor agent %s skipped; forwarding to %s using %s's output",
+                agent, next_agent, predecessor_of_failed)
+    audit("orchestrator", "chain_forwarded_past_skip",
+          engagement_id=str(engagement_id),
+          detail={"skipped": agent, "next": next_agent,
+                  "input_from": predecessor_of_failed})
+
+    await _kickoff_agent_or_fail(next_agent, handoff)
 
 def _previous_agent(agent: str) -> str | None:
     idx = CHAIN.index(agent)
     return CHAIN[idx - 1] if idx > 0 else None
 
+def _next_agent(agent: str) -> str | None:
+    """Return the next agent in the chain, or None if this is the Adviser."""
+    idx = CHAIN.index(agent)
+    return CHAIN[idx + 1] if idx < len(CHAIN) - 1 else None
 
 def _load_prev_output(engagement_id: UUID, prev_agent: str | None) -> dict[str, Any]:
     with get_conn() as conn, conn.cursor() as cur:
@@ -344,31 +435,131 @@ def _mark_engagement_failed(engagement_id: UUID, reason: str) -> None:
     audit("orchestrator", "engagement_failed",
           engagement_id=str(engagement_id), detail={"reason": reason})
 
+# --------------------------------------------------------------------------- #
+# Stall detection (§8)
+# --------------------------------------------------------------------------- #
+
+async def _stall_scanner() -> None:
+    """Background task: periodically look for stalled agents.
+
+    An agent is considered stalled if its ``engagement_state`` row is in an
+    active state (``kicked_off``, ``started``, ``in_progress``) and its
+    ``updated_at`` is older than ``STALL_TIMEOUT_SECONDS`` ago.  Each stall
+    is treated as an implicit failure and routed through the retry path.
+    """
+    log.info("stall scanner started (timeout=%ds, interval=%ds)",
+             STALL_TIMEOUT_SECONDS, STALL_SCAN_INTERVAL)
+    try:
+        while True:
+            await asyncio.sleep(STALL_SCAN_INTERVAL)
+            try:
+                await _scan_once()
+            except Exception as exc:
+                log.error("stall scan raised: %s", exc)
+    except asyncio.CancelledError:
+        log.info("stall scanner stopping")
+        raise
+
+
+async def _scan_once() -> None:
+    """One pass over the DB looking for stalled agents."""
+    with get_conn() as conn, conn.cursor() as cur:
+        cur.execute(
+            """SELECT es.engagement_id, es.agent, es.updated_at
+               FROM engagement_state es
+               JOIN engagements e ON e.id = es.engagement_id
+               WHERE e.status = 'running'
+                 AND es.status IN ('kicked_off', 'started', 'in_progress')
+                 AND es.updated_at < NOW() - make_interval(secs => %s)""",
+            (STALL_TIMEOUT_SECONDS,),
+        )
+        stalled = cur.fetchall()
+
+    for engagement_id, agent, updated_at in stalled:
+        log.warning("stall detected: engagement=%s agent=%s (last update %s)",
+                    engagement_id, agent, updated_at)
+        audit("orchestrator", "stall_detected",
+              engagement_id=str(engagement_id),
+              detail={"agent": agent,
+                      "last_update": updated_at.isoformat(),
+                      "timeout_seconds": STALL_TIMEOUT_SECONDS})
+
+        synthetic = ProgressUpdate(
+            engagement_id=engagement_id,
+            agent=agent,
+            status="failed",
+            message=(f"stall detected: no progress for at least "
+                     f"{STALL_TIMEOUT_SECONDS}s"),
+        )
+        _record_progress(synthetic)
+        try:
+            await _handle_agent_failure(synthetic)
+        except Exception as exc:
+            log.error("stall recovery for %s/%s raised: %s",
+                      engagement_id, agent, exc)
+
 
 # --------------------------------------------------------------------------- #
 # Kickoff HTTP call
 # --------------------------------------------------------------------------- #
 
 async def _kickoff_agent(agent: str, handoff: ChainHandoff) -> None:
+    """Post the initial handoff to an agent's /run endpoint.
+
+    On success, arm the stall timer for this agent by recording
+    ``kicked_off`` in ``engagement_state``.  On failure, raise — the caller
+    is responsible for routing the failure through the retry path.
+    """
     assert _client is not None
     assert _OWN_TOKEN is not None
     url = f"https://agent-{agent}:8443/run"
+    resp = await _client.post(
+        url,
+        content=handoff.model_dump_json(),
+        headers=bearer_headers(_OWN_TOKEN),
+    )
+    resp.raise_for_status()
+
+    _record_kickoff(handoff.engagement_id, agent)
+    audit("orchestrator", "kickoff_launched",
+          engagement_id=str(handoff.engagement_id),
+          detail={"agent": agent})
+
+async def _kickoff_agent_or_fail(agent: str, handoff: ChainHandoff) -> bool:
+    """Call ``_kickoff_agent`` and route any exception through the retry path.
+
+    Returns True on success, False if the failure was handled by the retry
+    logic (which may have re-kicked the agent, exhausted it, or aborted the
+    engagement).
+    """
     try:
-        resp = await _client.post(
-            url,
-            content=handoff.model_dump_json(),
-            headers=bearer_headers(_OWN_TOKEN),
-        )
-        resp.raise_for_status()
+        await _kickoff_agent(agent, handoff)
+        return True
     except Exception as exc:
-        log.error("failed to kick off %s: %s", agent, exc)
+        log.error("kickoff of %s failed: %s", agent, exc)
         audit("orchestrator", "kickoff_failed",
               engagement_id=str(handoff.engagement_id),
               detail={"agent": agent, "error": str(exc)})
-        # We don't retry the kickoff itself here; the failure will surface when
-        # the agent's status stays 'pending'.  Stall detection is a TODO.
-        raise
+        synthetic = ProgressUpdate(
+            engagement_id=handoff.engagement_id,
+            agent=agent,
+            status="failed",
+            message=f"kickoff failed: {exc}",
+        )
+        _record_progress(synthetic)
+        await _handle_agent_failure(synthetic)
+        return False
 
+def _record_kickoff(engagement_id: UUID, agent: str) -> None:
+    """Mark an agent's state as kicked_off, arming the stall timer."""
+    with get_conn() as conn, conn.cursor() as cur:
+        cur.execute(
+            """UPDATE engagement_state
+               SET status = 'kicked_off',
+                   updated_at = NOW()
+               WHERE engagement_id = %s AND agent = %s""",
+            (str(engagement_id), agent),
+        )
 
 # --------------------------------------------------------------------------- #
 # Entry point (runs both servers)
