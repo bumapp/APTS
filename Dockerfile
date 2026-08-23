@@ -40,6 +40,14 @@ WORKDIR /app
 COPY requirements.txt /app/requirements.txt
 RUN pip install --no-cache-dir -r /app/requirements.txt
 
+# Only mcp-tools' crawl tool drives a browser, but every service shares this
+# one image (see docker-compose.yml), so Chromium is installed here once for
+# all of them. `--with-deps` pulls in the OS libraries (fonts, libnss3, etc.)
+# headless Chromium needs, which is why this still runs as root. Shared,
+# world-readable path so the non-root `apts` user (below) can launch it.
+ENV PLAYWRIGHT_BROWSERS_PATH=/ms-playwright
+RUN playwright install --with-deps chromium
+
 # Copy the source last so a code edit only busts the final layer
 COPY shared/       /app/shared/
 COPY orchestrator/ /app/orchestrator/
@@ -48,7 +56,7 @@ COPY mcp_tools/    /app/mcp_tools/
 COPY sandbox/      /app/sandbox/
 
 # Directory where each service expects to find its TLS cert and the trust bundle
-RUN mkdir -p /etc/apts && chown -R apts:apts /etc/apts /app
+RUN mkdir -p /etc/apts && chown -R apts:apts /etc/apts /app /ms-playwright
 
 USER apts
 

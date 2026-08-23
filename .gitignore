@@ -9,3 +9,6 @@ __pycache__/
 # local env
 .venv/
 
+# development crawl cache (APTS_CRAWL_CACHE=1)
+.crawl-cache/
+

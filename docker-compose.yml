@@ -43,6 +43,13 @@ x-llm-env: &llm-env
   APTS_LLM_TIMEOUT:          ${APTS_LLM_TIMEOUT:-120}
   # Set to 1 to run the whole pipeline with no model and no API key at all.
   APTS_DISABLE_LLM:          ${APTS_DISABLE_LLM:-0}
+  # LLM backend selector. Default "openai" uses the DeepSeek client above;
+  # "hf" switches every agent to the Hugging Face Space client (shared/llm_hf.py).
+  APTS_LLM_PROVIDER:         ${APTS_LLM_PROVIDER:-openai}
+  APTS_HF_SPACE:             ${APTS_HF_SPACE:-Er33k/HIT}
+  # Optional. A public Space needs none; supply one only to lift anonymous rate
+  # limits — export APTS_HF_TOKEN in your shell, never commit it. Empty by default.
+  APTS_HF_TOKEN:             ${APTS_HF_TOKEN:-}
 
 # Shared resource limits for the six working agents.
 x-agent-limits: &agent-limits
@@ -136,6 +143,14 @@ services:
     environment:
       <<: *llm-env
       AGENT_NAME: recon
+      # The default 30s client timeout (agent/config.py) is well under
+      # mcp-tools' own CRAWL_MAX_SECONDS=120 budget for the crawl tool call —
+      # harmless with the old httpx-based crawler, which rarely ran that
+      # long, but the browser-driven one legitimately can, and the two
+      # timeouts disagreeing turns a still-working crawl into an aborted
+      # engagement. Recon is the only agent that makes a call this long-lived,
+      # so this is set here rather than raising the shared default.
+      APTS_HTTP_TIMEOUT: "150"
     secrets:
       - source: agent_recon_token
         target: token
@@ -286,6 +301,12 @@ services:
     depends_on:
       database: { condition: service_healthy }
     command: python -m mcp_tools.main
+    environment:
+      # Development crawl cache, OFF by default (crawl_tool.py / config.py).
+      # Flip it on for a run to replay the last crawl instead of driving the
+      # browser again:  APTS_CRAWL_CACHE=1 docker compose up -d mcp-tools
+      # Never leave it on for a real engagement — it reports stale target state.
+      APTS_CRAWL_CACHE: ${APTS_CRAWL_CACHE:-0}
     secrets:
       - source: mcp_tools_token
         target: token
@@ -297,9 +318,15 @@ services:
       - ./certs/mcp-tools.crt:/etc/apts/tls.crt:ro
       - ./certs/trust-bundle.pem:/etc/apts/trust-bundle.pem:ro
       - ./config:/etc/apts/config:ro
+      # Host-side crawl cache so replays survive container rebuilds/recreation.
+      # Only written when APTS_CRAWL_CACHE=1; harmless (empty) otherwise.
+      - ./.crawl-cache:/var/apts/crawl-cache
+    # Bumped from 256M/0.5 — the crawl tool now launches headless Chromium
+    # per call (crawl_tool.py), which needs meaningfully more than the old
+    # httpx-only crawler did.
     deploy:
       resources:
-        limits: { memory: 256M, cpus: "0.5" }
+        limits: { memory: 1024M, cpus: "1.0" }
 
   # ---------------------------------------------------------------------
   #  Practice target — OWASP Juice Shop

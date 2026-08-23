@@ -175,6 +175,24 @@ class Technology(BaseModel):
     source: str = Field(default="", description="Which signal identified it.")
 
 
+class ObservedRequest(BaseModel):
+    """One HTTP request the browser actually fired during the crawl.
+
+    Observed on the wire, not inferred: every field is what the browser put in
+    the request. Only in-scope requests are recorded — cross-origin traffic
+    (analytics, CDNs, external links) is dropped before it reaches here — so
+    nothing in this list points off the approved target. These are the concrete
+    API calls the app makes, including the POST bodies it sends, which is the
+    richest signal the Vulnerability stage gets about how the app really works.
+    """
+    method: str
+    url: str
+    resource_type: str = ""
+    content_type: str = ""
+    post_data: str | None = None
+    headers: dict[str, str] = Field(default_factory=dict)
+
+
 class AssetMap(BaseModel):
     """The attack surface Recon discovered; consumed by Vulnerability Assessment."""
     target_url: str
@@ -185,6 +203,11 @@ class AssetMap(BaseModel):
         description="Candidate API routes mined from JS bundles. On a single-page "
                     "app this is most of the real surface, since the HTML shell "
                     "has no links. Candidates, not confirmed endpoints.")
+    observed_requests: list[ObservedRequest] = Field(default_factory=list,
+        description="Every in-scope HTTP request the browser actually fired while "
+                    "crawling (XHR/fetch, plus any non-GET such as a login POST), "
+                    "deduplicated by method+url+body. Unlike api_paths these are "
+                    "confirmed calls with their real payloads, not path guesses.")
     third_party: list[str] = Field(default_factory=list,
         description="External script hosts — supply-chain surface.")
     pages_crawled: int = 0

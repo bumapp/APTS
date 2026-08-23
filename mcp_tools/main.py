@@ -76,12 +76,14 @@ def build_registry(client: httpx.AsyncClient,
     registry = ToolRegistry()
     register_stub_tools(registry)
 
-    # Real tools that reach the engagement target. They get their own client:
+    # Real tools that reach the engagement target. `http` gets its own client:
     # `client` is configured to trust the internal CA for service-to-service
     # calls, and a pentest target's certificate is nobody's business to verify.
+    # `crawl` no longer uses this client at all — it drives its own headless
+    # browser (see crawl_tool.py) and opens/closes it per call.
     target_client = httpx.AsyncClient(verify=False, follow_redirects=False)
     registry.register("http", HttpTool(target_client))
-    registry.register("crawl", CrawlTool(target_client))
+    registry.register("crawl", CrawlTool())
 
     registry.register("sandbox", SandboxService(client, token).execute)
     return registry, target_client

@@ -51,3 +51,21 @@ CRAWL_BODY_LIMIT = int(os.environ.get("APTS_CRAWL_BODY_LIMIT", "500000"))
 # JS bundle mining. Bundles are large and there can be many; both are capped.
 CRAWL_MAX_SCRIPTS = int(os.environ.get("APTS_CRAWL_MAX_SCRIPTS", "12"))
 CRAWL_SCRIPT_LIMIT = int(os.environ.get("APTS_CRAWL_SCRIPT_LIMIT", "3000000"))
+
+# --------------------------------------------------------------------------- #
+# Crawl cache — a development convenience, OFF by default.
+#
+# A full browser crawl takes a minute or more, which is painful when you are
+# iterating on the stages *downstream* of recon and re-running the pipeline over
+# and over. With this on, the crawl tool stores its result on disk keyed by
+# (target, scope, limits) and replays it on the next identical call instead of
+# launching Chromium at all — turning a ~90s step into an instant one.
+#
+# It must never be on in a real engagement: a replayed crawl reports a target's
+# state as of whenever it was cached, not now. Default is off precisely so this
+# can only be a deliberate choice, and the tool logs loudly on every cache hit.
+#
+# Toggle it per run:  APTS_CRAWL_CACHE=1 docker compose up -d mcp-tools
+# Clear it:           rm -rf ./.crawl-cache  (host side of the mounted volume)
+CRAWL_CACHE_ENABLED = os.environ.get("APTS_CRAWL_CACHE", "0") == "1"
+CRAWL_CACHE_DIR = os.environ.get("APTS_CRAWL_CACHE_DIR", "/var/apts/crawl-cache")

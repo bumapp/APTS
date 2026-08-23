@@ -32,6 +32,7 @@ one place that knows an LLM exists.
 from __future__ import annotations
 
 import logging
+import os
 from contextlib import asynccontextmanager
 
 import httpx
@@ -87,6 +88,23 @@ LLM_BACKED = {"vuln", "mitre", "exploit", "script", "adviser"}
 TOOL_BACKED = {"recon"}
 
 
+def _make_llm_client(agent_name: str):
+    """Choose the LLM backend for this agent.
+
+    Default is the OpenAI-compatible client (:mod:`shared.llm`, pointed at
+    DeepSeek). ``APTS_LLM_PROVIDER=hf`` selects the Hugging Face Space client
+    (:mod:`shared.llm_hf`) instead — a drop-in with the same async interface, so
+    the workers below never learn which one they got. The HF import is lazy so a
+    DeepSeek deployment does not pull ``gradio_client``.
+    """
+    provider = os.environ.get("APTS_LLM_PROVIDER", "openai").lower()
+    if provider in ("hf", "huggingface", "gradio"):
+        from shared.llm_hf import HuggingFaceLlmClient
+        log.info("LLM backend: Hugging Face Space (APTS_LLM_PROVIDER=%s)", provider)
+        return HuggingFaceLlmClient(agent_name)
+    return LlmClient(agent_name)
+
+
 def build_worker(mcp: McpService, results: AgentResultRepository,
                  exit_stack: list) -> Worker:
     """Pick this agent's worker, opening an LLM client only if it needs one.
@@ -105,7 +123,7 @@ def build_worker(mcp: McpService, results: AgentResultRepository,
             f"{AGENT_NAME!r} is in the pipeline but is neither tool-backed nor "
             f"LLM-backed; it has no worker")
 
-    llm = LlmClient(AGENT_NAME)
+    llm = _make_llm_client(AGENT_NAME)
     exit_stack.append(llm)
     if AGENT_NAME == "mitre":
         return MitreWorker(llm)

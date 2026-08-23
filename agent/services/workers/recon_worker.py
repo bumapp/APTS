@@ -19,7 +19,14 @@ from __future__ import annotations
 import logging
 from urllib.parse import urlparse
 
-from shared.models import AssetMap, Endpoint, Form, FormField, Technology
+from shared.models import (
+    AssetMap,
+    Endpoint,
+    Form,
+    FormField,
+    ObservedRequest,
+    Technology,
+)
 
 from agent.services.mcp_service import McpService, ToolCallFailed
 from agent.services.workers.base import WorkContext, WorkFailed
@@ -53,19 +60,22 @@ class ReconWorker:
             endpoints=self._endpoints(crawl),
             forms=self._forms(crawl),
             technologies=[
-                Technology(name=t["name"], source=t.get("source", ""))
+                Technology(name=t["name"], source=t.get("source", ""),
+                           version=t.get("version") or None)
                 for t in crawl.get("technologies", [])
             ],
             api_paths=crawl.get("js_api_paths", []),
+            observed_requests=self._observed_requests(crawl),
             third_party=crawl.get("third_party_hosts", []),
             pages_crawled=crawl.get("pages_crawled", 0),
             truncated=bool(crawl.get("truncated")),
         )
 
         log.info(
-            "asset map: %d endpoints, %d api paths, %d forms, %d technologies, "
-            "%d third-party hosts (crawled %d pages%s)",
+            "asset map: %d endpoints, %d api paths, %d observed requests, "
+            "%d forms, %d technologies, %d third-party hosts (crawled %d pages%s)",
             len(asset_map.endpoints), len(asset_map.api_paths),
+            len(asset_map.observed_requests),
             len(asset_map.forms), len(asset_map.technologies),
             len(asset_map.third_party),
             asset_map.pages_crawled,
@@ -79,18 +89,56 @@ class ReconWorker:
 
     # ----------------------------------------------------------------- #
 
-    @staticmethod
-    def _endpoints(crawl: dict) -> list[Endpoint]:
-        endpoints = []
+    @classmethod
+    def _endpoints(cls, crawl: dict) -> list[Endpoint]:
+        endpoints: list[Endpoint] = []
+        seen: set[str] = set()
         for page in crawl.get("pages", []):
             parsed = urlparse(page.get("url", ""))
+            path = cls._endpoint_path(parsed)
+            if path in seen:
+                continue
+            seen.add(path)
             endpoints.append(Endpoint(
-                path=parsed.path or "/",
+                path=path,
                 status=page.get("status"),
                 params=sorted({p.split("=")[0] for p in parsed.query.split("&") if p}),
                 content_type=page.get("content_type", ""),
             ))
         return endpoints
+
+    @staticmethod
+    def _endpoint_path(parsed) -> str:
+        """Path for one crawled page, preserving a single-page-app route.
+
+        A hash-router URL like ``…/#/login`` has ``urlparse().path == "/"`` and
+        the real route living in ``.fragment`` — so keying an endpoint on
+        ``.path`` alone collapses every SPA page (``/login``, ``/about``, the
+        home shell) into one indistinguishable ``/`` entry. Since the crawler
+        now actually reaches those routes, the fragment is folded back into the
+        path so they stay distinct: ``/#/login``. A bare ``#section`` anchor is
+        not a route and is ignored, exactly as ``_canonical`` treats it.
+        """
+        path = parsed.path or "/"
+        fragment = parsed.fragment
+        if fragment.startswith("/"):
+            prefix = "" if path == "/" else path.rstrip("/")
+            return f"{prefix}/#{fragment}"
+        return path
+
+    @staticmethod
+    def _observed_requests(crawl: dict) -> list[ObservedRequest]:
+        return [
+            ObservedRequest(
+                method=r.get("method", "GET"),
+                url=r.get("url", ""),
+                resource_type=r.get("resource_type", ""),
+                content_type=r.get("content_type", ""),
+                post_data=r.get("post_data"),
+                headers=r.get("headers", {}) or {},
+            )
+            for r in crawl.get("observed_requests", [])
+        ]
 
     @staticmethod
     def _forms(crawl: dict) -> list[Form]:
