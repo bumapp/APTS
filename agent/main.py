@@ -97,11 +97,15 @@ def _make_llm_client(agent_name: str):
     the workers below never learn which one they got. The HF import is lazy so a
     DeepSeek deployment does not pull ``gradio_client``.
     """
-    provider = os.environ.get("APTS_LLM_PROVIDER", "openai").lower()
+    provider = os.environ.get("APTS_LLM_PROVIDER", "local").lower()
     if provider in ("hf", "huggingface", "gradio"):
         from shared.llm_hf import HuggingFaceLlmClient
         log.info("LLM backend: Hugging Face Space (APTS_LLM_PROVIDER=%s)", provider)
         return HuggingFaceLlmClient(agent_name)
+    if provider in ("local", "llamacpp", "localhost"):
+        from shared.llm_local import LocalLlmClient
+        log.info("LLM backend: local server (APTS_LLM_PROVIDER=%s)", provider)
+        return LocalLlmClient(agent_name)
     return LlmClient(agent_name)
 
 
@@ -158,6 +162,14 @@ async def lifespan(app: FastAPI):
     for resource in opened:
         await resource.__aenter__()
 
+    # Recon is the only stage that captures observed requests, so it is the only
+    # one given an indexer that projects them into the queryable recon_requests
+    # table. Every other provider gets None and stays generic.
+    recon_index = None
+    if AGENT_NAME == "recon":
+        from agent.repositories.recon_request_repository import ReconRequestRepository
+        recon_index = ReconRequestRepository()
+
     app.state.run_provider = RunProvider(
         agent=AGENT_NAME,
         worker=worker,
@@ -170,6 +182,7 @@ async def lifespan(app: FastAPI):
         # shared.pipeline's decision, not this composition root's.
         traces=TraceRepository(),
         flows=FlowRepository(),
+        recon_index=recon_index,
         failure_rate=stub_failure_rate(),
     )
 

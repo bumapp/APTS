@@ -76,6 +76,7 @@ class RunProvider:
                  results: AgentResultRepository, audit: AuditSink,
                  traces: TraceRepository | None = None,
                  flows: FlowRepository | None = None,
+                 recon_index=None,
                  failure_rate: float = 0.0) -> None:
         self._agent = agent
         self._component = f"agent-{agent}"
@@ -86,6 +87,11 @@ class RunProvider:
         self._audit = audit
         self._traces = traces
         self._flows = flows
+        # Only recon's provider is given one (see agent.main). It projects
+        # recon's observed requests into the indexed ``recon_requests`` table so
+        # they can be looked up by endpoint later. None for every other stage,
+        # so this provider stays generic and does not branch on the agent name.
+        self._recon_index = recon_index
         self._failure_rate = failure_rate
 
     async def run(self, handoff: ChainHandoff) -> None:
@@ -113,6 +119,18 @@ class RunProvider:
             self._results.save(engagement_id, self._agent, result)
             self._audit.record("result_written",
                                engagement_id=str(engagement_id))
+
+            # Recon only: project the observed requests into their indexed table
+            # right after the authoritative artifact is stored. Best-effort — an
+            # indexing failure must not fail a completed recon stage, since the
+            # requests are already safe inside the saved AssetMap.
+            if self._recon_index is not None:
+                try:
+                    n = self._recon_index.index(
+                        engagement_id, result.get("observed_requests", []))
+                    log.info("indexed %d observed requests for lookup", n)
+                except Exception as exc:
+                    log.error("recon request indexing failed: %s", exc)
             trace.record("stage_output",
                          {"artifact": result, "summary": _summarise(result)},
                          duration_ms=int((time.perf_counter() - started) * 1000))

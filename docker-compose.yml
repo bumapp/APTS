@@ -43,9 +43,11 @@ x-llm-env: &llm-env
   APTS_LLM_TIMEOUT:          ${APTS_LLM_TIMEOUT:-120}
   # Set to 1 to run the whole pipeline with no model and no API key at all.
   APTS_DISABLE_LLM:          ${APTS_DISABLE_LLM:-0}
-  # LLM backend selector. Default "openai" uses the DeepSeek client above;
-  # "hf" switches every agent to the Hugging Face Space client (shared/llm_hf.py).
-  APTS_LLM_PROVIDER:         ${APTS_LLM_PROVIDER:-openai}
+  # LLM backend selector. Default "local" uses the in-project llama.cpp service
+  # (shared/llm_local.py, http://llama:8080) — run it with the "localllm"
+  # profile. Set to "openai" for the DeepSeek client above, or "hf" for the
+  # Hugging Face Space client (shared/llm_hf.py).
+  APTS_LLM_PROVIDER:         ${APTS_LLM_PROVIDER:-local}
   APTS_HF_SPACE:             ${APTS_HF_SPACE:-Er33k/HIT}
   # Optional. A public Space needs none; supply one only to lift anonymous rate
   # limits — export APTS_HF_TOKEN in your shell, never commit it. Empty by default.
@@ -327,6 +329,65 @@ services:
     deploy:
       resources:
         limits: { memory: 1024M, cpus: "1.0" }
+
+  # ---------------------------------------------------------------------
+  #  Local LLM server (optional — profile "localllm")
+  #
+  #  A self-hosted llama.cpp server so the six agents can run entirely offline,
+  #  with no external API key and no per-call quota. Selected at the agent side
+  #  with APTS_LLM_PROVIDER=local (shared/llm_local.py), which reaches this
+  #  service on apts-net as http://llama:8080/v1.
+  #
+  #  Gated behind a compose profile so a plain `docker compose up` never starts
+  #  it — bring it up explicitly only when you want the local backend:
+  #     docker compose --profile localllm up -d llama
+  #
+  #  The model file is NOT in git (it is 4.7 GB). Fetch it once with
+  #  ./bootstrap/fetch_model.sh, which drops it into ./models/ where this mounts.
+  #
+  #  GPU: uses the CUDA image and reserves the host GPU, but LLAMA_NGL defaults
+  #  to 0 (CPU inference) because a 4.7 GB Q4 model does not fit a small card.
+  #  Raise LLAMA_NGL to offload N transformer layers onto the GPU if it has the
+  #  VRAM. For a CPU-only host, swap the image for ghcr.io/ggml-org/llama.cpp:server
+  #  and drop the `deploy.resources.reservations.devices` block below.
+  # ---------------------------------------------------------------------
+  llama:
+    image: ghcr.io/ggml-org/llama.cpp:server-cuda
+    container_name: localllm-server
+    hostname: llama
+    profiles: [ localllm ]
+    restart: unless-stopped
+    networks: [ apts-net ]
+    volumes:
+      - ./models:/models:ro
+    # -a qwen3-8b is a STABLE alias the agents send as the model id; it is just a
+    # label, so the actual gguf can be swapped via LLAMA_MODEL_FILE without
+    # touching any agent config. --jinja enables the chat template so
+    # chat_template_kwargs (enable_thinking=false) is honoured.
+    #
+    # On a CPU-only / low-VRAM host the 8B default is too slow — point
+    # LLAMA_MODEL_FILE at a small model instead, e.g.:
+    #   LLAMA_MODEL_FILE=Qwen3-1.7B-Q8_0.gguf docker compose --profile localllm up -d llama
+    command: >
+      -m /models/${LLAMA_MODEL_FILE:-Qwen3-8B-Q4_K_M.gguf}
+      -a qwen3-8b
+      --host 0.0.0.0 --port 8080
+      -c ${LLAMA_CTX:-8192}
+      -ngl ${LLAMA_NGL:-0}
+      --jinja
+      --reasoning off
+    # Published to host loopback too, so you can still curl it on :18080 as
+    # before. Not required for the agents, which reach it over apts-net.
+    ports:
+      - "127.0.0.1:18080:8080"
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [ gpu ]
+
 
   # ---------------------------------------------------------------------
   #  Practice target — OWASP Juice Shop

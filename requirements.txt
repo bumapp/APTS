@@ -22,3 +22,8 @@ setuptools<81
 # Only pulled in; only used when APTS_LLM_PROVIDER=hf. The default DeepSeek path
 # never imports it.
 gradio_client==2.6.0
+# NOTE: the native MCP server (mcp_native/) is deliberately NOT built from this
+# shared image. Its SDK needs pydantic>=2.12 (this stack pins 2.9.2) and drags
+# in starlette/uvicorn/httpx2, so it gets its own isolated image —
+# mcp_native/Dockerfile + mcp_native/requirements.txt — keeping the six agents'
+# dependency set untouched.

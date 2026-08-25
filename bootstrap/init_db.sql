@@ -40,6 +40,45 @@ CREATE INDEX IF NOT EXISTS agent_results_engagement_idx
 
 
 -- =========================================================================
+--  recon_requests — one row per HTTP request the recon crawler actually
+--  observed, exploded out of the recon AssetMap so a request can be looked up
+--  precisely by its endpoint path.
+--
+--  The same data lives inside agent_results.payload->'observed_requests' as a
+--  JSON array; this table is the *indexed* projection of it. Populated eagerly
+--  by the recon pipeline when it persists its result (see
+--  agent/repositories/recon_request_repository.py), never from the crawl cache.
+--  The btree on (engagement_id, path) is what makes "fetch the request for
+--  endpoint /rest/user/login" an exact index lookup rather than a blob scan.
+-- =========================================================================
+CREATE TABLE IF NOT EXISTS recon_requests (
+    id            BIGSERIAL   PRIMARY KEY,
+    engagement_id UUID        NOT NULL REFERENCES engagements(id) ON DELETE CASCADE,
+    seq           INT         NOT NULL DEFAULT 0,
+        -- order the request was observed in during the crawl
+    method        VARCHAR(8)  NOT NULL DEFAULT 'GET',
+    url           TEXT        NOT NULL,
+        -- the full observed URL, query string included
+    path          TEXT        NOT NULL,
+        -- normalised path (no scheme/host/query) — the lookup key
+    source_page   TEXT        NOT NULL DEFAULT '',
+        -- the page that fired the request (its Referer), '' if none
+    content_type  TEXT        NOT NULL DEFAULT '',
+    resource_type VARCHAR(32) NOT NULL DEFAULT '',
+        -- xhr | fetch | document | ... (Playwright resource type)
+    headers       JSONB       NOT NULL DEFAULT '{}',
+    post_data     TEXT,
+        -- request body, if any (e.g. a login POST payload)
+    recorded_at   TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS recon_requests_engagement_path_idx
+    ON recon_requests (engagement_id, path);
+CREATE INDEX IF NOT EXISTS recon_requests_path_idx
+    ON recon_requests (path);
+
+
+-- =========================================================================
 --  audit_log — append-only history of every event in the system
 -- =========================================================================
 CREATE TABLE IF NOT EXISTS audit_log (
