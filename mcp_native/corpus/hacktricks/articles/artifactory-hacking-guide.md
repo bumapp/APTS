@@ -1,0 +1,7 @@
+# Artifactory Hacking Guide
+
+The linked guide collects practical Artifactory testing notes covering anonymous access, repository permissions, version-specific vulnerabilities, and post-exploitation paths. Validate every technique against the deployed Artifactory version because endpoints, defaults, and mitigations have changed over time.<sup>[[1]](#references)</sup>
+
+## References
+
+- [1] [Guillaume Quéré - Artifactory Hacking Guide](https://www.errno.fr/artifactory/Attacking_Artifactory)

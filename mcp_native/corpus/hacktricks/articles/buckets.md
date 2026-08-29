@@ -1,0 +1,7 @@
+# Buckets
+
+For techniques to enumerate exposed object-storage buckets and assess their permissions, see the dedicated HackTricks Cloud guide.<sup>[[1]](#references)</sup>
+
+## References
+
+- [1] [HackTricks Cloud - AWS S3 unauthenticated enumeration](https://cloud.hacktricks.wiki/en/pentesting-cloud/aws-security/aws-unauthenticated-enum-access/aws-s3-unauthenticated-enum.html#aws---s3-unauthenticated-enum)

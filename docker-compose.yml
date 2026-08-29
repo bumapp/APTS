@@ -374,6 +374,8 @@ services:
       --host 0.0.0.0 --port 8080
       -c ${LLAMA_CTX:-8192}
       -ngl ${LLAMA_NGL:-0}
+      --threads ${LLAMA_THREADS:-8}
+      --parallel ${LLAMA_PARALLEL:-1}
       --jinja
       --reasoning off
     # Published to host loopback too, so you can still curl it on :18080 as
@@ -387,6 +389,51 @@ services:
             - driver: nvidia
               count: all
               capabilities: [ gpu ]
+
+
+  # ---------------------------------------------------------------------
+  #  Native MCP server (mcp_native/) — real Model Context Protocol
+  #
+  #  Distinct from mcp-tools (the REST facade). Serves genuine MCP over
+  #  streamable-HTTP at http://mcp-native:9000/mcp, also published to the host
+  #  at 127.0.0.1:9000 so an external MCP client / the exploit loop can drive it.
+  #
+  #  On BOTH networks: apts-net for the database (get_recorded_request), and
+  #  apts-target so its tools (http_request, sqlmap) can reach the engagement
+  #  target at http://juice-shop:3000/. The sqlmap checkout is mounted read-only.
+  #  Standalone: no agent depends on it and it calls no agent.
+  # ---------------------------------------------------------------------
+  mcp-native:
+    build:
+      context: .
+      dockerfile: mcp_native/Dockerfile
+    image: apts-mcp-native:latest
+    container_name: apts-mcp-native
+    hostname: mcp-native
+    restart: unless-stopped
+    networks: [ apts-net, apts-target ]
+    depends_on:
+      database: { condition: service_healthy }
+    command: python -m mcp_native.server --http
+    environment:
+      APTS_SQLMAP_PATH: /opt/sqlmap/sqlmap.py
+      APTS_HACKTRICKS_DIR: /opt/hacktricks
+    secrets:
+      - source: db_password
+        target: db_password
+    volumes:
+      - ./certs/trust-bundle.pem:/etc/apts/trust-bundle.pem:ro
+      - ./config:/etc/apts/config:ro
+      # The user's sqlmap checkout, mounted read-only. Override SQLMAP_DIR to
+      # point elsewhere. sqlmap writes only under /tmp (see sqlmap_tool.py).
+      - ${SQLMAP_DIR:-/home/asqwe/project/EXPLOIT/sqlmap-dev}:/opt/sqlmap:ro
+      # HackTricks web-pentest corpus (overview + technique articles), read-only.
+      - ./mcp_native/corpus/hacktricks:/opt/hacktricks:ro
+    ports:
+      - "127.0.0.1:9000:9000"
+    deploy:
+      resources:
+        limits: { memory: 512M, cpus: "1.0" }
 
 
   # ---------------------------------------------------------------------

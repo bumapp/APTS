@@ -1,0 +1,776 @@
+{
+  "start": "pentesting-web/web-vulnerabilities-methodology.md",
+  "overview_file": "overview.md",
+  "articles": [
+    {
+      "slug": "abusing-hop-by-hop-headers",
+      "title": "Abusing hop-by-hop headers",
+      "source": "pentesting-web/abusing-hop-by-hop-headers.md",
+      "file": "articles/abusing-hop-by-hop-headers.md",
+      "chars": 3736
+    },
+    {
+      "slug": "cache-deception",
+      "title": "Cache Poisoning/Cache Deception",
+      "source": "pentesting-web/cache-deception/README.md",
+      "file": "articles/cache-deception.md",
+      "chars": 33093
+    },
+    {
+      "slug": "http-connection-contamination",
+      "title": "HTTP Connection Contamination",
+      "source": "pentesting-web/http-connection-contamination.md",
+      "file": "articles/http-connection-contamination.md",
+      "chars": 2999
+    },
+    {
+      "slug": "http-connection-request-smuggling",
+      "title": "HTTP Connection Request Smuggling",
+      "source": "pentesting-web/http-connection-request-smuggling.md",
+      "file": "articles/http-connection-request-smuggling.md",
+      "chars": 8568
+    },
+    {
+      "slug": "http-request-smuggling",
+      "title": "HTTP Request Smuggling",
+      "source": "pentesting-web/http-request-smuggling/README.md",
+      "file": "articles/http-request-smuggling.md",
+      "chars": 60631
+    },
+    {
+      "slug": "http-response-smuggling-desync",
+      "title": "HTTP Response Smuggling / Desync",
+      "source": "pentesting-web/http-response-smuggling-desync.md",
+      "file": "articles/http-response-smuggling-desync.md",
+      "chars": 15940
+    },
+    {
+      "slug": "h2c-smuggling",
+      "title": "H2C Smuggling",
+      "source": "pentesting-web/h2c-smuggling.md",
+      "file": "articles/h2c-smuggling.md",
+      "chars": 7865
+    },
+    {
+      "slug": "server-side-inclusion-edge-side-inclusion-injection",
+      "title": "Server Side Inclusion/Edge Side Inclusion",
+      "source": "pentesting-web/server-side-inclusion-edge-side-inclusion-injection.md",
+      "file": "articles/server-side-inclusion-edge-side-inclusion-injection.md",
+      "chars": 9231
+    },
+    {
+      "slug": "uncovering-cloudflare",
+      "title": "Uncovering Cloudflare",
+      "source": "network-services-pentesting/pentesting-web/uncovering-cloudflare.md",
+      "file": "articles/uncovering-cloudflare.md",
+      "chars": 14330
+    },
+    {
+      "slug": "xslt-server-side-injection-extensible-stylesheet-language-transformations",
+      "title": "XSLT Server Side Injection",
+      "source": "pentesting-web/xslt-server-side-injection-extensible-stylesheet-language-transformations.md",
+      "file": "articles/xslt-server-side-injection-extensible-stylesheet-language-transformations.md",
+      "chars": 20871
+    },
+    {
+      "slug": "proxy-waf-protections-bypass",
+      "title": "Proxy / WAF Protections Bypass",
+      "source": "pentesting-web/proxy-waf-protections-bypass.md",
+      "file": "articles/proxy-waf-protections-bypass.md",
+      "chars": 24414
+    },
+    {
+      "slug": "client-side-path-traversal",
+      "title": "Client Side Path Traversal",
+      "source": "pentesting-web/client-side-path-traversal.md",
+      "file": "articles/client-side-path-traversal.md",
+      "chars": 10549
+    },
+    {
+      "slug": "client-side-template-injection-csti",
+      "title": "Client Side Template Injection",
+      "source": "pentesting-web/client-side-template-injection-csti.md",
+      "file": "articles/client-side-template-injection-csti.md",
+      "chars": 9520
+    },
+    {
+      "slug": "command-injection",
+      "title": "Command Injection",
+      "source": "pentesting-web/command-injection.md",
+      "file": "articles/command-injection.md",
+      "chars": 13179
+    },
+    {
+      "slug": "crlf-0d-0a",
+      "title": "CRLF",
+      "source": "pentesting-web/crlf-0d-0a.md",
+      "file": "articles/crlf-0d-0a.md",
+      "chars": 19974
+    },
+    {
+      "slug": "dangling-markup-html-scriptless-injection",
+      "title": "Dangling Markup",
+      "source": "pentesting-web/dangling-markup-html-scriptless-injection/README.md",
+      "file": "articles/dangling-markup-html-scriptless-injection.md",
+      "chars": 12094
+    },
+    {
+      "slug": "file-inclusion",
+      "title": "File Inclusion/Path Traversal",
+      "source": "pentesting-web/file-inclusion/README.md",
+      "file": "articles/file-inclusion.md",
+      "chars": 43870
+    },
+    {
+      "slug": "open-redirect",
+      "title": "Open Redirect",
+      "source": "pentesting-web/open-redirect.md",
+      "file": "articles/open-redirect.md",
+      "chars": 14133
+    },
+    {
+      "slug": "nodejs-proto-prototype-pollution",
+      "title": "Prototype Pollution to XSS",
+      "source": "pentesting-web/deserialization/nodejs-proto-prototype-pollution/README.md",
+      "file": "articles/nodejs-proto-prototype-pollution.md",
+      "chars": 17470
+    },
+    {
+      "slug": "ssrf-server-side-request-forgery",
+      "title": "Server Side Request Forgery",
+      "source": "pentesting-web/ssrf-server-side-request-forgery/README.md",
+      "file": "articles/ssrf-server-side-request-forgery.md",
+      "chars": 35372
+    },
+    {
+      "slug": "ssti-server-side-template-injection",
+      "title": "Server Side Template Injection",
+      "source": "pentesting-web/ssti-server-side-template-injection/README.md",
+      "file": "articles/ssti-server-side-template-injection.md",
+      "chars": 49814
+    },
+    {
+      "slug": "reverse-tab-nabbing",
+      "title": "Reverse Tab Nabbing",
+      "source": "pentesting-web/reverse-tab-nabbing.md",
+      "file": "articles/reverse-tab-nabbing.md",
+      "chars": 4265
+    },
+    {
+      "slug": "xss-cross-site-scripting",
+      "title": "XSS",
+      "source": "pentesting-web/xss-cross-site-scripting/README.md",
+      "file": "articles/xss-cross-site-scripting.md",
+      "chars": 90093
+    },
+    {
+      "slug": "abusing-service-workers",
+      "title": "Abusing Service Workers",
+      "source": "pentesting-web/xss-cross-site-scripting/abusing-service-workers.md",
+      "file": "articles/abusing-service-workers.md",
+      "chars": 6018
+    },
+    {
+      "slug": "wasm-linear-memory-template-overwrite-xss",
+      "title": "WASM linear-memory XSS pivots",
+      "source": "pentesting-web/xss-cross-site-scripting/wasm-linear-memory-template-overwrite-xss.md",
+      "file": "articles/wasm-linear-memory-template-overwrite-xss.md",
+      "chars": 8919
+    },
+    {
+      "slug": "xssi-cross-site-script-inclusion",
+      "title": "XSSI",
+      "source": "pentesting-web/xssi-cross-site-script-inclusion.md",
+      "file": "articles/xssi-cross-site-script-inclusion.md",
+      "chars": 5865
+    },
+    {
+      "slug": "xs-search",
+      "title": "XS-Search",
+      "source": "pentesting-web/xs-search/README.md",
+      "file": "articles/xs-search.md",
+      "chars": 94597
+    },
+    {
+      "slug": "code-review-tools",
+      "title": "Code Review Tooling",
+      "source": "network-services-pentesting/pentesting-web/code-review-tools.md",
+      "file": "articles/code-review-tools.md",
+      "chars": 24659
+    },
+    {
+      "slug": "nosql-injection",
+      "title": "NoSQL Injection",
+      "source": "pentesting-web/nosql-injection.md",
+      "file": "articles/nosql-injection.md",
+      "chars": 14749
+    },
+    {
+      "slug": "ldap-injection",
+      "title": "LDAP Injection",
+      "source": "pentesting-web/ldap-injection.md",
+      "file": "articles/ldap-injection.md",
+      "chars": 6490
+    },
+    {
+      "slug": "regular-expression-denial-of-service-redos",
+      "title": "ReDoS",
+      "source": "pentesting-web/regular-expression-denial-of-service-redos.md",
+      "file": "articles/regular-expression-denial-of-service-redos.md",
+      "chars": 7757
+    },
+    {
+      "slug": "sql-injection",
+      "title": "SQL Injection",
+      "source": "pentesting-web/sql-injection/README.md",
+      "file": "articles/sql-injection.md",
+      "chars": 29334
+    },
+    {
+      "slug": "orm-injection",
+      "title": "ORM Injection",
+      "source": "pentesting-web/orm-injection.md",
+      "file": "articles/orm-injection.md",
+      "chars": 20385
+    },
+    {
+      "slug": "rsql-injection",
+      "title": "RSQL Injection",
+      "source": "pentesting-web/rsql-injection.md",
+      "file": "articles/rsql-injection.md",
+      "chars": 28340
+    },
+    {
+      "slug": "xpath-injection",
+      "title": "XPATH Injection",
+      "source": "pentesting-web/xpath-injection.md",
+      "file": "articles/xpath-injection.md",
+      "chars": 10082
+    },
+    {
+      "slug": "csrf-cross-site-request-forgery",
+      "title": "Cross Site Request Forgery",
+      "source": "pentesting-web/csrf-cross-site-request-forgery.md",
+      "file": "articles/csrf-cross-site-request-forgery.md",
+      "chars": 35440
+    },
+    {
+      "slug": "websocket-attacks",
+      "title": "Cross-site WebSocket hijacking (CSWSH)",
+      "source": "pentesting-web/websocket-attacks.md",
+      "file": "articles/websocket-attacks.md",
+      "chars": 30683
+    },
+    {
+      "slug": "phone-number-injections",
+      "title": "Phone Number Injections",
+      "source": "pentesting-web/phone-number-injections.md",
+      "file": "articles/phone-number-injections.md",
+      "chars": 2073
+    },
+    {
+      "slug": "postmessage-vulnerabilities",
+      "title": "PostMessage Vulnerabilities",
+      "source": "pentesting-web/postmessage-vulnerabilities/README.md",
+      "file": "articles/postmessage-vulnerabilities.md",
+      "chars": 21110
+    },
+    {
+      "slug": "clickjacking",
+      "title": "Clickjacking",
+      "source": "pentesting-web/clickjacking.md",
+      "file": "articles/clickjacking.md",
+      "chars": 18600
+    },
+    {
+      "slug": "iframe-traps",
+      "title": "Iframe Traps / Click Isolation",
+      "source": "pentesting-web/iframe-traps.md",
+      "file": "articles/iframe-traps.md",
+      "chars": 7166
+    },
+    {
+      "slug": "content-security-policy-csp-bypass",
+      "title": "Content Security Policy bypass",
+      "source": "pentesting-web/content-security-policy-csp-bypass/README.md",
+      "file": "articles/content-security-policy-csp-bypass.md",
+      "chars": 51427
+    },
+    {
+      "slug": "hacking-with-cookies",
+      "title": "Cookies Hacking",
+      "source": "pentesting-web/hacking-with-cookies/README.md",
+      "file": "articles/hacking-with-cookies.md",
+      "chars": 30900
+    },
+    {
+      "slug": "cors-bypass",
+      "title": "CORS - Misconfigurations & Bypass",
+      "source": "pentesting-web/cors-bypass.md",
+      "file": "articles/cors-bypass.md",
+      "chars": 36841
+    },
+    {
+      "slug": "2fa-bypass",
+      "title": "2FA/OTP Bypass",
+      "source": "pentesting-web/2fa-bypass.md",
+      "file": "articles/2fa-bypass.md",
+      "chars": 7427
+    },
+    {
+      "slug": "bypass-payment-process",
+      "title": "Bypass Payment Process",
+      "source": "pentesting-web/bypass-payment-process.md",
+      "file": "articles/bypass-payment-process.md",
+      "chars": 3040
+    },
+    {
+      "slug": "captcha-bypass",
+      "title": "Captcha Bypass",
+      "source": "pentesting-web/captcha-bypass.md",
+      "file": "articles/captcha-bypass.md",
+      "chars": 3937
+    },
+    {
+      "slug": "account-takeover",
+      "title": "Account Takeover Playbooks",
+      "source": "pentesting-web/account-takeover.md",
+      "file": "articles/account-takeover.md",
+      "chars": 17163
+    },
+    {
+      "slug": "login-bypass",
+      "title": "Login Bypass",
+      "source": "pentesting-web/login-bypass/README.md",
+      "file": "articles/login-bypass.md",
+      "chars": 7153
+    },
+    {
+      "slug": "race-condition",
+      "title": "Race Condition",
+      "source": "pentesting-web/race-condition.md",
+      "file": "articles/race-condition.md",
+      "chars": 31430
+    },
+    {
+      "slug": "rate-limit-bypass",
+      "title": "Rate Limit Bypass",
+      "source": "pentesting-web/rate-limit-bypass.md",
+      "file": "articles/rate-limit-bypass.md",
+      "chars": 10732
+    },
+    {
+      "slug": "reset-password",
+      "title": "Reset Forgotten Password Bypass",
+      "source": "pentesting-web/reset-password.md",
+      "file": "articles/reset-password.md",
+      "chars": 20169
+    },
+    {
+      "slug": "registration-vulnerabilities",
+      "title": "Registration Vulnerabilities",
+      "source": "pentesting-web/registration-vulnerabilities.md",
+      "file": "articles/registration-vulnerabilities.md",
+      "chars": 16552
+    },
+    {
+      "slug": "deserialization",
+      "title": "Deserialization",
+      "source": "pentesting-web/deserialization/README.md",
+      "file": "articles/deserialization.md",
+      "chars": 73157
+    },
+    {
+      "slug": "email-injections",
+      "title": "Email Header Injection",
+      "source": "pentesting-web/email-injections.md",
+      "file": "articles/email-injections.md",
+      "chars": 10006
+    },
+    {
+      "slug": "hacking-jwt-json-web-tokens",
+      "title": "JWT Vulnerabilities",
+      "source": "pentesting-web/hacking-jwt-json-web-tokens.md",
+      "file": "articles/hacking-jwt-json-web-tokens.md",
+      "chars": 26193
+    },
+    {
+      "slug": "json-xml-yaml-hacking",
+      "title": "JSON / XML / YAML Hacking",
+      "source": "pentesting-web/json-xml-yaml-hacking.md",
+      "file": "articles/json-xml-yaml-hacking.md",
+      "chars": 8565
+    },
+    {
+      "slug": "xxe-xee-xml-external-entity",
+      "title": "XML External Entity",
+      "source": "pentesting-web/xxe-xee-xml-external-entity.md",
+      "file": "articles/xxe-xee-xml-external-entity.md",
+      "chars": 44206
+    },
+    {
+      "slug": "graphql",
+      "title": "GraphQL Attacks",
+      "source": "network-services-pentesting/pentesting-web/graphql.md",
+      "file": "articles/graphql.md",
+      "chars": 54403
+    },
+    {
+      "slug": "grpc-web-pentest",
+      "title": "gRPC-Web Attacks",
+      "source": "pentesting-web/grpc-web-pentest.md",
+      "file": "articles/grpc-web-pentest.md",
+      "chars": 10962
+    },
+    {
+      "slug": "soap-jax-ws-threadlocal-auth-bypass",
+      "title": "SOAP/JAX-WS ThreadLocal Auth Bypass",
+      "source": "pentesting-web/soap-jax-ws-threadlocal-auth-bypass.md",
+      "file": "articles/soap-jax-ws-threadlocal-auth-bypass.md",
+      "chars": 6098
+    },
+    {
+      "slug": "file-upload",
+      "title": "File Upload",
+      "source": "pentesting-web/file-upload/README.md",
+      "file": "articles/file-upload.md",
+      "chars": 46823
+    },
+    {
+      "slug": "formula-csv-doc-latex-ghostscript-injection",
+      "title": "Formula Injection",
+      "source": "pentesting-web/formula-csv-doc-latex-ghostscript-injection.md",
+      "file": "articles/formula-csv-doc-latex-ghostscript-injection.md",
+      "chars": 9501
+    },
+    {
+      "slug": "pdf-injection",
+      "title": "PDF Injection",
+      "source": "pentesting-web/xss-cross-site-scripting/pdf-injection.md",
+      "file": "articles/pdf-injection.md",
+      "chars": 11231
+    },
+    {
+      "slug": "server-side-xss-dynamic-pdf",
+      "title": "Server Side XSS",
+      "source": "pentesting-web/xss-cross-site-scripting/server-side-xss-dynamic-pdf.md",
+      "file": "articles/server-side-xss-dynamic-pdf.md",
+      "chars": 9142
+    },
+    {
+      "slug": "oauth-to-account-takeover",
+      "title": "OAUTH to Account takeover",
+      "source": "pentesting-web/oauth-to-account-takeover.md",
+      "file": "articles/oauth-to-account-takeover.md",
+      "chars": 45676
+    },
+    {
+      "slug": "saml-attacks",
+      "title": "SAML Attacks",
+      "source": "pentesting-web/saml-attacks/README.md",
+      "file": "articles/saml-attacks.md",
+      "chars": 28246
+    },
+    {
+      "slug": "domain-subdomain-takeover",
+      "title": "Domain/Subdomain takeover",
+      "source": "pentesting-web/domain-subdomain-takeover.md",
+      "file": "articles/domain-subdomain-takeover.md",
+      "chars": 12871
+    },
+    {
+      "slug": "idor",
+      "title": "IDOR",
+      "source": "pentesting-web/idor.md",
+      "file": "articles/idor.md",
+      "chars": 9908
+    },
+    {
+      "slug": "mass-assignment-cwe-915",
+      "title": "Mass Assignment (CWE-915)",
+      "source": "pentesting-web/mass-assignment-cwe-915.md",
+      "file": "articles/mass-assignment-cwe-915.md",
+      "chars": 12084
+    },
+    {
+      "slug": "parameter-pollution",
+      "title": "Parameter Pollution",
+      "source": "pentesting-web/parameter-pollution.md",
+      "file": "articles/parameter-pollution.md",
+      "chars": 12192
+    },
+    {
+      "slug": "unicode-injection",
+      "title": "Unicode Normalization vulnerability",
+      "source": "pentesting-web/unicode-injection/README.md",
+      "file": "articles/unicode-injection.md",
+      "chars": 8329
+    },
+    {
+      "slug": "apache",
+      "title": "Apache",
+      "source": "network-services-pentesting/pentesting-web/apache.md",
+      "file": "articles/apache.md",
+      "chars": 22462
+    },
+    {
+      "slug": "nginx",
+      "title": "Nginx",
+      "source": "network-services-pentesting/pentesting-web/nginx.md",
+      "file": "articles/nginx.md",
+      "chars": 32762
+    },
+    {
+      "slug": "iis-internet-information-services",
+      "title": "IIS",
+      "source": "network-services-pentesting/pentesting-web/iis-internet-information-services.md",
+      "file": "articles/iis-internet-information-services.md",
+      "chars": 38950
+    },
+    {
+      "slug": "tomcat",
+      "title": "Tomcat",
+      "source": "network-services-pentesting/pentesting-web/tomcat/README.md",
+      "file": "articles/tomcat.md",
+      "chars": 10104
+    },
+    {
+      "slug": "spring-actuators",
+      "title": "Spring Actuators",
+      "source": "network-services-pentesting/pentesting-web/spring-actuators.md",
+      "file": "articles/spring-actuators.md",
+      "chars": 8196
+    },
+    {
+      "slug": "put-method-webdav",
+      "title": "PUT Method / WebDAV",
+      "source": "network-services-pentesting/pentesting-web/put-method-webdav.md",
+      "file": "articles/put-method-webdav.md",
+      "chars": 9074
+    },
+    {
+      "slug": "special-http-headers",
+      "title": "Special HTTP Headers",
+      "source": "network-services-pentesting/pentesting-web/special-http-headers.md",
+      "file": "articles/special-http-headers.md",
+      "chars": 19353
+    },
+    {
+      "slug": "wsgi",
+      "title": "WSGI Deployment",
+      "source": "network-services-pentesting/pentesting-web/wsgi.md",
+      "file": "articles/wsgi.md",
+      "chars": 9688
+    },
+    {
+      "slug": "werkzeug",
+      "title": "Werkzeug Debug Exposure",
+      "source": "network-services-pentesting/pentesting-web/werkzeug.md",
+      "file": "articles/werkzeug.md",
+      "chars": 7570
+    },
+    {
+      "slug": "django",
+      "title": "Django",
+      "source": "network-services-pentesting/pentesting-web/django.md",
+      "file": "articles/django.md",
+      "chars": 12578
+    },
+    {
+      "slug": "flask",
+      "title": "Flask",
+      "source": "network-services-pentesting/pentesting-web/flask.md",
+      "file": "articles/flask.md",
+      "chars": 3832
+    },
+    {
+      "slug": "nodejs-express",
+      "title": "NodeJS / Express",
+      "source": "network-services-pentesting/pentesting-web/nodejs-express.md",
+      "file": "articles/nodejs-express.md",
+      "chars": 8229
+    },
+    {
+      "slug": "angular",
+      "title": "Angular",
+      "source": "network-services-pentesting/pentesting-web/angular.md",
+      "file": "articles/angular.md",
+      "chars": 30466
+    },
+    {
+      "slug": "vuejs",
+      "title": "Vue / Nuxt",
+      "source": "network-services-pentesting/pentesting-web/vuejs.md",
+      "file": "articles/vuejs.md",
+      "chars": 7204
+    },
+    {
+      "slug": "nextjs",
+      "title": "Next.js",
+      "source": "network-services-pentesting/pentesting-web/nextjs.md",
+      "file": "articles/nextjs.md",
+      "chars": 52565
+    },
+    {
+      "slug": "laravel",
+      "title": "Laravel",
+      "source": "network-services-pentesting/pentesting-web/laravel.md",
+      "file": "articles/laravel.md",
+      "chars": 18597
+    },
+    {
+      "slug": "symphony",
+      "title": "Symfony",
+      "source": "network-services-pentesting/pentesting-web/symphony.md",
+      "file": "articles/symphony.md",
+      "chars": 10114
+    },
+    {
+      "slug": "wordpress",
+      "title": "WordPress",
+      "source": "network-services-pentesting/pentesting-web/wordpress.md",
+      "file": "articles/wordpress.md",
+      "chars": 57730
+    },
+    {
+      "slug": "joomla",
+      "title": "Joomla",
+      "source": "network-services-pentesting/pentesting-web/joomla.md",
+      "file": "articles/joomla.md",
+      "chars": 4895
+    },
+    {
+      "slug": "drupal",
+      "title": "Drupal",
+      "source": "network-services-pentesting/pentesting-web/drupal/README.md",
+      "file": "articles/drupal.md",
+      "chars": 4121
+    },
+    {
+      "slug": "moodle",
+      "title": "Moodle",
+      "source": "network-services-pentesting/pentesting-web/moodle.md",
+      "file": "articles/moodle.md",
+      "chars": 9305
+    },
+    {
+      "slug": "prestashop",
+      "title": "Prestashop",
+      "source": "network-services-pentesting/pentesting-web/prestashop.md",
+      "file": "articles/prestashop.md",
+      "chars": 2966
+    },
+    {
+      "slug": "jira",
+      "title": "Atlassian Jira",
+      "source": "network-services-pentesting/pentesting-web/jira.md",
+      "file": "articles/jira.md",
+      "chars": 8828
+    },
+    {
+      "slug": "grafana",
+      "title": "Grafana",
+      "source": "network-services-pentesting/pentesting-web/grafana.md",
+      "file": "articles/grafana.md",
+      "chars": 7728
+    },
+    {
+      "slug": "rocket-chat",
+      "title": "Rocket.Chat",
+      "source": "network-services-pentesting/pentesting-web/rocket-chat.md",
+      "file": "articles/rocket-chat.md",
+      "chars": 2624
+    },
+    {
+      "slug": "zabbix",
+      "title": "Zabbix",
+      "source": "network-services-pentesting/pentesting-web/zabbix.md",
+      "file": "articles/zabbix.md",
+      "chars": 10300
+    },
+    {
+      "slug": "microsoft-sharepoint",
+      "title": "Microsoft SharePoint",
+      "source": "network-services-pentesting/pentesting-web/microsoft-sharepoint.md",
+      "file": "articles/microsoft-sharepoint.md",
+      "chars": 13052
+    },
+    {
+      "slug": "sitecore",
+      "title": "Sitecore",
+      "source": "network-services-pentesting/pentesting-web/sitecore/README.md",
+      "file": "articles/sitecore.md",
+      "chars": 10665
+    },
+    {
+      "slug": "web-api-pentesting",
+      "title": "Web API Pentesting",
+      "source": "network-services-pentesting/pentesting-web/web-api-pentesting.md",
+      "file": "articles/web-api-pentesting.md",
+      "chars": 11161
+    },
+    {
+      "slug": "buckets",
+      "title": "Storage Buckets & Firebase",
+      "source": "network-services-pentesting/pentesting-web/buckets/README.md",
+      "file": "articles/buckets.md",
+      "chars": 408
+    },
+    {
+      "slug": "imagemagick-security",
+      "title": "Imagemagick Security",
+      "source": "network-services-pentesting/pentesting-web/imagemagick-security.md",
+      "file": "articles/imagemagick-security.md",
+      "chars": 7472
+    },
+    {
+      "slug": "artifactory-hacking-guide",
+      "title": "Artifactory & Package Registries",
+      "source": "network-services-pentesting/pentesting-web/artifactory-hacking-guide.md",
+      "file": "articles/artifactory-hacking-guide.md",
+      "chars": 493
+    },
+    {
+      "slug": "dependency-confusion",
+      "title": "Dependency Confusion",
+      "source": "pentesting-web/dependency-confusion.md",
+      "file": "articles/dependency-confusion.md",
+      "chars": 19962
+    },
+    {
+      "slug": "timing-attacks",
+      "title": "Timing Attacks",
+      "source": "pentesting-web/timing-attacks.md",
+      "file": "articles/timing-attacks.md",
+      "chars": 7090
+    },
+    {
+      "slug": "uuid-insecurities",
+      "title": "UUID Insecurities",
+      "source": "pentesting-web/uuid-insecurities.md",
+      "file": "articles/uuid-insecurities.md",
+      "chars": 4405
+    },
+    {
+      "slug": "dapps-decentralizedapplications",
+      "title": "dApps / Decentralized Applications",
+      "source": "pentesting-web/dapps-DecentralizedApplications.md",
+      "file": "articles/dapps-decentralizedapplications.md",
+      "chars": 16004
+    },
+    {
+      "slug": "browser-extension-pentesting-methodology",
+      "title": "Browser Extension Pentesting",
+      "source": "pentesting-web/browser-extension-pentesting-methodology/README.md",
+      "file": "articles/browser-extension-pentesting-methodology.md",
+      "chars": 47367
+    },
+    {
+      "slug": "web-tool-wfuzz",
+      "title": "wfuzz Web Fuzzing",
+      "source": "pentesting-web/web-tool-wfuzz.md",
+      "file": "articles/web-tool-wfuzz.md",
+      "chars": 8508
+    }
+  ]
+}

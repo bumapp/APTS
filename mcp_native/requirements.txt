@@ -1,0 +1,6 @@
+# Dependencies for the standalone native MCP server (mcp_native/).
+# Isolated from the main image on purpose: the MCP SDK needs pydantic>=2.12,
+# which the six-agent stack does not pin to, so this lives in its own image.
+mcp==2.1.0
+psycopg[binary]==3.2.3
+httpx==0.27.2

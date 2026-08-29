@@ -1,0 +1,3 @@
+# The HackTricks corpus is mounted read-only into mcp-native at /opt/hacktricks
+# (see docker-compose.yml); it does not need to be baked into any image.
+mcp_native/corpus/
