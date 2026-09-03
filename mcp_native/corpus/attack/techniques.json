@@ -1,0 +1,399 @@
+{
+  "source": "MITRE ATT&CK for Enterprise",
+  "version": "v15",
+  "note": "A curated subset covering the techniques a web-application weakness plausibly maps to. Not the full matrix. Regenerate/extend from the official STIX bundle when attack_validate needs full coverage.",
+  "techniques": [
+    {
+      "id": "T1190",
+      "name": "Exploit Public-Facing Application",
+      "tactics": ["Initial Access"],
+      "url": "https://attack.mitre.org/techniques/T1190/",
+      "keywords": ["sql injection", "sqli", "nosql injection", "injection", "ssrf", "server-side request forgery", "xxe", "xml external entity", "deserialization", "insecure deserialization", "rce", "remote code execution", "command injection", "code injection", "template injection", "ssti", "path traversal", "directory traversal", "lfi", "local file inclusion", "rfi", "prototype pollution", "idor", "insecure direct object reference", "broken access control", "mass assignment", "http request smuggling", "parameter pollution", "web vulnerability", "public-facing", "orm injection", "ldap injection", "expression language injection"],
+      "description": "Adversaries may attempt to exploit a weakness in an Internet-facing host or system to gain initial access to a network. This includes injection flaws, SSRF, insecure deserialization, XXE and any bug in a public web application or API."
+    },
+    {
+      "id": "T1133",
+      "name": "External Remote Services",
+      "tactics": ["Initial Access", "Persistence"],
+      "url": "https://attack.mitre.org/techniques/T1133/",
+      "keywords": ["remote service", "vpn", "rdp exposed", "admin portal", "remote access", "exposed management interface"],
+      "description": "Adversaries may leverage external-facing remote services (VPNs, admin consoles, remote desktop gateways) to initially access or persist within a network."
+    },
+    {
+      "id": "T1078",
+      "name": "Valid Accounts",
+      "tactics": ["Initial Access", "Persistence", "Privilege Escalation", "Defense Evasion"],
+      "url": "https://attack.mitre.org/techniques/T1078/",
+      "keywords": ["authentication bypass", "auth bypass", "login bypass", "account takeover", "credential reuse", "session hijacking", "impersonation", "privilege escalation via account", "jwt forgery"],
+      "description": "Adversaries may obtain and abuse credentials of existing accounts to gain access, escalate privileges, persist, or evade defences. Covers authentication-bypass and account-takeover outcomes on a web application."
+    },
+    {
+      "id": "T1078.001",
+      "name": "Valid Accounts: Default Accounts",
+      "tactics": ["Initial Access", "Persistence", "Privilege Escalation", "Defense Evasion"],
+      "url": "https://attack.mitre.org/techniques/T1078/001/",
+      "keywords": ["default credentials", "default account", "admin/admin", "factory password"],
+      "description": "Adversaries may use default account credentials shipped with an application or appliance to gain access."
+    },
+    {
+      "id": "T1078.003",
+      "name": "Valid Accounts: Local Accounts",
+      "tactics": ["Initial Access", "Persistence", "Privilege Escalation", "Defense Evasion"],
+      "url": "https://attack.mitre.org/techniques/T1078/003/",
+      "keywords": ["local account", "application account", "database user account"],
+      "description": "Adversaries may abuse local accounts configured on a host or application for access and privilege escalation."
+    },
+    {
+      "id": "T1110",
+      "name": "Brute Force",
+      "tactics": ["Credential Access"],
+      "url": "https://attack.mitre.org/techniques/T1110/",
+      "keywords": ["brute force", "no rate limit", "missing rate limiting", "login flooding", "otp brute force", "pin brute force", "2fa bypass by brute force"],
+      "description": "Adversaries may use brute force to guess credentials or secrets when the application does not rate-limit or lock out authentication attempts."
+    },
+    {
+      "id": "T1110.001",
+      "name": "Brute Force: Password Guessing",
+      "tactics": ["Credential Access"],
+      "url": "https://attack.mitre.org/techniques/T1110/001/",
+      "keywords": ["password guessing", "weak password policy"],
+      "description": "Adversaries may guess passwords against a login endpoint without prior knowledge of the password."
+    },
+    {
+      "id": "T1110.003",
+      "name": "Brute Force: Password Spraying",
+      "tactics": ["Credential Access"],
+      "url": "https://attack.mitre.org/techniques/T1110/003/",
+      "keywords": ["password spraying", "spray"],
+      "description": "Adversaries may try a small set of common passwords across many accounts to avoid lockout."
+    },
+    {
+      "id": "T1110.004",
+      "name": "Brute Force: Credential Stuffing",
+      "tactics": ["Credential Access"],
+      "url": "https://attack.mitre.org/techniques/T1110/004/",
+      "keywords": ["credential stuffing", "breached credentials", "reused credentials"],
+      "description": "Adversaries may use credentials from prior breaches against a login endpoint that does not detect automated reuse."
+    },
+    {
+      "id": "T1212",
+      "name": "Exploitation for Credential Access",
+      "tactics": ["Credential Access"],
+      "url": "https://attack.mitre.org/techniques/T1212/",
+      "keywords": ["credential disclosure", "user enumeration", "password reset poisoning", "leak credentials via bug", "verbose auth error"],
+      "description": "Adversaries may exploit a software vulnerability to collect credentials — e.g. a bug that discloses password hashes, reset tokens, or enables user enumeration."
+    },
+    {
+      "id": "T1539",
+      "name": "Steal Web Session Cookie",
+      "tactics": ["Credential Access"],
+      "url": "https://attack.mitre.org/techniques/T1539/",
+      "keywords": ["session cookie theft", "xss cookie theft", "cors misconfiguration", "session token disclosure", "missing httponly", "cookie without secure"],
+      "description": "Adversaries may steal web application or service session cookies to authenticate as a user without needing the password — via XSS, an over-permissive CORS policy, or token disclosure."
+    },
+    {
+      "id": "T1550.004",
+      "name": "Use Alternate Authentication Material: Web Session Cookie",
+      "tactics": ["Defense Evasion", "Lateral Movement"],
+      "url": "https://attack.mitre.org/techniques/T1550/004/",
+      "keywords": ["session fixation", "session replay", "reuse stolen cookie", "websocket hijacking", "jwt reuse"],
+      "description": "Adversaries may use a stolen or fixed web session cookie to authenticate to a web application, bypassing normal authentication."
+    },
+    {
+      "id": "T1552",
+      "name": "Unsecured Credentials",
+      "tactics": ["Credential Access"],
+      "url": "https://attack.mitre.org/techniques/T1552/",
+      "keywords": ["hardcoded secret", "api key in response", "credentials in js", "token in url", "exposed .env", "secret in source map", "jwt secret disclosure"],
+      "description": "Adversaries may search compromised systems, application responses, or client-side code to find insecurely stored credentials, API keys and tokens."
+    },
+    {
+      "id": "T1552.001",
+      "name": "Unsecured Credentials: Credentials In Files",
+      "tactics": ["Credential Access"],
+      "url": "https://attack.mitre.org/techniques/T1552/001/",
+      "keywords": ["credentials in file", "config file disclosure", "backup file", "exposed config"],
+      "description": "Adversaries may read files (config, backups, source) that contain credentials, reachable through path traversal or misconfiguration."
+    },
+    {
+      "id": "T1059",
+      "name": "Command and Scripting Interpreter",
+      "tactics": ["Execution"],
+      "url": "https://attack.mitre.org/techniques/T1059/",
+      "keywords": ["command execution", "code execution", "interpreter", "eval", "deserialization to rce", "template injection to rce"],
+      "description": "Adversaries may abuse command and script interpreters to execute commands or code, often the end state of an injection or deserialization bug."
+    },
+    {
+      "id": "T1059.004",
+      "name": "Command and Scripting Interpreter: Unix Shell",
+      "tactics": ["Execution"],
+      "url": "https://attack.mitre.org/techniques/T1059/004/",
+      "keywords": ["os command injection", "shell command injection", "bash", "sh -c", "system()"],
+      "description": "Adversaries may abuse Unix shell commands, e.g. via OS command injection in a web application that passes input to a shell."
+    },
+    {
+      "id": "T1059.006",
+      "name": "Command and Scripting Interpreter: Python",
+      "tactics": ["Execution"],
+      "url": "https://attack.mitre.org/techniques/T1059/006/",
+      "keywords": ["python injection", "pickle deserialization", "python eval", "jinja2 ssti"],
+      "description": "Adversaries may execute Python code, e.g. via unsafe pickle deserialization or server-side template injection in a Python stack."
+    },
+    {
+      "id": "T1059.007",
+      "name": "Command and Scripting Interpreter: JavaScript",
+      "tactics": ["Execution"],
+      "url": "https://attack.mitre.org/techniques/T1059/007/",
+      "keywords": ["xss", "cross-site scripting", "reflected xss", "stored xss", "dom xss", "javascript execution", "prototype pollution", "node vm escape", "client-side template injection"],
+      "description": "Adversaries may abuse JavaScript execution in a victim's browser (XSS) or server-side (Node.js), for example through reflected, stored or DOM cross-site scripting."
+    },
+    {
+      "id": "T1505.003",
+      "name": "Server Software Component: Web Shell",
+      "tactics": ["Persistence"],
+      "url": "https://attack.mitre.org/techniques/T1505/003/",
+      "keywords": ["web shell", "webshell", "unrestricted file upload", "arbitrary file upload", "upload to rce", "aspx shell", "php shell", "jsp shell"],
+      "description": "Adversaries may plant a web shell on a server — typically via an unrestricted file-upload vulnerability — for persistent command execution over HTTP."
+    },
+    {
+      "id": "T1211",
+      "name": "Exploitation for Defense Evasion",
+      "tactics": ["Defense Evasion"],
+      "url": "https://attack.mitre.org/techniques/T1211/",
+      "keywords": ["waf bypass", "filter bypass", "auth check bypass", "acl bypass", "signature bypass"],
+      "description": "Adversaries may exploit a vulnerability to bypass or disable a security control — a WAF, an authorization check, an input filter."
+    },
+    {
+      "id": "T1548",
+      "name": "Abuse Elevation Control Mechanism",
+      "tactics": ["Privilege Escalation", "Defense Evasion"],
+      "url": "https://attack.mitre.org/techniques/T1548/",
+      "keywords": ["privilege escalation", "vertical privilege escalation", "role manipulation", "isadmin flag", "forced browsing to admin", "function-level access control"],
+      "description": "Adversaries may circumvent mechanisms designed to control privilege — e.g. setting a hidden 'isAdmin' field via mass assignment, or reaching an admin-only function without the role."
+    },
+    {
+      "id": "T1068",
+      "name": "Exploitation for Privilege Escalation",
+      "tactics": ["Privilege Escalation"],
+      "url": "https://attack.mitre.org/techniques/T1068/",
+      "keywords": ["privilege escalation exploit", "escalate via bug", "idor to admin", "horizontal to vertical"],
+      "description": "Adversaries may exploit a software vulnerability to execute code or actions with higher privileges than intended."
+    },
+    {
+      "id": "T1213",
+      "name": "Data from Information Repositories",
+      "tactics": ["Collection"],
+      "url": "https://attack.mitre.org/techniques/T1213/",
+      "keywords": ["idor data read", "excessive data exposure", "api returns other users data", "bola", "broken object level authorization", "enumerate records"],
+      "description": "Adversaries may leverage information repositories and APIs to mine data — for a web app, reading other users' records through IDOR / broken object-level authorization."
+    },
+    {
+      "id": "T1005",
+      "name": "Data from Local System",
+      "tactics": ["Collection"],
+      "url": "https://attack.mitre.org/techniques/T1005/",
+      "keywords": ["file read", "arbitrary file read", "path traversal read", "lfi read", "xxe file read", "source disclosure"],
+      "description": "Adversaries may search and collect files from a local system — reachable in a web context through path traversal, LFI or XXE that returns file contents."
+    },
+    {
+      "id": "T1119",
+      "name": "Automated Collection",
+      "tactics": ["Collection"],
+      "url": "https://attack.mitre.org/techniques/T1119/",
+      "keywords": ["scraping", "bulk data extraction", "enumerate all ids", "automated harvesting"],
+      "description": "Adversaries may use automation to collect data, e.g. iterating every object id exposed by an IDOR to harvest a whole table."
+    },
+    {
+      "id": "T1071.001",
+      "name": "Application Layer Protocol: Web Protocols",
+      "tactics": ["Command and Control"],
+      "url": "https://attack.mitre.org/techniques/T1071/001/",
+      "keywords": ["http c2", "webhook abuse", "outbound http", "ssrf to external", "beaconing over http"],
+      "description": "Adversaries may communicate using HTTP/S to blend with normal traffic; an SSRF that reaches attacker infrastructure or a webhook that can be pointed outward enables this."
+    },
+    {
+      "id": "T1567",
+      "name": "Exfiltration Over Web Service",
+      "tactics": ["Exfiltration"],
+      "url": "https://attack.mitre.org/techniques/T1567/",
+      "keywords": ["exfiltration over http", "data exfil via web", "send data to external service", "ssrf exfiltration", "dns exfiltration"],
+      "description": "Adversaries may exfiltrate data to an external web service; a blind SSRF or XXE that can send request bodies outbound is a channel for this."
+    },
+    {
+      "id": "T1048",
+      "name": "Exfiltration Over Alternative Protocol",
+      "tactics": ["Exfiltration"],
+      "url": "https://attack.mitre.org/techniques/T1048/",
+      "keywords": ["oob exfiltration", "out-of-band", "dns exfil", "blind xxe exfil", "blind ssrf exfil"],
+      "description": "Adversaries may exfiltrate data over a protocol other than the existing C2 channel, e.g. an out-of-band XXE or SSRF using DNS or a secondary HTTP endpoint."
+    },
+    {
+      "id": "T1499",
+      "name": "Endpoint Denial of Service",
+      "tactics": ["Impact"],
+      "url": "https://attack.mitre.org/techniques/T1499/",
+      "keywords": ["denial of service", "dos", "resource exhaustion", "regex dos", "redos", "billion laughs", "decompression bomb", "unbounded query"],
+      "description": "Adversaries may perform endpoint denial of service to degrade or block availability — ReDoS, an XML entity-expansion bomb, or an unbounded expensive operation."
+    },
+    {
+      "id": "T1499.002",
+      "name": "Endpoint Denial of Service: Service Exhaustion Flood",
+      "tactics": ["Impact"],
+      "url": "https://attack.mitre.org/techniques/T1499/002/",
+      "keywords": ["service exhaustion", "connection flood", "socket flood", "websocket flood", "polling flood"],
+      "description": "Adversaries may exhaust a service's resources by flooding it with requests or connections it cannot shed."
+    },
+    {
+      "id": "T1498",
+      "name": "Network Denial of Service",
+      "tactics": ["Impact"],
+      "url": "https://attack.mitre.org/techniques/T1498/",
+      "keywords": ["network dos", "amplification", "traffic flood", "bandwidth exhaustion"],
+      "description": "Adversaries may perform network denial of service to degrade availability of a targeted service by saturating the network."
+    },
+    {
+      "id": "T1565",
+      "name": "Data Manipulation",
+      "tactics": ["Impact"],
+      "url": "https://attack.mitre.org/techniques/T1565/",
+      "keywords": ["tamper data", "modify records", "unauthorized write", "price manipulation", "negative quantity", "modify other users data"],
+      "description": "Adversaries may insert, delete or manipulate data to influence an outcome — e.g. a broken-access-control write that alters an order price or another user's record."
+    },
+    {
+      "id": "T1565.001",
+      "name": "Data Manipulation: Stored Data Manipulation",
+      "tactics": ["Impact"],
+      "url": "https://attack.mitre.org/techniques/T1565/001/",
+      "keywords": ["stored data tampering", "database record tampering", "persist malicious data"],
+      "description": "Adversaries may alter data at rest to influence business processes or hide activity."
+    },
+    {
+      "id": "T1485",
+      "name": "Data Destruction",
+      "tactics": ["Impact"],
+      "url": "https://attack.mitre.org/techniques/T1485/",
+      "keywords": ["delete records", "destructive write", "arbitrary delete", "drop table", "wipe data"],
+      "description": "Adversaries may destroy data — a broken-access-control or injection bug that permits arbitrary DELETE is the web-app path to this."
+    },
+    {
+      "id": "T1046",
+      "name": "Network Service Discovery",
+      "tactics": ["Discovery"],
+      "url": "https://attack.mitre.org/techniques/T1046/",
+      "keywords": ["internal port scan", "ssrf port scan", "service enumeration", "internal network discovery"],
+      "description": "Adversaries may enumerate services running on remote hosts; an SSRF that returns differentiable responses lets an attacker port-scan the internal network."
+    },
+    {
+      "id": "T1083",
+      "name": "File and Directory Discovery",
+      "tactics": ["Discovery"],
+      "url": "https://attack.mitre.org/techniques/T1083/",
+      "keywords": ["directory listing", "path enumeration", "traversal discovery", "list files", "enumerate directories"],
+      "description": "Adversaries may enumerate files and directories — an exposed directory listing or a path-traversal primitive used to map the filesystem."
+    },
+    {
+      "id": "T1087",
+      "name": "Account Discovery",
+      "tactics": ["Discovery"],
+      "url": "https://attack.mitre.org/techniques/T1087/",
+      "keywords": ["user enumeration", "username enumeration", "account enumeration", "login oracle", "registration oracle", "reset oracle"],
+      "description": "Adversaries may get a list of valid accounts — a login, registration or password-reset endpoint whose response distinguishes existing from non-existing users."
+    },
+    {
+      "id": "T1595",
+      "name": "Active Scanning",
+      "tactics": ["Reconnaissance"],
+      "url": "https://attack.mitre.org/techniques/T1595/",
+      "keywords": ["active scan", "probe target", "fuzzing endpoints", "content discovery"],
+      "description": "Adversaries may execute active reconnaissance scans against a target's infrastructure to gather information for targeting."
+    },
+    {
+      "id": "T1595.002",
+      "name": "Active Scanning: Vulnerability Scanning",
+      "tactics": ["Reconnaissance"],
+      "url": "https://attack.mitre.org/techniques/T1595/002/",
+      "keywords": ["vulnerability scanning", "version fingerprinting", "known cve check", "outdated component"],
+      "description": "Adversaries may scan a target to find vulnerabilities that can be used during targeting — e.g. identifying an outdated component with a known CVE."
+    },
+    {
+      "id": "T1592",
+      "name": "Gather Victim Host Information",
+      "tactics": ["Reconnaissance"],
+      "url": "https://attack.mitre.org/techniques/T1592/",
+      "keywords": ["information disclosure", "verbose error", "stack trace disclosure", "server header", "debug endpoint", "version disclosure", "tech stack disclosure"],
+      "description": "Adversaries may gather information about the victim's hosts — a stack trace, a debug page, or a verbose header that leaks the software and version in use."
+    },
+    {
+      "id": "T1213.003",
+      "name": "Data from Information Repositories: Code Repositories",
+      "tactics": ["Collection"],
+      "url": "https://attack.mitre.org/techniques/T1213/003/",
+      "keywords": ["source code disclosure", "exposed .git", "repository leak", "source map exposure"],
+      "description": "Adversaries may mine source code repositories — an exposed .git directory or published source maps disclose application source."
+    },
+    {
+      "id": "T1204",
+      "name": "User Execution",
+      "tactics": ["Execution"],
+      "url": "https://attack.mitre.org/techniques/T1204/",
+      "keywords": ["csrf", "cross-site request forgery", "clickjacking", "open redirect", "phishing link", "victim must click", "ui redress"],
+      "description": "Adversaries may rely on a user taking an action — clicking a link or submitting a form. CSRF, clickjacking and open-redirect abuse all require victim interaction."
+    },
+    {
+      "id": "T1189",
+      "name": "Drive-by Compromise",
+      "tactics": ["Initial Access"],
+      "url": "https://attack.mitre.org/techniques/T1189/",
+      "keywords": ["drive-by", "stored xss to visitors", "watering hole", "malicious content served to users", "compromise via browsing"],
+      "description": "Adversaries may gain access to a system through a user visiting a website — stored XSS that runs in every visitor's browser is a drive-by vector."
+    },
+    {
+      "id": "T1659",
+      "name": "Content Injection",
+      "tactics": ["Initial Access", "Command and Control"],
+      "url": "https://attack.mitre.org/techniques/T1659/",
+      "keywords": ["content injection", "http response splitting", "crlf injection", "cache poisoning", "response manipulation", "host header injection"],
+      "description": "Adversaries may inject malicious content into traffic — HTTP response splitting, CRLF injection or web cache poisoning that serves attacker content to other users."
+    },
+    {
+      "id": "T1557",
+      "name": "Adversary-in-the-Middle",
+      "tactics": ["Credential Access", "Collection"],
+      "url": "https://attack.mitre.org/techniques/T1557/",
+      "keywords": ["mitm", "man in the middle", "missing tls", "no hsts", "mixed content", "downgrade", "cleartext transport"],
+      "description": "Adversaries may position between two systems to intercept or manipulate traffic — missing TLS, absent HSTS, or a downgrade path enables this against a web application."
+    },
+    {
+      "id": "T1600",
+      "name": "Weaken Encryption",
+      "tactics": ["Defense Evasion"],
+      "url": "https://attack.mitre.org/techniques/T1600/",
+      "keywords": ["weak crypto", "weak jwt algorithm", "alg none", "predictable token", "insufficient entropy", "weak hashing"],
+      "description": "Adversaries may compromise a system's cryptography — a JWT accepting 'alg:none', a predictable session token, or a weak password hash."
+    },
+    {
+      "id": "T1606",
+      "name": "Forge Web Credentials",
+      "tactics": ["Credential Access"],
+      "url": "https://attack.mitre.org/techniques/T1606/",
+      "keywords": ["forge token", "jwt forgery", "sign own jwt", "saml forgery", "cookie forgery", "predictable session id"],
+      "description": "Adversaries may forge web credentials — signing their own JWT with a leaked/guessable key, forging a SAML assertion, or predicting a session identifier."
+    },
+    {
+      "id": "T1602",
+      "name": "Data from Configuration Repository",
+      "tactics": ["Collection"],
+      "url": "https://attack.mitre.org/techniques/T1602/",
+      "keywords": ["config disclosure", "actuator env", "spring actuator", "metadata endpoint", "cloud metadata via ssrf"],
+      "description": "Adversaries may collect data from configuration repositories — an exposed framework actuator, or SSRF that reaches a cloud metadata endpoint."
+    },
+    {
+      "id": "T1136",
+      "name": "Create Account",
+      "tactics": ["Persistence"],
+      "url": "https://attack.mitre.org/techniques/T1136/",
+      "keywords": ["self-registration abuse", "create privileged account", "register as admin", "sign up bypass"],
+      "description": "Adversaries may create an account to maintain access — a registration flow that lets a caller pick their role or verification state enables a privileged account."
+    }
+  ]
+}
