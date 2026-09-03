@@ -1,0 +1,720 @@
+{
+    "weaknesses": [
+        {
+            "id": "W-001",
+            "asset": "/rest/admin/application-configuration",
+            "title": "Server-Side Request Forgery (SSRF) — URL (GET /rest/admin/application-configuration)",
+            "evidence": [
+            ],
+            "severity": "informational",
+            "rationale": "The endpoint path suggests administrative functionality, potentially fetching configuration details from internal services.",
+            "confidence": "possible",
+            "cvss_score": 0.0,
+            "cvss_vector": "",
+            "owasp_category": ""
+        },
+        {
+            "id": "W-002",
+            "asset": "/rest/admin/application-configuration",
+            "title": "IDOR — URL (GET /rest/admin/application-configuration)",
+            "evidence": [
+            ],
+            "severity": "informational",
+            "rationale": "Administrative endpoints often expose sensitive data; if access controls are weak, unauthorized users might enumerate or access configurations.",
+            "confidence": "possible",
+            "cvss_score": 0.0,
+            "cvss_vector": "",
+            "owasp_category": ""
+        },
+        {
+            "id": "W-003",
+            "asset": "/rest/admin/application-configuration",
+            "title": "Cross-Site Request Forgery (CSRF) — URL (GET /rest/admin/application-configuration)",
+            "evidence": [
+            ],
+            "severity": "informational",
+            "rationale": "No anti-CSRF tokens were observed in the request, making it potentially vulnerable if it performs state-changing operations.",
+            "confidence": "possible",
+            "cvss_score": 0.0,
+            "cvss_vector": "",
+            "owasp_category": ""
+        },
+        {
+            "id": "W-004",
+            "asset": "/rest/admin/application-configuration",
+            "title": "Information Disclosure — URL (GET /rest/admin/application-configuration)",
+            "evidence": [
+            ],
+            "severity": "informational",
+            "rationale": "Administrative endpoints often leak sensitive configuration data such as API keys, database credentials, or internal service addresses.",
+            "confidence": "possible",
+            "cvss_score": 0.0,
+            "cvss_vector": "",
+            "owasp_category": ""
+        },
+        {
+            "id": "W-005",
+            "asset": "/rest/admin/application-configuration",
+            "title": "Broken Access Control — URL (GET /rest/admin/application-configuration)",
+            "evidence": [
+            ],
+            "severity": "informational",
+            "rationale": "The 'admin' path implies privileged functionality; if proper authorization checks are missing, unauthenticated or low-privileged users may access it.",
+            "confidence": "possible",
+            "cvss_score": 0.0,
+            "cvss_vector": "",
+            "owasp_category": ""
+        },
+        {
+            "id": "W-006",
+            "asset": "/rest/admin/application-configuration",
+            "title": "CORS Misconfiguration — URL (GET /rest/admin/application-configuration)",
+            "evidence": [
+            ],
+            "severity": "informational",
+            "rationale": "If the endpoint reflects origin headers or misconfigures allow-origin policies, it could enable unauthorized cross-origin access to admin data.",
+            "confidence": "possible",
+            "cvss_score": 0.0,
+            "cvss_vector": "",
+            "owasp_category": ""
+        },
+        {
+            "id": "W-007",
+            "asset": "/rest/admin/application-configuration",
+            "title": "Cache Poisoning — URL (GET /rest/admin/application-configuration)",
+            "evidence": [
+            ],
+            "severity": "informational",
+            "rationale": "If caching headers are improperly handled, malicious input in headers or parameters could poison intermediary caches with harmful responses.",
+            "confidence": "possible",
+            "cvss_score": 0.0,
+            "cvss_vector": "",
+            "owasp_category": ""
+        },
+        {
+            "id": "W-008",
+            "asset": "/rest/admin/application-configuration",
+            "title": "HTTP Parameter Pollution (HPP) — URL (GET /rest/admin/application-configuration)",
+            "evidence": [
+            ],
+            "severity": "informational",
+            "rationale": "Though no explicit parameters are present, query string pollution might alter backend parsing behavior and lead to bypasses or errors.",
+            "confidence": "possible",
+            "cvss_score": 0.0,
+            "cvss_vector": "",
+            "owasp_category": ""
+        },
+        {
+            "id": "W-009",
+            "asset": "/rest/admin/application-version",
+            "title": "XSS — response body (GET /rest/admin/application-version)",
+            "evidence": [
+            ],
+            "severity": "informational",
+            "rationale": "The endpoint might reflect user-controlled input in the response without adequate sanitization, especially in error pages or dynamic content areas.",
+            "confidence": "possible",
+            "cvss_score": 0.0,
+            "cvss_vector": "",
+            "owasp_category": ""
+        },
+        {
+            "id": "W-010",
+            "asset": "/rest/admin/application-version",
+            "title": "SSRF — internal service enumeration (GET /rest/admin/application-version)",
+            "evidence": [
+            ],
+            "severity": "informational",
+            "rationale": "The endpoint might query internal services or resources based on default configurations, potentially exposing internal network information.",
+            "confidence": "possible",
+            "cvss_score": 0.0,
+            "cvss_vector": "",
+            "owasp_category": ""
+        },
+        {
+            "id": "W-011",
+            "asset": "/rest/admin/application-version",
+            "title": "IDOR — version metadata leakage (GET /rest/admin/application-version)",
+            "evidence": [
+            ],
+            "severity": "informational",
+            "rationale": "The endpoint could expose administrative information or configuration details tied to the version without proper authorization checks.",
+            "confidence": "possible",
+            "cvss_score": 0.0,
+            "cvss_vector": "",
+            "owasp_category": ""
+        },
+        {
+            "id": "W-012",
+            "asset": "/rest/admin/application-version",
+            "title": "Information Disclosure — application version exposure (GET /rest/admin/application-version)",
+            "evidence": [
+            ],
+            "severity": "informational",
+            "rationale": "The endpoint path suggests it may return internal application version details that could aid in fingerprinting or identifying known vulnerabilities.",
+            "confidence": "possible",
+            "cvss_score": 0.0,
+            "cvss_vector": "",
+            "owasp_category": ""
+        },
+        {
+            "id": "W-013",
+            "asset": "/rest/admin/application-version",
+            "title": "Path Traversal — admin path manipulation (GET /rest/admin/application-version)",
+            "evidence": [
+            ],
+            "severity": "informational",
+            "rationale": "The admin-specific path might be vulnerable to traversal manipulations allowing unauthorized access to other administrative endpoints or files.",
+            "confidence": "possible",
+            "cvss_score": 0.0,
+            "cvss_vector": "",
+            "owasp_category": ""
+        },
+        {
+            "id": "W-014",
+            "asset": "/rest/admin/application-version",
+            "title": "Authentication Bypass — unprotected admin endpoint (GET /rest/admin/application-version)",
+            "evidence": [
+            ],
+            "severity": "informational",
+            "rationale": "Despite the `/admin/` path suggesting restricted access, the absence of visible auth parameters or tokens in this GET request raises concerns about potential misconfigurations or unprotected internal endpoints.",
+            "confidence": "possible",
+            "cvss_score": 0.0,
+            "cvss_vector": "",
+            "owasp_category": ""
+        },
+        {
+            "id": "W-015",
+            "asset": "/api/Challenges/",
+            "title": "Server Side Request Forgery — parameter `name` (GET /api/Challenges/)",
+            "evidence": [
+            ],
+            "severity": "informational",
+            "rationale": "The `name` parameter is used in a query to fetch challenges, and if the server-side logic improperly validates or sanitizes this input, it might be coerced into making unintended backend requests, especially if it interacts with internal services or resolves user-controlled strings as URLs.",
+            "confidence": "possible",
+            "cvss_score": 0.0,
+            "cvss_vector": "",
+            "owasp_category": ""
+        },
+        {
+            "id": "W-016",
+            "asset": "/api/Challenges/",
+            "title": "Cross Site Scripting — parameter `name` (GET /api/Challenges/)",
+            "evidence": [
+            ],
+            "severity": "informational",
+            "rationale": "If the `name` parameter's value is reflected back in the response without proper encoding, it can lead to XSS, particularly since the parameter value `Score%20Board` (decoded: `Score Board`) suggests it is meant for display and could be vulnerable to script injection if mishandled.",
+            "confidence": "possible",
+            "cvss_score": 0.0,
+            "cvss_vector": "",
+            "owasp_category": ""
+        },
+        {
+            "id": "W-017",
+            "asset": "/api/Challenges/",
+            "title": "NoSQL Injection — parameter `name` (GET /api/Challenges/)",
+            "evidence": [
+            ],
+            "severity": "informational",
+            "rationale": "API endpoints querying databases such as MongoDB are often vulnerable to NoSQL injection if input is directly used in queries without sanitization. Since `name` filters challenges, injection here could manipulate the query logic or extract unintended data.",
+            "confidence": "possible",
+            "cvss_score": 0.0,
+            "cvss_vector": "",
+            "owasp_category": ""
+        },
+        {
+            "id": "W-018",
+            "asset": "/api/Challenges/",
+            "title": "Insecure Direct Object Reference — parameter `name` (GET /api/Challenges/)",
+            "evidence": [
+            ],
+            "severity": "informational",
+            "rationale": "The `name` parameter might control which challenge object is accessed, and if there’s no access control check on the backend, it can allow attackers to enumerate, access, or manipulate objects they shouldn't be able to view directly.",
+            "confidence": "possible",
+            "cvss_score": 0.0,
+            "cvss_vector": "",
+            "owasp_category": ""
+        },
+        {
+            "id": "W-019",
+            "asset": "/api/Challenges/",
+            "title": "Open Redirect — parameter `name` (GET /api/Challenges/)",
+            "evidence": [
+            ],
+            "severity": "informational",
+            "rationale": "If the `name` parameter influences any redirection behavior on the server side (e.g., during error handling or result forwarding), it may be abused to redirect users to malicious sites, especially if combined with improper validation.",
+            "confidence": "possible",
+            "cvss_score": 0.0,
+            "cvss_vector": "",
+            "owasp_category": ""
+        },
+        {
+            "id": "W-020",
+            "asset": "/api/Challenges/",
+            "title": "Parameter Pollution — parameter `name` (GET /api/Challenges/)",
+            "evidence": [
+            ],
+            "severity": "informational",
+            "rationale": "Injecting multiple `name` parameters or appending unexpected formatting (e.g., arrays, encoded delimiters) could confuse parsing logic downstream, possibly leading to bypasses, errors, or unexpected behaviors exploitable by an attacker.",
+            "confidence": "possible",
+            "cvss_score": 0.0,
+            "cvss_vector": "",
+            "owasp_category": ""
+        },
+        {
+            "id": "W-021",
+            "asset": "/api/Challenges/",
+            "title": "Unicode Injection — parameter `name` (GET /api/Challenges/)",
+            "evidence": [
+            ],
+            "severity": "informational",
+            "rationale": "If the server doesn't properly normalize or reject non-standard UTF-8 encodings or homograph-like inputs in the `name` parameter, it can lead to bypasses or parsing discrepancies in security checks or logging systems.",
+            "confidence": "possible",
+            "cvss_score": 0.0,
+            "cvss_vector": "",
+            "owasp_category": ""
+        },
+        {
+            "id": "W-022",
+            "asset": "/api/Challenges/",
+            "title": "Server-Side Inclusion/Edge Side Injection — parameter `name` (GET /api/Challenges/)",
+            "evidence": [
+            ],
+            "severity": "informational",
+            "rationale": "Though less common in API endpoints, if `name`'s value is ever embedded in server-generated templates, configurations, or ESI contexts without escaping, it could lead to code/command injection or logical flaws.",
+            "confidence": "possible",
+            "cvss_score": 0.0,
+            "cvss_vector": "",
+            "owasp_category": ""
+        },
+        {
+            "id": "W-023",
+            "asset": "/rest/products/search",
+            "title": "XSS — search query param `q` (GET /rest/products/search)",
+            "evidence": [
+            ],
+            "severity": "informational",
+            "rationale": "The `q` parameter is directly reflected in the response and could be used to inject malicious scripts.",
+            "confidence": "possible",
+            "cvss_score": 0.0,
+            "cvss_vector": "",
+            "owasp_category": ""
+        },
+        {
+            "id": "W-024",
+            "asset": "/rest/products/search",
+            "title": "NoSQL Injection — search query param `q` (GET /rest/products/search)",
+            "evidence": [
+            ],
+            "severity": "informational",
+            "rationale": "The `q` parameter might be used in a NoSQL query which could be manipulated using operators like `$ne`, `$regex`, etc.",
+            "confidence": "possible",
+            "cvss_score": 0.0,
+            "cvss_vector": "",
+            "owasp_category": ""
+        },
+        {
+            "id": "W-025",
+            "asset": "/rest/products/search",
+            "title": "SSRF — search query param `q` (GET /rest/products/search)",
+            "evidence": [
+            ],
+            "severity": "informational",
+            "rationale": "The `q` parameter might be used to initiate server-side requests, potentially allowing an attacker to access internal resources.",
+            "confidence": "possible",
+            "cvss_score": 0.0,
+            "cvss_vector": "",
+            "owasp_category": ""
+        },
+        {
+            "id": "W-026",
+            "asset": "/rest/products/search",
+            "title": "Open Redirect — search query param `q` (GET /rest/products/search)",
+            "evidence": [
+            ],
+            "severity": "informational",
+            "rationale": "The `q` parameter might be used in a redirect mechanism that could be abused to redirect users to malicious sites.",
+            "confidence": "possible",
+            "cvss_score": 0.0,
+            "cvss_vector": "",
+            "owasp_category": ""
+        },
+        {
+            "id": "W-027",
+            "asset": "/rest/products/search",
+            "title": "Command Injection — search query param `q` (GET /rest/products/search)",
+            "evidence": [
+            ],
+            "severity": "informational",
+            "rationale": "The `q` parameter might be passed to a system command or shell execution function without proper sanitization.",
+            "confidence": "possible",
+            "cvss_score": 0.0,
+            "cvss_vector": "",
+            "owasp_category": ""
+        },
+        {
+            "id": "W-028",
+            "asset": "/rest/products/search",
+            "title": "LDAP Injection — search query param `q` (GET /rest/products/search)",
+            "evidence": [
+            ],
+            "severity": "informational",
+            "rationale": "The `q` parameter might be used in LDAP queries which could be manipulated with crafted input to alter query behavior.",
+            "confidence": "possible",
+            "cvss_score": 0.0,
+            "cvss_vector": "",
+            "owasp_category": ""
+        },
+        {
+            "id": "W-029",
+            "asset": "/rest/products/search",
+            "title": "XPath Injection — search query param `q` (GET /rest/products/search)",
+            "evidence": [
+            ],
+            "severity": "informational",
+            "rationale": "The `q` parameter might be used in XPath queries against XML data sources which could be manipulated using XPath-specific syntax.",
+            "confidence": "possible",
+            "cvss_score": 0.0,
+            "cvss_vector": "",
+            "owasp_category": ""
+        },
+        {
+            "id": "W-030",
+            "asset": "/rest/products/search",
+            "title": "SQL Injection — search query param `q` (GET /rest/products/search)",
+            "evidence": [
+            ],
+            "severity": "informational",
+            "rationale": "The `q` parameter might be used in SQL queries which could be exploited using traditional SQL injection payloads.",
+            "confidence": "possible",
+            "cvss_score": 0.0,
+            "cvss_vector": "",
+            "owasp_category": ""
+        },
+        {
+            "id": "W-031",
+            "asset": "/rest/user/login",
+            "title": "NoSQL Injection — email parameter (POST /rest/user/login)",
+            "evidence": [
+            ],
+            "severity": "informational",
+            "rationale": "The email parameter is used in a JSON POST body to an endpoint likely querying a NoSQL database; malformed JSON or operator injection could bypass authentication.",
+            "confidence": "possible",
+            "cvss_score": 0.0,
+            "cvss_vector": "",
+            "owasp_category": ""
+        },
+        {
+            "id": "W-032",
+            "asset": "/rest/user/login",
+            "title": "JSON Parser Differential — email/password parameters (POST /rest/user/login)",
+            "evidence": [
+            ],
+            "severity": "informational",
+            "rationale": "Duplicate or ambiguous fields in the JSON body could be interpreted differently by parsers, potentially leading to privilege escalation or auth bypass.",
+            "confidence": "possible",
+            "cvss_score": 0.0,
+            "cvss_vector": "",
+            "owasp_category": ""
+        },
+        {
+            "id": "W-033",
+            "asset": "/rest/user/login",
+            "title": "Login Bypass — email/password parameters (POST /rest/user/login)",
+            "evidence": [
+            ],
+            "severity": "informational",
+            "rationale": "The login endpoint might be vulnerable to simple credential bypass techniques such as weak password handling or logic errors.",
+            "confidence": "possible",
+            "cvss_score": 0.0,
+            "cvss_vector": "",
+            "owasp_category": ""
+        },
+        {
+            "id": "W-034",
+            "asset": "/rest/user/login",
+            "title": "Mass Assignment CWE-915 — email/password parameters (POST /rest/user/login)",
+            "evidence": [
+            ],
+            "severity": "informational",
+            "rationale": "The JSON body might allow setting unintended fields like 'role' or 'isAdmin' during user login if the backend deserializes into an unrestricted model.",
+            "confidence": "possible",
+            "cvss_score": 0.0,
+            "cvss_vector": "",
+            "owasp_category": ""
+        },
+        {
+            "id": "W-035",
+            "asset": "/rest/user/login",
+            "title": "Timing Attack — password parameter (POST /rest/user/login)",
+            "evidence": [
+            ],
+            "severity": "informational",
+            "rationale": "Variations in response time based on password correctness could leak information about valid usernames or passwords.",
+            "confidence": "possible",
+            "cvss_score": 0.0,
+            "cvss_vector": "",
+            "owasp_category": ""
+        },
+        {
+            "id": "W-036",
+            "asset": "/rest/user/login",
+            "title": "Prototype Pollution — email/password parameters (POST /rest/user/login)",
+            "evidence": [
+            ],
+            "severity": "informational",
+            "rationale": "Malformed JSON with __proto__ or constructor properties could pollute the prototype chain if processed by a vulnerable Node.js backend.",
+            "confidence": "possible",
+            "cvss_score": 0.0,
+            "cvss_vector": "",
+            "owasp_category": ""
+        },
+        {
+            "id": "W-037",
+            "asset": "/rest/user/login",
+            "title": "Brute Force/Race Condition — password parameter (POST /rest/user/login)",
+            "evidence": [
+            ],
+            "severity": "informational",
+            "rationale": "Multiple rapid login attempts might bypass rate limiting or cause inconsistent state checking.",
+            "confidence": "possible",
+            "cvss_score": 0.0,
+            "cvss_vector": "",
+            "owasp_category": ""
+        },
+        {
+            "id": "W-038",
+            "asset": "/socket.io/",
+            "title": "Prototype Pollution — params `EIO`, `transport`, `t`, `sid` (POST /socket.io/)",
+            "evidence": [
+            ],
+            "severity": "informational",
+            "rationale": "Socket.IO is commonly used with Node.js, and malicious parameters might pollute object prototypes during message handling.",
+            "confidence": "possible",
+            "cvss_score": 0.0,
+            "cvss_vector": "",
+            "owasp_category": ""
+        },
+        {
+            "id": "W-039",
+            "asset": "/socket.io/",
+            "title": "WebSockets Message Injection — body `40` (POST /socket.io/)",
+            "evidence": [
+            ],
+            "severity": "informational",
+            "rationale": "The numeric body `40` could be part of Socket.IO's message framing protocol, potentially abused for injecting malicious frames or commands.",
+            "confidence": "possible",
+            "cvss_score": 0.0,
+            "cvss_vector": "",
+            "owasp_category": ""
+        },
+        {
+            "id": "W-040",
+            "asset": "/socket.io/",
+            "title": "SSRF via Transport Parameter — param `transport` (POST /socket.io/)",
+            "evidence": [
+            ],
+            "severity": "informational",
+            "rationale": "The `transport` parameter controls connection mode (polling/websocket); misconfiguration might allow internal service enumeration or access.",
+            "confidence": "possible",
+            "cvss_score": 0.0,
+            "cvss_vector": "",
+            "owasp_category": ""
+        },
+        {
+            "id": "W-041",
+            "asset": "/socket.io/",
+            "title": "Session Fixation — param `sid` (POST /socket.io/)",
+            "evidence": [
+            ],
+            "severity": "informational",
+            "rationale": "The `sid` parameter represents a session identifier; if the application accepts arbitrary values, it might allow session fixation attacks.",
+            "confidence": "possible",
+            "cvss_score": 0.0,
+            "cvss_vector": "",
+            "owasp_category": ""
+        },
+        {
+            "id": "W-042",
+            "asset": "/socket.io/",
+            "title": "Cache Poisoning via Query Parameters — params `EIO`, `transport`, `t` (POST /socket.io/)",
+            "evidence": [
+            ],
+            "severity": "informational",
+            "rationale": "Unusual query parameters in WebSocket upgrade requests might be reflected in cached responses, leading to cache poisoning if improperly handled.",
+            "confidence": "possible",
+            "cvss_score": 0.0,
+            "cvss_vector": "",
+            "owasp_category": ""
+        },
+        {
+            "id": "W-043",
+            "asset": "/socket.io/",
+            "title": "HTTP Parameter Pollution — multiple params (`EIO`, `transport`, `t`, `sid`) (POST /socket.io/)",
+            "evidence": [
+            ],
+            "severity": "informational",
+            "rationale": "Duplicate or conflicting parameters might cause inconsistent parsing between frontend/backend components, leading to logic bypasses or injection opportunities.",
+            "confidence": "possible",
+            "cvss_score": 0.0,
+            "cvss_vector": "",
+            "owasp_category": ""
+        },
+        {
+            "id": "W-044",
+            "asset": "/socket.io/",
+            "title": "Timing Attack on Session Validation — param `sid` (POST /socket.io/)",
+            "evidence": [
+            ],
+            "severity": "informational",
+            "rationale": "Observable differences in response times when submitting valid vs invalid session IDs could leak information about active sessions or internal state.",
+            "confidence": "possible",
+            "cvss_score": 0.0,
+            "cvss_vector": "",
+            "owasp_category": ""
+        },
+        {
+            "id": "W-045",
+            "asset": "/socket.io/",
+            "title": "Client-Side Path Traversal — param `transport` (POST /socket.io/)",
+            "evidence": [
+            ],
+            "severity": "informational",
+            "rationale": "If `transport` value is used to construct file paths or resource URLs client-side, it might enable unauthorized file access through path manipulation.",
+            "confidence": "possible",
+            "cvss_score": 0.0,
+            "cvss_vector": "",
+            "owasp_category": ""
+        },
+        {
+            "id": "W-046",
+            "asset": "/api/Feedbacks/",
+            "title": "XSS — reflected in feedback listing (GET /api/Feedbacks/)",
+            "evidence": [
+            ],
+            "severity": "informational",
+            "rationale": "The endpoint returns JSON data potentially rendered in a frontend; if user-submitted feedback contains unescaped HTML/JS, it could execute in browsers.",
+            "confidence": "possible",
+            "cvss_score": 0.0,
+            "cvss_vector": "",
+            "owasp_category": ""
+        },
+        {
+            "id": "W-047",
+            "asset": "/api/Feedbacks/",
+            "title": "IDOR — unauthorized access to feedback records via API enumeration",
+            "evidence": [
+            ],
+            "severity": "informational",
+            "rationale": "The plural resource name and lack of visible authz checks suggest potential exposure of others' feedback through predictable IDs or missing ACL enforcement.",
+            "confidence": "possible",
+            "cvss_score": 0.0,
+            "cvss_vector": "",
+            "owasp_category": ""
+        },
+        {
+            "id": "W-048",
+            "asset": "/api/Feedbacks/",
+            "title": "CSRF — feedback submission lacks anti-CSRF tokens",
+            "evidence": [
+            ],
+            "severity": "informational",
+            "rationale": "Though this is a GET, if it mirrors a backend POST action or influences stateful behavior indirectly, tokenless requests might induce unwanted effects from victim browsers.",
+            "confidence": "possible",
+            "cvss_score": 0.0,
+            "cvss_vector": "",
+            "owasp_category": ""
+        },
+        {
+            "id": "W-049",
+            "asset": "/api/Feedbacks/",
+            "title": "SSRF — feedback metadata includes external references (GET /api/Feedbacks/)",
+            "evidence": [
+            ],
+            "severity": "informational",
+            "rationale": "If feedback entries contain URLs or external identifiers, the server might fetch them, allowing internal service enumeration or blind SSRF.",
+            "confidence": "possible",
+            "cvss_score": 0.0,
+            "cvss_vector": "",
+            "owasp_category": ""
+        },
+        {
+            "id": "W-050",
+            "asset": "/api/Feedbacks/",
+            "title": "Mass Assignment — hidden fields in feedback object (GET /api/Feedbacks/)",
+            "evidence": [
+            ],
+            "severity": "informational",
+            "rationale": "The endpoint might expose internal fields like user IDs or permissions that were auto-assigned during creation, leading to privilege escalation when manipulated.",
+            "confidence": "possible",
+            "cvss_score": 0.0,
+            "cvss_vector": "",
+            "owasp_category": ""
+        },
+        {
+            "id": "W-051",
+            "asset": "/api/Feedbacks/",
+            "title": "CORS Misconfiguration — overly permissive API access (GET /api/Feedbacks/)",
+            "evidence": [
+            ],
+            "severity": "informational",
+            "rationale": "APIs often have loose CORS policies allowing malicious sites to read sensitive feedback data from victim sessions via XMLHttpRequest.",
+            "confidence": "possible",
+            "cvss_score": 0.0,
+            "cvss_vector": "",
+            "owasp_category": ""
+        },
+        {
+            "id": "W-052",
+            "asset": "/rest/memories/",
+            "title": "IDOR — parameter `_id` (GET /rest/memories/)",
+            "evidence": [
+            ],
+            "severity": "informational",
+            "rationale": "The endpoint retrieves memories, which are typically user-specific resources, and may be vulnerable if it fails to enforce proper authorization checks.",
+            "confidence": "possible",
+            "cvss_score": 0.0,
+            "cvss_vector": "",
+            "owasp_category": ""
+        },
+        {
+            "id": "W-053",
+            "asset": "/rest/memories/",
+            "title": "SSRF — header `X-Forwarded-For` (GET /rest/memories/)",
+            "evidence": [
+            ],
+            "severity": "informational",
+            "rationale": "Even without explicit parameters, internal service interactions might be influenced by headers, leading to SSRF if the backend performs requests based on forwarded IPs.",
+            "confidence": "possible",
+            "cvss_score": 0.0,
+            "cvss_vector": "",
+            "owasp_category": ""
+        },
+        {
+            "id": "W-054",
+            "asset": "/rest/memories/",
+            "title": "XSS — path segment (GET /rest/memories/)",
+            "evidence": [
+            ],
+            "severity": "informational",
+            "rationale": "The path itself might be reflected or used in client-side logic, creating potential for reflected or DOM-based XSS if insufficient sanitization occurs.",
+            "confidence": "possible",
+            "cvss_score": 0.0,
+            "cvss_vector": "",
+            "owasp_category": ""
+        },
+        {
+            "id": "W-055",
+            "asset": "/rest/memories/",
+            "title": "Cache Poisoning — header `X-Forwarded-Host` (GET /rest/memories/)",
+            "evidence": [
+            ],
+            "severity": "informational",
+            "rationale": "If the application reflects or uses the forwarded host in responses without strict validation, attackers might manipulate caching behavior leading to poisoned CDN/server caches.",
+            "confidence": "possible",
+            "cvss_score": 0.0,
+            "cvss_vector": "",
+            "owasp_category": ""
+        }
+    ],
+    "candidates_dropped": 0
+}
