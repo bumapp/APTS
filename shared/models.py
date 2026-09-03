@@ -191,6 +191,16 @@ class ObservedRequest(BaseModel):
     content_type: str = ""
     post_data: str | None = None
     headers: dict[str, str] = Field(default_factory=dict)
+    source_page: str = Field(default="",
+        description="The page whose activity fired this request — the URL the "
+                    "browser was on when the request went out.")
+    # Set by the recon loop's verification pass: the model ranks each observed
+    # request for how worth testing it is, keeping (not dropping) everything so
+    # the next stage decides. Empty until that pass runs.
+    interest: str = Field(default="",
+        description="Model's test-worthiness rating: high | medium | low.")
+    interest_reason: str = Field(default="",
+        description="One line: why the model rated it that way.")
 
 
 class AssetMap(BaseModel):
@@ -254,9 +264,11 @@ class Weakness(BaseModel):
     title: str
     asset: str = Field(description="Path this affects, e.g. /rest/user/login.")
     owasp_category: str = ""
-    cvss_vector: str
-    cvss_score: float = Field(ge=0.0, le=10.0)
-    severity: Severity
+    # CVSS is optional: the agentic vuln loop proposes hypotheses, it does not
+    # score them. Left empty/zero unless a stage that scores fills them in.
+    cvss_vector: str = ""
+    cvss_score: float = Field(default=0.0, ge=0.0, le=10.0)
+    severity: Severity = "informational"
     confidence: Confidence = "possible"
     rationale: str = ""
     evidence: list[Evidence] = Field(default_factory=list)

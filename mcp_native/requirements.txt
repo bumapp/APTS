@@ -4,3 +4,9 @@
 mcp==2.1.0
 psycopg[binary]==3.2.3
 httpx==0.27.2
+# The crawl tool wraps the browser-driven crawler (mcp_tools.crawl_tool).
+playwright==1.49.0
+python-Wappalyzer==0.3.1
+# python-Wappalyzer 0.3.1 imports the deprecated pkg_resources; keep setuptools
+# below the release that removed it.
+setuptools<81

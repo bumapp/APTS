@@ -1,0 +1,689 @@
+{
+  "engagement_id": "92d33732-57b1-4929-a522-8e2437231909",
+  "target_url": "http://juice-shop:3000/",
+  "generated_at": "2026-09-03T18:57:51.967827",
+  "executive_summary": {
+    "risk_score": 9.8,
+    "narrative": "The application exhibits multiple potential vulnerabilities centered around the `/socket.io/` and `/rest/user/login` endpoints, primarily involving malformed input handling. The most critical risks\u2014if confirmed\u2014include NoSQL injection and authentication bypasses that could lead to account takeover. However, none of the findings have been fully validated; they are preliminary indicators requiring further testing. Immediate actions should include validating and sanitizing all user-supplied inputs, especially those used in Socket.IO communications and login logic. Given the high potential severity of some findings and their unconfirmed nature, prioritize remediation efforts on authentication mechanisms and real-time communication channels.",
+    "counts_by_severity": {
+      "critical": 8,
+      "high": 5,
+      "medium": 20
+    },
+    "confirmed_count": 0,
+    "total_findings": 33
+  },
+  "findings": [
+    {
+      "id": "W-011",
+      "title": "NoSQL Injection \u2014 in JSON body (param `email`, POST /rest/user/login)",
+      "asset": "/rest/user/login",
+      "severity": "critical",
+      "cvss_score": 9.8,
+      "cvss_vector": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H",
+      "confirmed": false,
+      "status": "not tested",
+      "technique_ids": [
+        "T1190"
+      ],
+      "owasp_category": "",
+      "recommendation": "",
+      "effort": "medium",
+      "evidence": []
+    },
+    {
+      "id": "W-012",
+      "title": "NoSQL Injection \u2014 in JSON body (param `password`, POST /rest/user/login)",
+      "asset": "/rest/user/login",
+      "severity": "critical",
+      "cvss_score": 9.8,
+      "cvss_vector": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H",
+      "confirmed": false,
+      "status": "not tested",
+      "technique_ids": [
+        "T1190"
+      ],
+      "owasp_category": "",
+      "recommendation": "",
+      "effort": "medium",
+      "evidence": []
+    },
+    {
+      "id": "W-027",
+      "title": "NoSQL Injection \u2014 via `name` parameter (GET /api/Challenges/)",
+      "asset": "/api/Challenges/",
+      "severity": "critical",
+      "cvss_score": 9.8,
+      "cvss_vector": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H",
+      "confirmed": false,
+      "status": "not tested",
+      "technique_ids": [
+        "T1190"
+      ],
+      "owasp_category": "",
+      "recommendation": "",
+      "effort": "medium",
+      "evidence": []
+    },
+    {
+      "id": "W-032",
+      "title": "Unicode Injection \u2014 via `name` parameter (GET /api/Challenges/)",
+      "asset": "/api/Challenges/",
+      "severity": "critical",
+      "cvss_score": 9.8,
+      "cvss_vector": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H",
+      "confirmed": false,
+      "status": "not tested",
+      "technique_ids": [
+        "T1059.007"
+      ],
+      "owasp_category": "",
+      "recommendation": "",
+      "effort": "medium",
+      "evidence": []
+    },
+    {
+      "id": "W-013",
+      "title": "Login Bypass \u2014 in JSON body (param `email`, POST /rest/user/login)",
+      "asset": "/rest/user/login",
+      "severity": "critical",
+      "cvss_score": 9.1,
+      "cvss_vector": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:N",
+      "confirmed": false,
+      "status": "not tested",
+      "technique_ids": [
+        "T1190"
+      ],
+      "owasp_category": "",
+      "recommendation": "",
+      "effort": "medium",
+      "evidence": []
+    },
+    {
+      "id": "W-014",
+      "title": "Login Bypass \u2014 in JSON body (param `password`, POST /rest/user/login)",
+      "asset": "/rest/user/login",
+      "severity": "critical",
+      "cvss_score": 9.1,
+      "cvss_vector": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:N",
+      "confirmed": false,
+      "status": "not tested",
+      "technique_ids": [
+        "T1190"
+      ],
+      "owasp_category": "",
+      "recommendation": "",
+      "effort": "medium",
+      "evidence": []
+    },
+    {
+      "id": "W-015",
+      "title": "Account Takeover \u2014 in JSON body (param `email`, POST /rest/user/login)",
+      "asset": "/rest/user/login",
+      "severity": "critical",
+      "cvss_score": 9.1,
+      "cvss_vector": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:N",
+      "confirmed": false,
+      "status": "not tested",
+      "technique_ids": [
+        "T1190",
+        "T1539"
+      ],
+      "owasp_category": "",
+      "recommendation": "",
+      "effort": "medium",
+      "evidence": []
+    },
+    {
+      "id": "W-016",
+      "title": "Account Takeover \u2014 in JSON body (param `password`, POST /rest/user/login)",
+      "asset": "/rest/user/login",
+      "severity": "critical",
+      "cvss_score": 9.1,
+      "cvss_vector": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:N",
+      "confirmed": false,
+      "status": "not tested",
+      "technique_ids": [
+        "T1190",
+        "T1539"
+      ],
+      "owasp_category": "",
+      "recommendation": "",
+      "effort": "medium",
+      "evidence": []
+    },
+    {
+      "id": "W-007",
+      "title": "Insecure Direct Object Reference (IDOR) \u2014 Access control based on user-supplied `sid` value",
+      "asset": "/socket.io/",
+      "severity": "high",
+      "cvss_score": 8.1,
+      "cvss_vector": "CVSS:3.1/AV:N/AC:L/PR:L/UI:N/S:U/C:H/I:H/A:N",
+      "confirmed": false,
+      "status": "not tested",
+      "technique_ids": [
+        "T1059.007"
+      ],
+      "owasp_category": "",
+      "recommendation": "",
+      "effort": "medium",
+      "evidence": []
+    },
+    {
+      "id": "W-029",
+      "title": "IDOR \u2014 via `name` parameter (GET /api/Challenges/)",
+      "asset": "/api/Challenges/",
+      "severity": "high",
+      "cvss_score": 8.1,
+      "cvss_vector": "CVSS:3.1/AV:N/AC:L/PR:L/UI:N/S:U/C:H/I:H/A:N",
+      "confirmed": false,
+      "status": "not tested",
+      "technique_ids": [
+        "T1059.007"
+      ],
+      "owasp_category": "",
+      "recommendation": "",
+      "effort": "medium",
+      "evidence": []
+    },
+    {
+      "id": "W-001",
+      "title": "Server Side Request Forgery (SSRF) \u2014 URL parameters (`EIO`, `transport`, `t`, `sid`) in POST request to `/socket.io/`",
+      "asset": "/socket.io/",
+      "severity": "high",
+      "cvss_score": 7.5,
+      "cvss_vector": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:N/A:N",
+      "confirmed": false,
+      "status": "tested, not proven (VERDICT: INCONCLUSIVE \u2014 The SSRF payloads were not tested because the recorded request did not respond successfully, preventing further exploitation attempts.)",
+      "technique_ids": [
+        "T1190"
+      ],
+      "owasp_category": "",
+      "recommendation": "Implement strict validation and sanitization of URL parameters (`EIO`, `transport`, `t`, `sid`) used in the Socket.IO endpoint to prevent SSRF. Restrict allowed values for these parameters to known safe enumerations, and reject any containing internal IP addresses or reserved hostnames.",
+      "effort": "medium",
+      "evidence": [
+        {
+          "request": "http_request {\"url\": \"http://juice-shop:3000/socket.io/?EIO=4&transport=polling&t=Q1edLUy&sid=G62mFS2BvPOrZ9deAAAa\", \"method\": \"POST\", \"headers\": {\"accept\": \"*/*\", \"origin\": \"http://juice-shop:3000\", \"referer\": \"http://juice-shop:3000/\", \"user-agent\": \"Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/131.0.6778.33 Safari/537.36\", \"content-type\": \"text/plain;charset=UTF-8\"}, \"body\": 40}",
+          "response": "{\"content\": [\"Error executing tool http_request: 1 validation error for http_requestArguments\\nbody\\n  Input should be a valid string [type=string_type, input_value=40, input_type=int]\\n    For further information visit https://errors.pydantic.dev/2.13/v/string_type\"]}",
+          "note": "VERDICT: INCONCLUSIVE \u2014 The SSRF payloads were not tested because the recorded request did not respond successfully, preventing further exploitation attempts.",
+          "captured_at": "2026-09-03T18:55:16.537061"
+        }
+      ]
+    },
+    {
+      "id": "W-022",
+      "title": "SSRF \u2014 URL parameter `transport` (GET /socket.io/)",
+      "asset": "/socket.io/",
+      "severity": "high",
+      "cvss_score": 7.5,
+      "cvss_vector": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:N/A:N",
+      "confirmed": false,
+      "status": "not tested",
+      "technique_ids": [
+        "T1190"
+      ],
+      "owasp_category": "",
+      "recommendation": "",
+      "effort": "medium",
+      "evidence": []
+    },
+    {
+      "id": "W-031",
+      "title": "SSRF \u2014 via `name` parameter (GET /api/Challenges/)",
+      "asset": "/api/Challenges/",
+      "severity": "high",
+      "cvss_score": 7.5,
+      "cvss_vector": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:N/A:N",
+      "confirmed": false,
+      "status": "not tested",
+      "technique_ids": [
+        "T1190"
+      ],
+      "owasp_category": "",
+      "recommendation": "",
+      "effort": "medium",
+      "evidence": []
+    },
+    {
+      "id": "W-002",
+      "title": "Prototype Pollution \u2014 Body content (`40`) and URL parameters in POST request to `/socket.io/`",
+      "asset": "/socket.io/",
+      "severity": "medium",
+      "cvss_score": 6.5,
+      "cvss_vector": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:L/I:L/A:N",
+      "confirmed": false,
+      "status": "tested, not proven (VERDICT: INCONCLUSIVE \u2014 The HTTP request with prototype pollution payload did not return a response, making it impossible to determine if the vulnerability exists.)",
+      "technique_ids": [
+        "T1059.007"
+      ],
+      "owasp_category": "",
+      "recommendation": "",
+      "effort": "medium",
+      "evidence": [
+        {
+          "request": "http_request {\"url\": \"http://juice-shop:3000/socket.io/?EIO=4&transport=polling&t=Q1edLYN&sid=G62mFS2BvPOrZ9deAAAa&__proto__[polluted]=true\", \"method\": \"POST\", \"headers\": {\"accept\": \"*/*\", \"origin\": \"http://juice-shop:3000\", \"referer\": \"http://juice-shop:3000/\", \"user-agent\": \"Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/131.0.6778.33 Safari/537.36\", \"content-type\": \"text/plain;charset=UTF-8\"}, \"body\": 40}",
+          "response": "{\"content\": [\"Error executing tool http_request: 1 validation error for http_requestArguments\\nbody\\n  Input should be a valid string [type=string_type, input_value=40, input_type=int]\\n    For further information visit https://errors.pydantic.dev/2.13/v/string_type\"]}",
+          "note": "VERDICT: INCONCLUSIVE \u2014 The HTTP request with prototype pollution payload did not return a response, making it impossible to determine if the vulnerability exists.",
+          "captured_at": "2026-09-03T18:55:20.568643"
+        }
+      ]
+    },
+    {
+      "id": "W-005",
+      "title": "Session Fixation \u2014 Manipulation of the `sid` parameter during polling transport initiation",
+      "asset": "/socket.io/",
+      "severity": "medium",
+      "cvss_score": 6.5,
+      "cvss_vector": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:L/I:L/A:N",
+      "confirmed": false,
+      "status": "tested, not proven (VERDICT: INCONCLUSIVE \u2014 No HackTricks article found for session fixation, and the recorded Socket.IO requests do not obviously expose a `sid` parameter manipulation vulnerability.)",
+      "technique_ids": [
+        "T1539"
+      ],
+      "owasp_category": "",
+      "recommendation": "",
+      "effort": "medium",
+      "evidence": [
+        {
+          "request": "hacktricks_article {\"slug\": \"websocket-session-fixation\"}",
+          "response": "{\"slug\": \"websocket-session-fixation\", \"found\": false, \"did_you_mean\": [\"websocket-attacks\", \"race-condition\", \"http-connection-contamination\", \"deserialization\", \"rocket-chat\", \"ssti-server-side-template-injection\", \"hacking-jwt-json-web-tokens\", \"sql-injection\"], \"guidance\": \"No article by that slug. Do NOT invent one. Pick the closest match from did_you_mean (or from hacktricks_overview) and call hacktricks_article again. If nothing fits, write your hypothesis from first principles without an example.\"}",
+          "note": "VERDICT: INCONCLUSIVE \u2014 No HackTricks article found for session fixation, and the recorded Socket.IO requests do not obviously expose a `sid` parameter manipulation vulnerability.",
+          "captured_at": "2026-09-03T18:57:45.525686"
+        }
+      ]
+    },
+    {
+      "id": "W-006",
+      "title": "HTTP Parameter Pollution (HPP) \u2014 Repeated or conflicting parameters in Socket.IO query string",
+      "asset": "/socket.io/",
+      "severity": "medium",
+      "cvss_score": 6.5,
+      "cvss_vector": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:L/I:L/A:N",
+      "confirmed": false,
+      "status": "tested, not proven (VERDICT: INCONCLUSIVE \u2014 No relevant HackTricks article found to confirm or deny HTTP Parameter Pollution vulnerability in Socket.IO endpoint; manual testing or further reconnaissance needed.)",
+      "technique_ids": [
+        "T1059.007"
+      ],
+      "owasp_category": "",
+      "recommendation": "",
+      "effort": "medium",
+      "evidence": [
+        {
+          "request": "hacktricks_article {\"slug\": \"http-param-pollution\"}",
+          "response": "{\"slug\": \"http-param-pollution\", \"found\": false, \"did_you_mean\": [\"parameter-pollution\", \"nodejs-proto-prototype-pollution\", \"http-request-smuggling\", \"race-condition\", \"orm-injection\", \"http-connection-contamination\", \"xpath-injection\", \"microsoft-sharepoint\"], \"guidance\": \"No article by that slug. Do NOT invent one. Pick the closest match from did_you_mean (or from hacktricks_overview) and call hacktricks_article again. If nothing fits, write your hypothesis from first principles without an example.\"}",
+          "note": "VERDICT: INCONCLUSIVE \u2014 No relevant HackTricks article found to confirm or deny HTTP Parameter Pollution vulnerability in Socket.IO endpoint; manual testing or further reconnaissance needed.",
+          "captured_at": "2026-09-03T18:57:48.508799"
+        }
+      ]
+    },
+    {
+      "id": "W-008",
+      "title": "Clickjacking \u2014 Response to `/socket.io/` missing proper frame-busting headers",
+      "asset": "/socket.io/",
+      "severity": "medium",
+      "cvss_score": 6.5,
+      "cvss_vector": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:L/I:L/A:N",
+      "confirmed": false,
+      "status": "not tested",
+      "technique_ids": [
+        "T1059.007"
+      ],
+      "owasp_category": "",
+      "recommendation": "",
+      "effort": "medium",
+      "evidence": []
+    },
+    {
+      "id": "W-009",
+      "title": "Race Condition \u2014 Exploiting concurrent polling requests via `/socket.io/`",
+      "asset": "/socket.io/",
+      "severity": "medium",
+      "cvss_score": 6.5,
+      "cvss_vector": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:L/I:L/A:N",
+      "confirmed": false,
+      "status": "not tested",
+      "technique_ids": [
+        "T1059.007"
+      ],
+      "owasp_category": "",
+      "recommendation": "",
+      "effort": "medium",
+      "evidence": []
+    },
+    {
+      "id": "W-010",
+      "title": "HTTP Response Splitting (CRLF Injection) \u2014 Injection via raw body (`40`) interpreted as partial HTTP response element",
+      "asset": "/socket.io/",
+      "severity": "medium",
+      "cvss_score": 6.5,
+      "cvss_vector": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:L/I:L/A:N",
+      "confirmed": false,
+      "status": "not tested",
+      "technique_ids": [
+        "T1059.007"
+      ],
+      "owasp_category": "",
+      "recommendation": "",
+      "effort": "medium",
+      "evidence": []
+    },
+    {
+      "id": "W-017",
+      "title": "JSON Injection \u2014 in JSON body (param `email`, POST /rest/user/login)",
+      "asset": "/rest/user/login",
+      "severity": "medium",
+      "cvss_score": 6.5,
+      "cvss_vector": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:L/I:L/A:N",
+      "confirmed": false,
+      "status": "not tested",
+      "technique_ids": [
+        "T1059.007"
+      ],
+      "owasp_category": "",
+      "recommendation": "",
+      "effort": "medium",
+      "evidence": []
+    },
+    {
+      "id": "W-018",
+      "title": "JSON Injection \u2014 in JSON body (param `password`, POST /rest/user/login)",
+      "asset": "/rest/user/login",
+      "severity": "medium",
+      "cvss_score": 6.5,
+      "cvss_vector": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:L/I:L/A:N",
+      "confirmed": false,
+      "status": "not tested",
+      "technique_ids": [
+        "T1059.007"
+      ],
+      "owasp_category": "",
+      "recommendation": "",
+      "effort": "medium",
+      "evidence": []
+    },
+    {
+      "id": "W-019",
+      "title": "Prototype Pollution \u2014 in JSON body (param `email`, POST /rest/user/login)",
+      "asset": "/rest/user/login",
+      "severity": "medium",
+      "cvss_score": 6.5,
+      "cvss_vector": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:L/I:L/A:N",
+      "confirmed": false,
+      "status": "not tested",
+      "technique_ids": [
+        "T1059.007"
+      ],
+      "owasp_category": "",
+      "recommendation": "",
+      "effort": "medium",
+      "evidence": []
+    },
+    {
+      "id": "W-020",
+      "title": "Prototype Pollution \u2014 in JSON body (param `password`, POST /rest/user/login)",
+      "asset": "/rest/user/login",
+      "severity": "medium",
+      "cvss_score": 6.5,
+      "cvss_vector": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:L/I:L/A:N",
+      "confirmed": false,
+      "status": "not tested",
+      "technique_ids": [
+        "T1059.007"
+      ],
+      "owasp_category": "",
+      "recommendation": "",
+      "effort": "medium",
+      "evidence": []
+    },
+    {
+      "id": "W-021",
+      "title": "Parameter Pollution \u2014 URL parameters (`EIO`, `transport`, `t`, GET /socket.io/)",
+      "asset": "/socket.io/",
+      "severity": "medium",
+      "cvss_score": 6.5,
+      "cvss_vector": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:L/I:L/A:N",
+      "confirmed": false,
+      "status": "not tested",
+      "technique_ids": [
+        "T1059.007"
+      ],
+      "owasp_category": "",
+      "recommendation": "",
+      "effort": "medium",
+      "evidence": []
+    },
+    {
+      "id": "W-025",
+      "title": "Cache Deception \u2014 Query string parameters (`EIO`, `transport`, `t`) manipulated to cache static-like responses (GET /socket.io/)",
+      "asset": "/socket.io/",
+      "severity": "medium",
+      "cvss_score": 6.5,
+      "cvss_vector": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:L/I:L/A:N",
+      "confirmed": false,
+      "status": "not tested",
+      "technique_ids": [
+        "T1059.007"
+      ],
+      "owasp_category": "",
+      "recommendation": "",
+      "effort": "medium",
+      "evidence": []
+    },
+    {
+      "id": "W-026",
+      "title": "CRLF Injection \u2014 URL parameters (`EIO`, `transport`, `t`) injected with header payloads (GET /socket.io/)",
+      "asset": "/socket.io/",
+      "severity": "medium",
+      "cvss_score": 6.5,
+      "cvss_vector": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:L/I:L/A:N",
+      "confirmed": false,
+      "status": "not tested",
+      "technique_ids": [
+        "T1059.007"
+      ],
+      "owasp_category": "",
+      "recommendation": "",
+      "effort": "medium",
+      "evidence": []
+    },
+    {
+      "id": "W-030",
+      "title": "Parameter Pollution \u2014 via duplicated `name` parameter (GET /api/Challenges/)",
+      "asset": "/api/Challenges/",
+      "severity": "medium",
+      "cvss_score": 6.5,
+      "cvss_vector": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:L/I:L/A:N",
+      "confirmed": false,
+      "status": "not tested",
+      "technique_ids": [
+        "T1059.007"
+      ],
+      "owasp_category": "",
+      "recommendation": "",
+      "effort": "medium",
+      "evidence": []
+    },
+    {
+      "id": "W-033",
+      "title": "Regex Denial of Service (ReDoS) \u2014 via `name` parameter (GET /api/Challenges/)",
+      "asset": "/api/Challenges/",
+      "severity": "medium",
+      "cvss_score": 6.5,
+      "cvss_vector": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:L/I:L/A:N",
+      "confirmed": false,
+      "status": "not tested",
+      "technique_ids": [
+        "T1059.007"
+      ],
+      "owasp_category": "",
+      "recommendation": "",
+      "effort": "medium",
+      "evidence": []
+    },
+    {
+      "id": "W-004",
+      "title": "Cross-Site Scripting (XSS) \u2014 URL parameters (`EIO`, `transport`, `t`, `sid`) reflected in server response via Socket.IO handshake",
+      "asset": "/socket.io/",
+      "severity": "medium",
+      "cvss_score": 6.1,
+      "cvss_vector": "CVSS:3.1/AV:N/AC:L/PR:N/UI:R/S:C/C:L/I:L/A:N",
+      "confirmed": false,
+      "status": "tested, not proven (VERDICT: INCONCLUSIVE \u2014 The provided HackTricks article slug resulted in an empty response, preventing assessment of XSS payloads for the Socket.IO endpoint parameters.)",
+      "technique_ids": [
+        "T1189",
+        "T1059.007"
+      ],
+      "owasp_category": "",
+      "recommendation": "",
+      "effort": "medium",
+      "evidence": [
+        {
+          "request": "hacktricks_article {}",
+          "response": "{\"content\": [\"Error executing tool hacktricks_article: 1 validation error for hacktricks_articleArguments\\nslug\\n  Field required [type=missing, input_value={}, input_type=dict]\\n    For further information visit https://errors.pydantic.dev/2.13/v/missing\"]}",
+          "note": "VERDICT: INCONCLUSIVE \u2014 The provided HackTricks article slug resulted in an empty response, preventing assessment of XSS payloads for the Socket.IO endpoint parameters.",
+          "captured_at": "2026-09-03T18:57:42.866428"
+        }
+      ]
+    },
+    {
+      "id": "W-024",
+      "title": "XSS \u2014 URL parameters `EIO`, `transport`, or `t` reflected in socket response (GET /socket.io/)",
+      "asset": "/socket.io/",
+      "severity": "medium",
+      "cvss_score": 6.1,
+      "cvss_vector": "CVSS:3.1/AV:N/AC:L/PR:N/UI:R/S:C/C:L/I:L/A:N",
+      "confirmed": false,
+      "status": "not tested",
+      "technique_ids": [
+        "T1189",
+        "T1059.007"
+      ],
+      "owasp_category": "",
+      "recommendation": "",
+      "effort": "medium",
+      "evidence": []
+    },
+    {
+      "id": "W-028",
+      "title": "XSS \u2014 via `name` parameter (GET /api/Challenges/)",
+      "asset": "/api/Challenges/",
+      "severity": "medium",
+      "cvss_score": 6.1,
+      "cvss_vector": "CVSS:3.1/AV:N/AC:L/PR:N/UI:R/S:C/C:L/I:L/A:N",
+      "confirmed": false,
+      "status": "not tested",
+      "technique_ids": [
+        "T1189",
+        "T1059.007"
+      ],
+      "owasp_category": "",
+      "recommendation": "",
+      "effort": "medium",
+      "evidence": []
+    },
+    {
+      "id": "W-003",
+      "title": "Websocket Protocol Attack \u2014 Upgrade mechanism through `/socket.io/` endpoint",
+      "asset": "/socket.io/",
+      "severity": "medium",
+      "cvss_score": 4.2,
+      "cvss_vector": "CVSS:3.1/AV:N/AC:H/PR:N/UI:R/S:U/C:L/I:L/A:N",
+      "confirmed": false,
+      "status": "tested, not proven (VERDICT: INCONCLUSIVE \u2014 No recorded request matched the suspected websocket endpoint, and no evidence of exploitable behavior was found in related HTTP traffic or documentation.)",
+      "technique_ids": [
+        "T1071.001"
+      ],
+      "owasp_category": "",
+      "recommendation": "",
+      "effort": "medium",
+      "evidence": [
+        {
+          "request": "hacktricks_article {}",
+          "response": "{\"content\": [\"Error executing tool hacktricks_article: 1 validation error for hacktricks_articleArguments\\nslug\\n  Field required [type=missing, input_value={}, input_type=dict]\\n    For further information visit https://errors.pydantic.dev/2.13/v/missing\"]}",
+          "note": "VERDICT: INCONCLUSIVE \u2014 No recorded request matched the suspected websocket endpoint, and no evidence of exploitable behavior was found in related HTTP traffic or documentation.",
+          "captured_at": "2026-09-03T18:57:38.609675"
+        }
+      ]
+    },
+    {
+      "id": "W-023",
+      "title": "WebSockets Hijacking \u2014 Upgraded connection via `/socket.io/`",
+      "asset": "/socket.io/",
+      "severity": "medium",
+      "cvss_score": 4.2,
+      "cvss_vector": "CVSS:3.1/AV:N/AC:H/PR:N/UI:R/S:U/C:L/I:L/A:N",
+      "confirmed": false,
+      "status": "not tested",
+      "technique_ids": [
+        "T1071.001"
+      ],
+      "owasp_category": "",
+      "recommendation": "",
+      "effort": "medium",
+      "evidence": []
+    }
+  ],
+  "playbook": {
+    "scripts": [],
+    "rejected": 0
+  },
+  "attack_coverage": {
+    "T1059.007": [
+      "W-002",
+      "W-004",
+      "W-006",
+      "W-007",
+      "W-008",
+      "W-009",
+      "W-010",
+      "W-017",
+      "W-018",
+      "W-019",
+      "W-020",
+      "W-021",
+      "W-024",
+      "W-025",
+      "W-026",
+      "W-028",
+      "W-029",
+      "W-030",
+      "W-032",
+      "W-033"
+    ],
+    "T1071.001": [
+      "W-003",
+      "W-023"
+    ],
+    "T1189": [
+      "W-004",
+      "W-024",
+      "W-028"
+    ],
+    "T1190": [
+      "W-001",
+      "W-011",
+      "W-012",
+      "W-013",
+      "W-014",
+      "W-015",
+      "W-016",
+      "W-022",
+      "W-027",
+      "W-031"
+    ],
+    "T1539": [
+      "W-005",
+      "W-015",
+      "W-016"
+    ]
+  },
+  "exploitation_confirmed": true,
+  "caveats": [
+    "Produced by an autonomous pipeline with no human review. Findings should be validated by a security engineer before remediation is prioritised or the results are shared externally.",
+    "The crawl hit a configured limit after 5 pages, so the asset map is a lower bound and parts of the application were never seen.",
+    "API routes were extracted from client-side JavaScript. They are candidate routes the application references, not a verified inventory of its endpoints.",
+    "33 of 33 findings were not proven exploitable (W-011, W-012, W-027, W-032, W-013, W-014, W-015, W-016, \u2026). They are hypotheses based on observed assets, not demonstrated vulnerabilities.",
+    "27 findings were never tested for exploitability (W-007, W-008, W-009, W-010, W-011, W-012, W-013, W-014). No claim is made about them either way.",
+    "Absence of a finding is not evidence of absence. This engagement covered what the crawler reached within its configured bounds."
+  ]
+}

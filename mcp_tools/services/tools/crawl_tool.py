@@ -275,6 +275,7 @@ class CrawlTool:
         api_paths: set[str] = set()
         observed: list[dict] = []
         observed_seen: set[tuple[str, str, str | None]] = set()
+        current_page_url = seed  # page being loaded; tags each observed request
         out_of_scope_skipped = 0
         deadline = time.monotonic() + CRAWL_MAX_SECONDS
         truncated = False
@@ -347,6 +348,11 @@ class CrawlTool:
                     "content_type": headers.get("content-type", ""),
                     "post_data": post_data[:_POST_DATA_LIMIT] if post_data else None,
                     "headers": headers,
+                    # The page the browser was on when this request fired. Set
+                    # from the crawl loop before each navigation (best-effort:
+                    # requests are observed context-wide, tagged to the page
+                    # currently being loaded).
+                    "source_page": current_page_url,
                 })
 
             context.on("request", on_request)
@@ -375,6 +381,7 @@ class CrawlTool:
                         out_of_scope_skipped += 1
                         continue
                     url = resolved
+                    current_page_url = url  # tag requests fired while loading it
 
                     page = await context.new_page()
                     page.on("dialog", lambda d: asyncio.create_task(d.accept()))

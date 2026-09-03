@@ -145,6 +145,12 @@ services:
     environment:
       <<: *llm-env
       AGENT_NAME: recon
+      # Recon is now a loop: the crawl tool runs on mcp-native and the model
+      # triages the observed requests, driving the hosted AWS model directly.
+      APTS_MCP_URL:          ${APTS_MCP_URL:-http://mcp-native:9000/mcp}
+      APTS_LOOP_LLM_URL:     ${APTS_LOOP_LLM_URL:-https://bedrock-mantle.eu-north-1.api.aws/v1/chat/completions}
+      APTS_LOOP_LLM_MODEL:   ${APTS_LOOP_LLM_MODEL:-qwen.qwen3-coder-480b-a35b-instruct}
+      APTS_LOOP_LLM_TIMEOUT: ${APTS_LOOP_LLM_TIMEOUT:-150}
       # The default 30s client timeout (agent/config.py) is well under
       # mcp-tools' own CRAWL_MAX_SECONDS=120 budget for the crawl tool call —
       # harmless with the old httpx-based crawler, which rarely ran that
@@ -184,7 +190,7 @@ services:
       APTS_LOOP_LLM_MODEL:   ${APTS_LOOP_LLM_MODEL:-qwen.qwen3-coder-480b-a35b-instruct}
       APTS_LOOP_LLM_TIMEOUT: ${APTS_LOOP_LLM_TIMEOUT:-150}
       APTS_VULN_FORCE_FETCH: ${APTS_VULN_FORCE_FETCH:-0}
-      APTS_VULN_MAX_REQUESTS: ${APTS_VULN_MAX_REQUESTS:-4}
+      APTS_VULN_MAX_REQUESTS: ${APTS_VULN_MAX_REQUESTS:-14}
       APTS_VULN_MAX_STEPS:   ${APTS_VULN_MAX_STEPS:-5}
       APTS_VULN_MAX_TOKENS:  ${APTS_VULN_MAX_TOKENS:-900}
     secrets:
@@ -242,7 +248,7 @@ services:
       APTS_LOOP_LLM_MODEL:   ${APTS_LOOP_LLM_MODEL:-qwen.qwen3-coder-480b-a35b-instruct}
       APTS_LOOP_LLM_TIMEOUT: ${APTS_LOOP_LLM_TIMEOUT:-300}
       APTS_LOOP_MAX_STEPS:   ${APTS_LOOP_MAX_STEPS:-6}
-      APTS_EXPLOIT_MAX_WEAKNESSES: ${APTS_EXPLOIT_MAX_WEAKNESSES:-4}
+      APTS_EXPLOIT_MAX_WEAKNESSES: ${APTS_EXPLOIT_MAX_WEAKNESSES:-8}
     secrets:
       - source: agent_exploit_token
         target: token
@@ -451,7 +457,7 @@ services:
       - "127.0.0.1:9000:9000"
     deploy:
       resources:
-        limits: { memory: 512M, cpus: "1.0" }
+        limits: { memory: 1536M, cpus: "1.5" }
 
 
   # ---------------------------------------------------------------------

@@ -1,178 +1,373 @@
-"""Vulnerability Assessment — the agentic hypothesis loop (PRD §5.3).
+"""Vulnerability Assessment — the agentic hypothesis loop, in the agent (PRD §5.3).
 
-This stage runs the native-MCP vulnerability loop (``mcp_native.vuln_loop``):
-for each request reconnaissance observed, the model consults the HackTricks
-knowledge base and proposes testable hypotheses. Each hypothesis becomes a
-``Weakness`` in the register the rest of the pipeline already iterates over —
-MITRE tags it, Exploitation tries to prove it — so the DB handoff is unchanged.
+This *is* the vuln agent: a genuine tool-driving loop. Per recon request it shows
+the model the request and the HackTricks technique menu, lets it fetch article
+examples from the knowledge base, and has it propose testable **hypotheses** —
+speculation welcome, since the Exploitation agent is what later proves or kills
+each one. It runs one fresh, small conversation per request (each judged on its
+own) with three guards: a prompt-load guard (trim the injected menu), a
+context-compaction guard, and a progress guard (no repeat fetches); after the
+model concludes, an optional reflection round asks whether more are worth adding.
 
-Division of labour, unchanged in spirit from the old scored-candidate worker:
-
-* **The model judges** which vulnerability classes are worth testing on each
-  real request, grounded in HackTricks examples it fetches itself.
-* **Code scores.** The model names the class in each hypothesis; a per-class
-  CVSS reference maps that to a vector and ``shared.cvss`` computes the number.
-  A model asked for "8.8" produces a plausible number; a class maps to a vector
-  that arithmetic converts.
-* **Nothing is confirmed here.** Every weakness leaves as ``possible`` — proving
-  it is Exploitation's job, and only that stage may say ``confirmed``.
+Each hypothesis becomes a ``Weakness`` so the rest of the pipeline consumes the
+same ``VulnerabilityRegister`` from the DB. Severity is a *scoring* step, not a
+ranking one: the model names the class, a per-class CVSS reference maps it to a
+vector, and ``shared.cvss`` computes the number. Nothing is ranked or reordered,
+and nothing is ``confirmed`` here — that is Exploitation's word.
 """
 from __future__ import annotations
 
+import json
 import logging
 import os
+import re
 from typing import Any
+from urllib.parse import parse_qsl, urlparse
 
 import httpx
+from mcp import Client
 
-from shared.cvss import CvssError, base_score, severity_label
 from shared.llm import LlmClient
 from shared.models import VulnerabilityRegister, Weakness
 
 from agent.services.mcp_service import McpService
+from agent.services.workers import agentic
 from agent.services.workers.base import WorkContext, WorkFailed
 
 log = logging.getLogger("agent.workers.vuln")
 
-MCP_URL = os.environ.get("APTS_MCP_URL", "http://mcp-native:9000/mcp")
-MAX_REQUESTS = int(os.environ.get("APTS_VULN_MAX_REQUESTS", "8"))
-LLM_TIMEOUT = float(os.environ.get("APTS_LOOP_LLM_TIMEOUT", "150"))
+# --- loop configuration (env-tunable) ------------------------------------- #
+MAX_STEPS = int(os.environ.get("APTS_VULN_MAX_STEPS", "6"))
+MAX_TOKENS = int(os.environ.get("APTS_VULN_MAX_TOKENS", "900"))
+REFLECT_ROUNDS = int(os.environ.get("APTS_VULN_REFLECT_ROUNDS", "1"))
+FORCE_FETCH = os.environ.get("APTS_VULN_FORCE_FETCH", "0") not in ("0", "false", "")
+SKIP_NOISE = os.environ.get("APTS_VULN_SKIP_NOISE", "1") not in ("0", "false", "")
+PROMPT_BUDGET_CHARS = int(os.environ.get("APTS_LOOP_PROMPT_CHARS", "6000"))
 _NOISE = {"stylesheet", "image", "font", "media"}
 
-# Vulnerability class -> CVSS v3.1 base vector. The loop names the class in each
-# hypothesis; this maps it to a reference vector (the same references the old
-# prompt used) and shared.cvss turns the vector into a score. Order matters —
-# more specific keys first (e.g. "stored xss" before "xss"). An unrecognised
-# class gets a conservative medium default.
-_CLASS_VECTORS = [
-    ("nosql",            "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H"),
-    ("sql inj",          "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H"),
-    ("command inj",      "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H"),
-    ("code inj",         "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H"),
-    ("remote code",      "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H"),
-    ("ssti",             "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H"),
-    ("template inj",     "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H"),
-    ("deserial",         "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H"),
-    ("stored xss",       "CVSS:3.1/AV:N/AC:L/PR:L/UI:R/S:C/C:H/I:H/A:N"),
-    ("account takeover", "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:N"),
-    ("login bypass",     "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:N"),
-    ("auth",             "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:N"),
-    ("ldap inj",         "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:N"),
-    ("mass assign",      "CVSS:3.1/AV:N/AC:L/PR:L/UI:N/S:U/C:H/I:H/A:N"),
-    ("idor",             "CVSS:3.1/AV:N/AC:L/PR:L/UI:N/S:U/C:H/I:H/A:N"),
-    ("xxe",              "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:N/A:N"),
-    ("ssrf",             "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:N/A:N"),
-    ("path travers",     "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:N/A:N"),
-    ("file inclus",      "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:N/A:N"),
-    ("info disclos",     "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:N/A:N"),
-    ("xss",              "CVSS:3.1/AV:N/AC:L/PR:N/UI:R/S:C/C:L/I:L/A:N"),
-    ("open redirect",    "CVSS:3.1/AV:N/AC:L/PR:N/UI:R/S:C/C:L/I:N/A:N"),
-    ("csrf",             "CVSS:3.1/AV:N/AC:L/PR:N/UI:R/S:U/C:L/I:L/A:N"),
-    ("websocket",        "CVSS:3.1/AV:N/AC:H/PR:N/UI:R/S:U/C:L/I:L/A:N"),
-    ("captcha",          "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:N/I:L/A:N"),
-]
-_DEFAULT_VECTOR = "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:L/I:L/A:N"  # ~6.3 medium
+# The vuln agent proposes; it does not probe. It is handed ONLY the knowledge-base
+# tools — never sqlmap/http_request — both because that is its job and to keep the
+# prompt small.
+AGENT_TOOLS = {"hacktricks_overview", "hacktricks_article"}
+
+SYSTEM_PROMPT = """\
+You are a web application vulnerability analyst. You are shown ONE HTTP request
+that reconnaissance observed. Your job: decide which vulnerability classes are
+worth testing against THIS request, and write concrete, testable hypotheses.
+
+You have a HackTricks knowledge base as tools:
+- The technique menu (slug + title for every class) is given to you below.
+- hacktricks_article(slug) returns that technique's worked examples and payloads.
+
+How to work:
+- Look at the request's method, path, parameters, body, and content type. Reason
+  about where user input enters and how the server might mishandle it.
+- Choose the techniques that plausibly apply. For a technique you want examples
+  for, call hacktricks_article(slug) using a slug from the menu, and let the
+  examples sharpen your hypothesis. Fetch only what helps; do not fetch all of them.
+- Call ONE tool at a time. Never fetch the same article twice.
+- Speculate freely. A plausible idea you are not sure about is worth stating —
+  imagine anything an attacker might try here, even long shots. Something later
+  proves it or kills it; your job is to surface the candidates.
+- You MUST produce at least one hypothesis even if no article matches — reason
+  from first principles.
+
+When done, reply WITHOUT calling a tool. Output one block per hypothesis, each
+exactly in this shape (keep it to one line each):
+  HYPOTHESIS: <vuln class> — <where> (param `<param>`, <METHOD> <path>)
+  WHY: <one sentence: why this input could reach that sink>
+Give as many HYPOTHESIS blocks as you think are worth testing (at least one).
+"""
+
+REFLECT_PROMPT_TMPL = """\
+You proposed these hypotheses for THIS request:
+{current}
+
+Think again. Are there OTHER distinct, testable hypotheses worth adding — a
+different vulnerability class, a different parameter, or an attack angle you have
+not covered yet? Speculative long shots are welcome; someone else proves or kills
+them later.
+- If yes: output ONLY the NEW HYPOTHESIS blocks (same HYPOTHESIS: / WHY: format).
+  Do not repeat any listed above.
+- If nothing worth adding: reply with exactly DONE.
+"""
 
 
-def _vector_for(title: str) -> str:
-    t = title.lower()
-    for key, vec in _CLASS_VECTORS:
-        if key in t:
-            return vec
-    return _DEFAULT_VECTOR
+
+# --------------------------------------------------------------------------- #
+# The loop: one fresh conversation per request
+# --------------------------------------------------------------------------- #
+
+def _params_of(req: dict) -> list[str]:
+    """Best-effort list of the parameter names a request carries."""
+    params: list[str] = []
+    params += [k for k, _ in parse_qsl(urlparse(req.get("url") or "").query)]
+    body = req.get("post_data")
+    if isinstance(body, str) and body.strip():
+        try:
+            obj = json.loads(body)
+            if isinstance(obj, dict):
+                params += list(obj.keys())
+        except json.JSONDecodeError:
+            params += [k for k, _ in parse_qsl(body)]
+    seen: set[str] = set()
+    return [p for p in params if not (p in seen or seen.add(p))]
 
 
-def _prioritise(requests: list[dict]) -> list[dict]:
-    """Assess endpoints that carry user input first — that is the attack surface.
+def _render_request(req: dict) -> str:
+    """Compact, model-facing description of a single observed request."""
+    params = _params_of(req)
+    lines = [f"Method: {req.get('method')}", f"Path:   {req.get('path')}",
+             f"URL:    {req.get('url')}"]
+    if req.get("content_type"):
+        lines.append(f"Content-Type: {req['content_type']}")
+    lines.append(f"Parameters: {', '.join(params) if params else '(none seen)'}")
+    body = req.get("post_data")
+    if isinstance(body, str) and body.strip():
+        lines.append(f"Body: {body[:500]}")
+    return "\n".join(lines)
 
-    Recon order is crawl order, which buries the interesting endpoints (a login
-    POST, a search query) behind static assets and parameterless admin GETs. With
-    a request cap, first-come crawl order can spend the whole budget on dead ends.
-    A request with a POST body ranks first, one with a query string next, the rest
-    last; the sort is stable so original order is kept within each group.
+
+def _render_menu(techniques: list[dict]) -> str:
+    """Technique menu injected per conversation — slugs only, comma-joined."""
+    return ", ".join(t["slug"] for t in techniques)
+
+
+def _fit_menu(menu: str, fixed_chars: int) -> str:
+    """PROMPT-LOAD GUARD: trim the menu so the opening prompt stays in budget."""
+    room = PROMPT_BUDGET_CHARS - fixed_chars
+    if room <= 0 or len(menu) <= room:
+        return menu
+    kept, used = [], 0
+    for slug in menu.split(", "):
+        if used + len(slug) + 2 > room:
+            break
+        kept.append(slug)
+        used += len(slug) + 2
+    dropped = len(menu.split(", ")) - len(kept)
+    return ", ".join(kept) + (f" … (+{dropped} more — call hacktricks_overview "
+                              f"for the full list)")
+
+
+def _outcome(payload: dict) -> str:
+    if not isinstance(payload, dict):
+        return "ok"
+    if payload.get("found") is not None or "slug" in payload:
+        return (f"found={payload.get('found')} slug={payload.get('slug')}")
+    if "count" in payload:
+        return f"techniques={payload.get('count')}"
+    return "ok"
+
+
+def _observation(name: str, payload: dict, tried: dict[str, str],
+                 steps_left: int) -> str:
+    keep: dict = {}
+    if isinstance(payload, dict):
+        for k in ("found", "slug", "title", "truncated", "did_you_mean",
+                  "guidance", "count", "error"):
+            if k in payload:
+                keep[k] = payload[k]
+        if isinstance(payload.get("content"), str):
+            keep["content"] = payload["content"][:2500]
+        if payload.get("techniques"):
+            keep["techniques"] = [t["slug"] for t in payload["techniques"]]
+    tried_lines = "; ".join(f"{s} -> {o}" for s, o in tried.items()) or "(none yet)"
+    return (f"OBSERVATION from {name}:\n{json.dumps(keep, default=str)[:3000]}\n"
+            f"---\nPROGRESS: {steps_left} step(s) left. "
+            f"Already fetched (do NOT repeat): {tried_lines}\n"
+            f"Fetch another technique if it helps, or write your HYPOTHESIS block(s) now.")
+
+
+def _extract_hypotheses(text: str) -> list[str]:
+    """Pull HYPOTHESIS/WHY blocks from the model's message, leniently."""
+    blocks: list[str] = []
+    lines = text.splitlines()
+    for i, line in enumerate(lines):
+        m = re.match(r"\s*HYPOTHESIS:\s*(.+)$", line, re.IGNORECASE)
+        if not m:
+            continue
+        why = ""
+        if i + 1 < len(lines):
+            wm = re.match(r"\s*WHY:\s*(.+)$", lines[i + 1], re.IGNORECASE)
+            if wm:
+                why = wm.group(1).strip()
+        blocks.append(m.group(1).strip() + (f"\n   Hypothesis: {why}" if why else ""))
+    if not blocks and text.strip():
+        blocks.append("(freeform) " + text.strip().splitlines()[0]
+                      + f"\n   Hypothesis: {text.strip()}")
+    return blocks
+
+
+def _norm_hyp(h: str) -> str:
+    return re.sub(r"\s+", " ", h.splitlines()[0].lower()).strip()
+
+
+def _merge_hyps(existing: list[str], new: list[str]) -> list[str]:
+    seen = {_norm_hyp(h) for h in existing}
+    added = []
+    for h in new:
+        key = _norm_hyp(h)
+        if key and key not in seen:
+            seen.add(key)
+            added.append(h)
+    return added
+
+
+async def _reflect(llm, messages: list[dict], hypotheses: list[str]) -> list[str]:
+    """Ask whether more hypotheses are worth adding; merge new ones. Bounded."""
+    for _ in range(REFLECT_ROUNDS):
+        current = "\n".join(f"{i}. {h.splitlines()[0]}"
+                            for i, h in enumerate(hypotheses, 1))
+        messages.append({"role": "user",
+                         "content": REFLECT_PROMPT_TMPL.format(current=current)})
+        try:
+            msg = await agentic.chat(llm, messages, max_tokens=MAX_TOKENS)
+        except httpx.HTTPError:
+            break
+        reply = (msg.get("content") or "").strip()
+        messages.append({"role": "assistant", "content": reply})
+        if reply.upper().replace(".", "").strip() == "DONE" or not reply:
+            break
+        added = _merge_hyps(hypotheses, _extract_hypotheses(reply))
+        if not added:
+            break
+        hypotheses += added
+        log.info("  reflection +%d hypothesis(es)", len(added))
+    return hypotheses
+
+
+async def _run_request(client, llm, openai_tools, menu: str, req: dict) -> list[str]:
+    """Drive the model through one request and return its hypotheses."""
+    head = "## Request under test\n" + _render_request(req) \
+        + "\n\n## HackTricks technique menu (slugs)\n"
+    tail = ("\n\nDecide what is worth testing here, fetch examples if useful, then "
+            "give your HYPOTHESIS block(s).")
+    menu = _fit_menu(menu, len(SYSTEM_PROMPT) + len(head) + len(tail))
+    messages = [{"role": "system", "content": SYSTEM_PROMPT},
+                {"role": "user", "content": head + menu + tail}]
+    tried: dict[str, str] = {}
+
+    for step in range(MAX_STEPS):
+        messages = agentic.compact(messages, tried)
+        choice: Any = "auto"
+        if FORCE_FETCH and step == 0:
+            choice = {"type": "function", "function": {"name": "hacktricks_article"}}
+        try:
+            msg = await agentic.chat(llm, messages, tools=openai_tools,
+                                     tool_choice=choice, max_tokens=MAX_TOKENS)
+        except httpx.HTTPError as exc:
+            log.warning("vuln model call failed at step %d: %s :: %s", step, exc,
+                        agentic.err_body(exc)[:300])
+            return []
+        messages.append(msg)
+
+        calls = msg.get("tool_calls")
+        if not calls:
+            hyps = _extract_hypotheses((msg.get("content") or "").strip())
+            return await _reflect(llm, messages, hyps) if (REFLECT_ROUNDS and hyps) else hyps
+
+        steps_left = MAX_STEPS - step - 1
+        for call in calls:
+            name = call["function"]["name"]
+            try:
+                args = json.loads(call["function"].get("arguments") or "{}")
+            except json.JSONDecodeError:
+                args = {}
+            key = agentic.sig(name, args)
+            if key in tried:
+                messages.append({"role": "tool", "tool_call_id": call["id"],
+                                 "content": (f"You already fetched this: {name} -> "
+                                             f"{tried[key]}. Fetch a different "
+                                             f"technique or write your HYPOTHESIS "
+                                             f"block(s) now.")})
+                continue
+            out = await client.call_tool(name, args)
+            payload = out.structured_content or {
+                "content": [getattr(b, "text", str(b)) for b in out.content]}
+            tried[key] = _outcome(payload)
+            messages.append({"role": "tool", "tool_call_id": call["id"],
+                             "content": _observation(name, payload, tried, steps_left)})
+
+    # Step limit hit mid-tool-use: ask once, no tools.
+    messages.append({"role": "user", "content": (
+        "Step limit reached. Do not call tools. Write your HYPOTHESIS block(s) now, "
+        "at least one.")})
+    try:
+        msg = await agentic.chat(llm, messages, max_tokens=MAX_TOKENS)
+        raw = (msg.get("content") or "").strip()
+        messages.append({"role": "assistant", "content": raw})
+    except httpx.HTTPError:
+        raw = ""
+    hyps = _extract_hypotheses(raw)
+    return await _reflect(llm, messages, hyps) if (REFLECT_ROUNDS and hyps) else hyps
+
+
+# --------------------------------------------------------------------------- #
+# Register assembly
+# --------------------------------------------------------------------------- #
+
+def _to_weakness(hypothesis: str, req: dict, idx: int) -> Weakness | None:
+    """Render one hypothesis as a Weakness — a plain hypothesis, no CVSS scoring.
+
+    The agentic vuln loop proposes; it does not score. The Weakness carries the
+    title, the asset, and the model's reasoning, nothing more.
     """
-    def rank(req: dict) -> int:
-        if (req.get("post_data") or "").strip():
-            return 0
-        url = req.get("url") or ""
-        if "?" in url and url.split("?", 1)[1]:
-            return 1
-        return 2
-    return sorted(requests, key=rank)
+    lines = hypothesis.splitlines()
+    title = (lines[0].strip() or "unspecified weakness")[:200]
+    rationale = ""
+    for line in lines[1:]:
+        if line.strip().lower().startswith("hypothesis:"):
+            rationale = line.split(":", 1)[1].strip()[:500]
+    try:
+        return Weakness(
+            id=f"W-{idx:03d}", title=title, asset=req.get("path") or "/",
+            confidence="possible",
+            rationale=rationale or hypothesis[:500], evidence=[])
+    except Exception:  # noqa: BLE001 — a malformed item must not kill the stage
+        log.warning("dropping unmappable hypothesis: %s", title)
+        return None
 
 
 class VulnWorker:
-    """Runs the agentic vuln loop and renders its hypotheses as a register."""
+    """The vulnerability agent: the hypothesis loop, rendered as a register."""
 
     def __init__(self, llm: LlmClient, mcp: McpService) -> None:
-        # The loop talks to the model and the native MCP server itself; these are
+        # The loop drives the model and the native MCP server itself; llm/mcp are
         # kept only for constructor compatibility with the composition root.
         self._llm = llm
         self._mcp = mcp
 
     async def __call__(self, ctx: WorkContext) -> dict[str, Any]:
-        from mcp import Client
-        from mcp_native import vuln_loop as V
-
         weaknesses: list[Weakness] = []
         try:
-            async with Client(MCP_URL) as client, \
-                    httpx.AsyncClient(timeout=LLM_TIMEOUT) as llm:
+            async with Client(agentic.MCP_URL) as client, \
+                    httpx.AsyncClient(timeout=agentic.LLM_TIMEOUT) as llm:
                 tools = [t for t in (await client.list_tools()).tools
-                         if t.name in V.AGENT_TOOLS]
-                openai_tools = V.mcp_tools_to_openai(tools)
+                         if t.name in AGENT_TOOLS]
+                openai_tools = agentic.mcp_tools_to_openai(tools)
                 overview = (await client.call_tool(
                     "hacktricks_overview", {})).structured_content
-                menu = V._render_menu((overview or {}).get("techniques", []))
+                menu = _render_menu((overview or {}).get("techniques", []))
                 batch = (await client.call_tool(
                     "list_recorded_requests",
                     {"engagement_id": str(ctx.engagement_id)})).structured_content
-                requests = _prioritise([r for r in (batch or {}).get("requests", [])
-                                        if r.get("resource_type") not in _NOISE])[:MAX_REQUESTS]
+                # No cap: recon already filtered to the high-interest requests,
+                # so assess all of them (a proof run, not a bounded sample).
+                requests = [r for r in (batch or {}).get("requests", [])
+                            if not (SKIP_NOISE and r.get("resource_type") in _NOISE)]
                 log.info("vuln loop: assessing %d request(s): %s", len(requests),
                          ", ".join(r.get("path", "?") for r in requests))
 
                 for req in requests:
-                    hyps, _raw, _trail = await V.run_request(
-                        client, llm, openai_tools, menu, req)
+                    log.info("=== %s %s ===", req.get("method"), req.get("path"))
+                    hyps = await _run_request(client, llm, openai_tools, menu, req)
                     for hypothesis in hyps:
-                        weakness = self._to_weakness(
-                            hypothesis, req, len(weaknesses) + 1)
+                        weakness = _to_weakness(hypothesis, req, len(weaknesses) + 1)
                         if weakness:
                             weaknesses.append(weakness)
         except Exception as exc:  # noqa: BLE001 — retryable stage failure
-            raise WorkFailed(
-                f"vuln loop failed: {type(exc).__name__}: {exc}") from exc
+            raise WorkFailed(f"vuln loop failed: {type(exc).__name__}: {exc}") from exc
 
-        # Rank by severity so Exploitation (which tests a bounded top slice) spends
-        # its budget on the highest-impact weaknesses first, then re-id in that order.
-        weaknesses.sort(key=lambda w: w.cvss_score, reverse=True)
-        weaknesses = [w.model_copy(update={"id": f"W-{i:03d}"})
-                      for i, w in enumerate(weaknesses, 1)]
         register = VulnerabilityRegister(weaknesses=weaknesses)
-        log.info("register: %d weaknesses from hypotheses (ranked by severity)",
-                 len(register.weaknesses))
+        log.info("register: %d weaknesses from hypotheses", len(register.weaknesses))
         return register.model_dump(mode="json")
-
-    @staticmethod
-    def _to_weakness(hypothesis: str, req: dict, idx: int) -> Weakness | None:
-        lines = hypothesis.splitlines()
-        title = (lines[0].strip() or "unspecified weakness")[:200]
-        rationale = ""
-        for line in lines[1:]:
-            if line.strip().lower().startswith("hypothesis:"):
-                rationale = line.split(":", 1)[1].strip()[:500]
-        vector = _vector_for(title)
-        try:
-            score = base_score(vector)
-        except CvssError:
-            return None
-        try:
-            return Weakness(
-                id=f"W-{idx:03d}", title=title, asset=req.get("path") or "/",
-                owasp_category="", cvss_vector=vector, cvss_score=score,
-                severity=severity_label(score), confidence="possible",
-                rationale=rationale or hypothesis[:500], evidence=[])
-        except Exception:  # noqa: BLE001 — a malformed item must not kill the stage
-            log.warning("dropping unmappable hypothesis: %s", title)
-            return None

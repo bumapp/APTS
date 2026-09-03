@@ -8,10 +8,11 @@ tool is: drop a module in here, give it a ``register(mcp)``, and add its name to
 """
 from __future__ import annotations
 
-from mcp_native.tools import hacktricks_tool, http_tool, recon_tool, sqlmap_tool
+from mcp_native.tools import (
+    crawl_tool, hacktricks_tool, http_tool, recon_tool, sqlmap_tool)
 
 # The modules server.py will register, in order. Add new tool modules here.
-ALL = (http_tool, recon_tool, sqlmap_tool, hacktricks_tool)
+ALL = (http_tool, recon_tool, sqlmap_tool, hacktricks_tool, crawl_tool)
 
 
 def register_all(mcp) -> list[str]:

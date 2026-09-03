@@ -1,0 +1,260 @@
+{
+    "mappings": {
+        "W-001": [
+            {
+                "tactic": "Initial Access",
+                "technique_id": "T1190",
+                "technique_name": "Exploit Public-Facing Application"
+            }
+        ],
+        "W-002": [
+            {
+                "tactic": "Execution",
+                "technique_id": "T1059.007",
+                "technique_name": "Command and Scripting Interpreter: JavaScript/JScript"
+            }
+        ],
+        "W-003": [
+            {
+                "tactic": "Command and Control",
+                "technique_id": "T1071.001",
+                "technique_name": "Application Layer Protocol: Web Protocols"
+            }
+        ],
+        "W-004": [
+            {
+                "tactic": "Initial Access",
+                "technique_id": "T1189",
+                "technique_name": "Drive-by Compromise"
+            },
+            {
+                "tactic": "Execution",
+                "technique_id": "T1059.007",
+                "technique_name": "Command and Scripting Interpreter: JavaScript/JScript"
+            }
+        ],
+        "W-005": [
+            {
+                "tactic": "Credential Access",
+                "technique_id": "T1539",
+                "technique_name": "Steal Web Session Cookie"
+            }
+        ],
+        "W-006": [
+            {
+                "tactic": "Execution",
+                "technique_id": "T1059.007",
+                "technique_name": "Command and Scripting Interpreter: JavaScript/JScript"
+            }
+        ],
+        "W-007": [
+            {
+                "tactic": "Execution",
+                "technique_id": "T1059.007",
+                "technique_name": "Command and Scripting Interpreter: JavaScript/JScript"
+            }
+        ],
+        "W-008": [
+            {
+                "tactic": "Execution",
+                "technique_id": "T1059.007",
+                "technique_name": "Command and Scripting Interpreter: JavaScript/JScript"
+            }
+        ],
+        "W-009": [
+            {
+                "tactic": "Execution",
+                "technique_id": "T1059.007",
+                "technique_name": "Command and Scripting Interpreter: JavaScript/JScript"
+            }
+        ],
+        "W-010": [
+            {
+                "tactic": "Execution",
+                "technique_id": "T1059.007",
+                "technique_name": "Command and Scripting Interpreter: JavaScript/JScript"
+            }
+        ],
+        "W-011": [
+            {
+                "tactic": "Initial Access",
+                "technique_id": "T1190",
+                "technique_name": "Exploit Public-Facing Application"
+            }
+        ],
+        "W-012": [
+            {
+                "tactic": "Initial Access",
+                "technique_id": "T1190",
+                "technique_name": "Exploit Public-Facing Application"
+            }
+        ],
+        "W-013": [
+            {
+                "tactic": "Initial Access",
+                "technique_id": "T1190",
+                "technique_name": "Exploit Public-Facing Application"
+            }
+        ],
+        "W-014": [
+            {
+                "tactic": "Initial Access",
+                "technique_id": "T1190",
+                "technique_name": "Exploit Public-Facing Application"
+            }
+        ],
+        "W-015": [
+            {
+                "tactic": "Initial Access",
+                "technique_id": "T1190",
+                "technique_name": "Exploit Public-Facing Application"
+            },
+            {
+                "tactic": "Credential Access",
+                "technique_id": "T1539",
+                "technique_name": "Steal Web Session Cookie"
+            }
+        ],
+        "W-016": [
+            {
+                "tactic": "Initial Access",
+                "technique_id": "T1190",
+                "technique_name": "Exploit Public-Facing Application"
+            },
+            {
+                "tactic": "Credential Access",
+                "technique_id": "T1539",
+                "technique_name": "Steal Web Session Cookie"
+            }
+        ],
+        "W-017": [
+            {
+                "tactic": "Execution",
+                "technique_id": "T1059.007",
+                "technique_name": "Command and Scripting Interpreter: JavaScript/JScript"
+            }
+        ],
+        "W-018": [
+            {
+                "tactic": "Execution",
+                "technique_id": "T1059.007",
+                "technique_name": "Command and Scripting Interpreter: JavaScript/JScript"
+            }
+        ],
+        "W-019": [
+            {
+                "tactic": "Execution",
+                "technique_id": "T1059.007",
+                "technique_name": "Command and Scripting Interpreter: JavaScript/JScript"
+            }
+        ],
+        "W-020": [
+            {
+                "tactic": "Execution",
+                "technique_id": "T1059.007",
+                "technique_name": "Command and Scripting Interpreter: JavaScript/JScript"
+            }
+        ],
+        "W-021": [
+            {
+                "tactic": "Execution",
+                "technique_id": "T1059.007",
+                "technique_name": "Command and Scripting Interpreter: JavaScript/JScript"
+            }
+        ],
+        "W-022": [
+            {
+                "tactic": "Initial Access",
+                "technique_id": "T1190",
+                "technique_name": "Exploit Public-Facing Application"
+            }
+        ],
+        "W-023": [
+            {
+                "tactic": "Command and Control",
+                "technique_id": "T1071.001",
+                "technique_name": "Application Layer Protocol: Web Protocols"
+            }
+        ],
+        "W-024": [
+            {
+                "tactic": "Initial Access",
+                "technique_id": "T1189",
+                "technique_name": "Drive-by Compromise"
+            },
+            {
+                "tactic": "Execution",
+                "technique_id": "T1059.007",
+                "technique_name": "Command and Scripting Interpreter: JavaScript/JScript"
+            }
+        ],
+        "W-025": [
+            {
+                "tactic": "Execution",
+                "technique_id": "T1059.007",
+                "technique_name": "Command and Scripting Interpreter: JavaScript/JScript"
+            }
+        ],
+        "W-026": [
+            {
+                "tactic": "Execution",
+                "technique_id": "T1059.007",
+                "technique_name": "Command and Scripting Interpreter: JavaScript/JScript"
+            }
+        ],
+        "W-027": [
+            {
+                "tactic": "Initial Access",
+                "technique_id": "T1190",
+                "technique_name": "Exploit Public-Facing Application"
+            }
+        ],
+        "W-028": [
+            {
+                "tactic": "Initial Access",
+                "technique_id": "T1189",
+                "technique_name": "Drive-by Compromise"
+            },
+            {
+                "tactic": "Execution",
+                "technique_id": "T1059.007",
+                "technique_name": "Command and Scripting Interpreter: JavaScript/JScript"
+            }
+        ],
+        "W-029": [
+            {
+                "tactic": "Execution",
+                "technique_id": "T1059.007",
+                "technique_name": "Command and Scripting Interpreter: JavaScript/JScript"
+            }
+        ],
+        "W-030": [
+            {
+                "tactic": "Execution",
+                "technique_id": "T1059.007",
+                "technique_name": "Command and Scripting Interpreter: JavaScript/JScript"
+            }
+        ],
+        "W-031": [
+            {
+                "tactic": "Initial Access",
+                "technique_id": "T1190",
+                "technique_name": "Exploit Public-Facing Application"
+            }
+        ],
+        "W-032": [
+            {
+                "tactic": "Execution",
+                "technique_id": "T1059.007",
+                "technique_name": "Command and Scripting Interpreter: JavaScript/JScript"
+            }
+        ],
+        "W-033": [
+            {
+                "tactic": "Execution",
+                "technique_id": "T1059.007",
+                "technique_name": "Command and Scripting Interpreter: JavaScript/JScript"
+            }
+        ]
+    }
+}

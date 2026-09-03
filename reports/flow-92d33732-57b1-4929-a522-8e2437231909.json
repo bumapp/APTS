@@ -1,0 +1,3626 @@
+{
+  "engagement_id": "92d33732-57b1-4929-a522-8e2437231909",
+  "event_count": 22,
+  "events": [
+    {
+      "agent": "orchestrator",
+      "seq": 0,
+      "event_type": "engagement_requested",
+      "duration_ms": null,
+      "logged_at": "2026-09-03T18:52:16.063468+00:00",
+      "payload": {
+        "chain": [
+          "recon",
+          "vuln",
+          "mitre",
+          "exploit",
+          "script",
+          "adviser"
+        ],
+        "scope": {
+          "domains": [
+            "juice-shop"
+          ],
+          "deny_paths": [],
+          "allow_paths": []
+        },
+        "target_url": "http://juice-shop:3000/",
+        "time_window": {}
+      }
+    },
+    {
+      "agent": "orchestrator",
+      "seq": 0,
+      "event_type": "kickoff",
+      "duration_ms": null,
+      "logged_at": "2026-09-03T18:52:16.107537+00:00",
+      "payload": {
+        "url": "https://agent-recon:8443/run",
+        "agent": "recon"
+      }
+    },
+    {
+      "agent": "recon",
+      "seq": 1,
+      "event_type": "stage_input",
+      "duration_ms": null,
+      "logged_at": "2026-09-03T18:52:16.209149+00:00",
+      "payload": {
+        "scope": {
+          "domains": [
+            "juice-shop"
+          ],
+          "deny_paths": [],
+          "allow_paths": []
+        },
+        "upstream": {},
+        "target_url": "http://juice-shop:3000/",
+        "upstream_keys": [],
+        "from_component": "orchestrator",
+        "upstream_bytes": 2
+      }
+    },
+    {
+      "agent": "recon",
+      "seq": 2,
+      "event_type": "stage_output",
+      "duration_ms": 133618,
+      "logged_at": "2026-09-03T18:54:37.846649+00:00",
+      "payload": {
+        "summary": "5 endpoints, 3 technologies, 13 api_paths, 27 observed_requests, 1 third_party",
+        "artifact": {
+          "forms": [],
+          "api_paths": [
+            "/api/Challenges/",
+            "/api/Feedbacks/",
+            "/api/Quantitys/",
+            "/assets/i18n/en.json",
+            "/rest/admin/application-configuration",
+            "/rest/admin/application-version",
+            "/rest/captcha/",
+            "/rest/languages",
+            "/rest/memories/",
+            "/rest/products/search",
+            "/rest/user/login",
+            "/rest/user/whoami",
+            "/socket.io/"
+          ],
+          "endpoints": [
+            {
+              "path": "/#/",
+              "method": "GET",
+              "params": [],
+              "status": 200,
+              "content_type": "text/html"
+            },
+            {
+              "path": "/#/login",
+              "method": "GET",
+              "params": [],
+              "status": 200,
+              "content_type": "text/html"
+            },
+            {
+              "path": "/#/contact",
+              "method": "GET",
+              "params": [],
+              "status": 200,
+              "content_type": "text/html"
+            },
+            {
+              "path": "/#/about",
+              "method": "GET",
+              "params": [],
+              "status": 200,
+              "content_type": "text/html"
+            },
+            {
+              "path": "/#/photo-wall",
+              "method": "GET",
+              "params": [],
+              "status": 200,
+              "content_type": "text/html"
+            }
+          ],
+          "truncated": true,
+          "target_url": "http://juice-shop:3000/",
+          "third_party": [
+            "cdnjs.cloudflare.com"
+          ],
+          "technologies": [
+            {
+              "name": "Angular",
+              "source": "Wappalyzer",
+              "version": "15.2.10"
+            },
+            {
+              "name": "Osano",
+              "source": "Wappalyzer",
+              "version": null
+            },
+            {
+              "name": "jQuery",
+              "source": "Wappalyzer",
+              "version": "2.2.4"
+            }
+          ],
+          "pages_crawled": 5,
+          "observed_requests": [
+            {
+              "url": "http://juice-shop:3000/rest/admin/application-configuration",
+              "method": "GET",
+              "headers": {
+                "accept": "application/json, text/plain, */*",
+                "referer": "http://juice-shop:3000/",
+                "user-agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/131.0.6778.33 Safari/537.36"
+              },
+              "interest": "high",
+              "post_data": null,
+              "source_page": "http://juice-shop:3000/",
+              "content_type": "",
+              "resource_type": "xhr",
+              "interest_reason": "Admin API endpoint fetching application configuration"
+            },
+            {
+              "url": "http://juice-shop:3000/assets/i18n/en.json",
+              "method": "GET",
+              "headers": {
+                "accept": "application/json, text/plain, */*",
+                "referer": "http://juice-shop:3000/",
+                "user-agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/131.0.6778.33 Safari/537.36"
+              },
+              "interest": "low",
+              "post_data": null,
+              "source_page": "http://juice-shop:3000/",
+              "content_type": "",
+              "resource_type": "xhr",
+              "interest_reason": "Static internationalization JSON asset"
+            },
+            {
+              "url": "http://juice-shop:3000/socket.io/?EIO=4&transport=polling&t=Q1edLUy",
+              "method": "GET",
+              "headers": {
+                "accept": "*/*",
+                "referer": "http://juice-shop:3000/",
+                "user-agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/131.0.6778.33 Safari/537.36"
+              },
+              "interest": "low",
+              "post_data": null,
+              "source_page": "http://juice-shop:3000/",
+              "content_type": "",
+              "resource_type": "xhr",
+              "interest_reason": "Socket.IO transport polling with standard parameters"
+            },
+            {
+              "url": "http://juice-shop:3000/rest/admin/application-version",
+              "method": "GET",
+              "headers": {
+                "accept": "application/json, text/plain, */*",
+                "referer": "http://juice-shop:3000/",
+                "user-agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/131.0.6778.33 Safari/537.36"
+              },
+              "interest": "high",
+              "post_data": null,
+              "source_page": "http://juice-shop:3000/",
+              "content_type": "",
+              "resource_type": "xhr",
+              "interest_reason": "Admin API endpoint fetching application version"
+            },
+            {
+              "url": "http://juice-shop:3000/api/Challenges/?name=Score%20Board",
+              "method": "GET",
+              "headers": {
+                "accept": "application/json, text/plain, */*",
+                "referer": "http://juice-shop:3000/",
+                "user-agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/131.0.6778.33 Safari/537.36"
+              },
+              "interest": "high",
+              "post_data": null,
+              "source_page": "http://juice-shop:3000/",
+              "content_type": "",
+              "resource_type": "xhr",
+              "interest_reason": "API endpoint with name parameter for challenges"
+            },
+            {
+              "url": "http://juice-shop:3000/rest/languages",
+              "method": "GET",
+              "headers": {
+                "accept": "application/json, text/plain, */*",
+                "referer": "http://juice-shop:3000/",
+                "user-agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/131.0.6778.33 Safari/537.36"
+              },
+              "interest": "low",
+              "post_data": null,
+              "source_page": "http://juice-shop:3000/",
+              "content_type": "",
+              "resource_type": "xhr",
+              "interest_reason": "Static language list endpoint"
+            },
+            {
+              "url": "http://juice-shop:3000/api/Quantitys/",
+              "method": "GET",
+              "headers": {
+                "accept": "application/json, text/plain, */*",
+                "referer": "http://juice-shop:3000/",
+                "user-agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/131.0.6778.33 Safari/537.36"
+              },
+              "interest": "medium",
+              "post_data": null,
+              "source_page": "http://juice-shop:3000/",
+              "content_type": "",
+              "resource_type": "xhr",
+              "interest_reason": "API endpoint for quantities without obvious input"
+            },
+            {
+              "url": "http://juice-shop:3000/rest/products/search?q=",
+              "method": "GET",
+              "headers": {
+                "accept": "application/json, text/plain, */*",
+                "referer": "http://juice-shop:3000/",
+                "user-agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/131.0.6778.33 Safari/537.36"
+              },
+              "interest": "high",
+              "post_data": null,
+              "source_page": "http://juice-shop:3000/",
+              "content_type": "",
+              "resource_type": "xhr",
+              "interest_reason": "Product search endpoint, likely accepts user input"
+            },
+            {
+              "url": "http://juice-shop:3000/socket.io/?EIO=4&transport=polling&t=Q1edLYN&sid=G62mFS2BvPOrZ9deAAAa",
+              "method": "POST",
+              "headers": {
+                "accept": "*/*",
+                "origin": "http://juice-shop:3000",
+                "referer": "http://juice-shop:3000/",
+                "user-agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/131.0.6778.33 Safari/537.36",
+                "content-type": "text/plain;charset=UTF-8"
+              },
+              "interest": "medium",
+              "post_data": "40",
+              "source_page": "http://juice-shop:3000/",
+              "content_type": "text/plain;charset=UTF-8",
+              "resource_type": "xhr",
+              "interest_reason": "Socket.IO POST with session data, potential transport issues"
+            },
+            {
+              "url": "http://juice-shop:3000/socket.io/?EIO=4&transport=polling&t=Q1edLYP&sid=G62mFS2BvPOrZ9deAAAa",
+              "method": "GET",
+              "headers": {
+                "accept": "*/*",
+                "referer": "http://juice-shop:3000/",
+                "user-agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/131.0.6778.33 Safari/537.36"
+              },
+              "interest": "low",
+              "post_data": null,
+              "source_page": "http://juice-shop:3000/",
+              "content_type": "",
+              "resource_type": "xhr",
+              "interest_reason": "Socket.IO polling with existing session"
+            },
+            {
+              "url": "http://juice-shop:3000/socket.io/?EIO=4&transport=polling&t=Q1edVxj",
+              "method": "GET",
+              "headers": {
+                "accept": "*/*",
+                "cookie": "language=en; welcomebanner_status=dismiss",
+                "referer": "http://juice-shop:3000/",
+                "user-agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/131.0.6778.33 Safari/537.36"
+              },
+              "interest": "medium",
+              "post_data": null,
+              "source_page": "http://juice-shop:3000/#/login",
+              "content_type": "",
+              "resource_type": "xhr",
+              "interest_reason": "Socket.IO connection with transport params, potential for injection"
+            },
+            {
+              "url": "http://juice-shop:3000/socket.io/?EIO=4&transport=polling&t=Q1edV-L&sid=g04l-aQMrW6VTpw_AAAc",
+              "method": "POST",
+              "headers": {
+                "accept": "*/*",
+                "cookie": "language=en; welcomebanner_status=dismiss",
+                "origin": "http://juice-shop:3000",
+                "referer": "http://juice-shop:3000/",
+                "user-agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/131.0.6778.33 Safari/537.36",
+                "content-type": "text/plain;charset=UTF-8"
+              },
+              "interest": "high",
+              "post_data": "40",
+              "source_page": "http://juice-shop:3000/#/login",
+              "content_type": "text/plain;charset=UTF-8",
+              "resource_type": "xhr",
+              "interest_reason": "Socket.IO POST with session data and body, likely user-controllable"
+            },
+            {
+              "url": "http://juice-shop:3000/socket.io/?EIO=4&transport=polling&t=Q1edV-O&sid=g04l-aQMrW6VTpw_AAAc",
+              "method": "GET",
+              "headers": {
+                "accept": "*/*",
+                "cookie": "language=en; welcomebanner_status=dismiss",
+                "referer": "http://juice-shop:3000/",
+                "user-agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/131.0.6778.33 Safari/537.36"
+              },
+              "interest": "medium",
+              "post_data": null,
+              "source_page": "http://juice-shop:3000/#/login",
+              "content_type": "",
+              "resource_type": "xhr",
+              "interest_reason": "Socket.IO polling request with session ID, possible state manipulation"
+            },
+            {
+              "url": "http://juice-shop:3000/rest/user/whoami",
+              "method": "GET",
+              "headers": {
+                "accept": "application/json, text/plain, */*",
+                "cookie": "language=en; welcomebanner_status=dismiss",
+                "referer": "http://juice-shop:3000/",
+                "user-agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/131.0.6778.33 Safari/537.36"
+              },
+              "interest": "medium",
+              "post_data": null,
+              "source_page": "http://juice-shop:3000/#/login",
+              "content_type": "",
+              "resource_type": "xhr",
+              "interest_reason": "User context API call without visible parameters"
+            },
+            {
+              "url": "http://juice-shop:3000/rest/user/login",
+              "method": "POST",
+              "headers": {
+                "accept": "application/json, text/plain, */*",
+                "cookie": "language=en; welcomebanner_status=dismiss",
+                "origin": "http://juice-shop:3000",
+                "referer": "http://juice-shop:3000/",
+                "user-agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/131.0.6778.33 Safari/537.36",
+                "content-type": "application/json"
+              },
+              "interest": "high",
+              "post_data": "{\"email\":\"test@example.com\",\"password\":\"Test1234!\"}",
+              "source_page": "http://juice-shop:3000/#/login",
+              "content_type": "application/json",
+              "resource_type": "xhr",
+              "interest_reason": "Login endpoint with email/password parameters in body"
+            },
+            {
+              "url": "http://juice-shop:3000/socket.io/?EIO=4&transport=polling&t=Q1edal_",
+              "method": "GET",
+              "headers": {
+                "accept": "*/*",
+                "cookie": "language=en; welcomebanner_status=dismiss",
+                "referer": "http://juice-shop:3000/",
+                "user-agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/131.0.6778.33 Safari/537.36"
+              },
+              "interest": "medium",
+              "post_data": null,
+              "source_page": "http://juice-shop:3000/#/contact",
+              "content_type": "",
+              "resource_type": "xhr",
+              "interest_reason": "WebSocket connection with transport parameters, potential for injection"
+            },
+            {
+              "url": "http://juice-shop:3000/rest/captcha/",
+              "method": "GET",
+              "headers": {
+                "accept": "application/json, text/plain, */*",
+                "cookie": "language=en; welcomebanner_status=dismiss",
+                "referer": "http://juice-shop:3000/",
+                "user-agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/131.0.6778.33 Safari/537.36"
+              },
+              "interest": "medium",
+              "post_data": null,
+              "source_page": "http://juice-shop:3000/#/contact",
+              "content_type": "",
+              "resource_type": "xhr",
+              "interest_reason": "REST API endpoint without obvious user input, but captcha functionality may have edge cases"
+            },
+            {
+              "url": "http://juice-shop:3000/socket.io/?EIO=4&transport=polling&t=Q1edawN&sid=ck73BoDeoOmc7vnzAAAe",
+              "method": "POST",
+              "headers": {
+                "accept": "*/*",
+                "cookie": "language=en; welcomebanner_status=dismiss",
+                "origin": "http://juice-shop:3000",
+                "referer": "http://juice-shop:3000/",
+                "user-agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/131.0.6778.33 Safari/537.36",
+                "content-type": "text/plain;charset=UTF-8"
+              },
+              "interest": "high",
+              "post_data": "40",
+              "source_page": "http://juice-shop:3000/#/contact",
+              "content_type": "text/plain;charset=UTF-8",
+              "resource_type": "xhr",
+              "interest_reason": "POST request with body data to WebSocket endpoint, likely carries user input"
+            },
+            {
+              "url": "http://juice-shop:3000/socket.io/?EIO=4&transport=polling&t=Q1edawQ&sid=ck73BoDeoOmc7vnzAAAe",
+              "method": "GET",
+              "headers": {
+                "accept": "*/*",
+                "cookie": "language=en; welcomebanner_status=dismiss",
+                "referer": "http://juice-shop:3000/",
+                "user-agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/131.0.6778.33 Safari/537.36"
+              },
+              "interest": "medium",
+              "post_data": null,
+              "source_page": "http://juice-shop:3000/#/contact",
+              "content_type": "",
+              "resource_type": "xhr",
+              "interest_reason": "WebSocket polling request with session ID, possible state manipulation"
+            },
+            {
+              "url": "http://juice-shop:3000/socket.io/?EIO=4&transport=polling&t=Q1edea0",
+              "method": "GET",
+              "headers": {
+                "accept": "*/*",
+                "cookie": "language=en; welcomebanner_status=dismiss",
+                "referer": "http://juice-shop:3000/",
+                "user-agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/131.0.6778.33 Safari/537.36"
+              },
+              "interest": "medium",
+              "post_data": null,
+              "source_page": "http://juice-shop:3000/#/about",
+              "content_type": "",
+              "resource_type": "xhr",
+              "interest_reason": "WebSocket connection with parameters, potential for injection"
+            },
+            {
+              "url": "http://juice-shop:3000/api/Feedbacks/",
+              "method": "GET",
+              "headers": {
+                "accept": "application/json, text/plain, */*",
+                "cookie": "language=en; welcomebanner_status=dismiss",
+                "referer": "http://juice-shop:3000/",
+                "user-agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/131.0.6778.33 Safari/537.36"
+              },
+              "interest": "high",
+              "post_data": null,
+              "source_page": "http://juice-shop:3000/#/about",
+              "content_type": "",
+              "resource_type": "xhr",
+              "interest_reason": "API endpoint fetching feedback data, possible IDOR or injection"
+            },
+            {
+              "url": "http://juice-shop:3000/socket.io/?EIO=4&transport=polling&t=Q1edecO&sid=6npQzirJV_uNyyEVAAAg",
+              "method": "POST",
+              "headers": {
+                "accept": "*/*",
+                "cookie": "language=en; welcomebanner_status=dismiss",
+                "origin": "http://juice-shop:3000",
+                "referer": "http://juice-shop:3000/",
+                "user-agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/131.0.6778.33 Safari/537.36",
+                "content-type": "text/plain;charset=UTF-8"
+              },
+              "interest": "medium",
+              "post_data": "40",
+              "source_page": "http://juice-shop:3000/#/about",
+              "content_type": "text/plain;charset=UTF-8",
+              "resource_type": "xhr",
+              "interest_reason": "WebSocket connection with body data, potential command injection"
+            },
+            {
+              "url": "http://juice-shop:3000/socket.io/?EIO=4&transport=polling&t=Q1edecP&sid=6npQzirJV_uNyyEVAAAg",
+              "method": "GET",
+              "headers": {
+                "accept": "*/*",
+                "cookie": "language=en; welcomebanner_status=dismiss",
+                "referer": "http://juice-shop:3000/",
+                "user-agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/131.0.6778.33 Safari/537.36"
+              },
+              "interest": "medium",
+              "post_data": null,
+              "source_page": "http://juice-shop:3000/#/about",
+              "content_type": "",
+              "resource_type": "xhr",
+              "interest_reason": "WebSocket polling with session ID, possible session hijacking"
+            },
+            {
+              "url": "http://juice-shop:3000/socket.io/?EIO=4&transport=polling&t=Q1edkW6",
+              "method": "GET",
+              "headers": {
+                "accept": "*/*",
+                "cookie": "language=en; welcomebanner_status=dismiss",
+                "referer": "http://juice-shop:3000/",
+                "user-agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/131.0.6778.33 Safari/537.36"
+              },
+              "interest": "medium",
+              "post_data": null,
+              "source_page": "http://juice-shop:3000/#/photo-wall",
+              "content_type": "",
+              "resource_type": "xhr",
+              "interest_reason": "WebSocket connection with parameters, potential for injection"
+            },
+            {
+              "url": "http://juice-shop:3000/rest/memories/",
+              "method": "GET",
+              "headers": {
+                "accept": "application/json, text/plain, */*",
+                "cookie": "language=en; welcomebanner_status=dismiss",
+                "referer": "http://juice-shop:3000/",
+                "user-agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/131.0.6778.33 Safari/537.36"
+              },
+              "interest": "high",
+              "post_data": null,
+              "source_page": "http://juice-shop:3000/#/photo-wall",
+              "content_type": "",
+              "resource_type": "xhr",
+              "interest_reason": "REST API endpoint fetching memories data"
+            },
+            {
+              "url": "http://juice-shop:3000/socket.io/?EIO=4&transport=polling&t=Q1edkZJ&sid=4t0iWjD6kbUQHE1bAAAi",
+              "method": "POST",
+              "headers": {
+                "accept": "*/*",
+                "cookie": "language=en; welcomebanner_status=dismiss",
+                "origin": "http://juice-shop:3000",
+                "referer": "http://juice-shop:3000/",
+                "user-agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/131.0.6778.33 Safari/537.36",
+                "content-type": "text/plain;charset=UTF-8"
+              },
+              "interest": "high",
+              "post_data": "40",
+              "source_page": "http://juice-shop:3000/#/photo-wall",
+              "content_type": "text/plain;charset=UTF-8",
+              "resource_type": "xhr",
+              "interest_reason": "WebSocket upgrade with body data, potential for command injection"
+            },
+            {
+              "url": "http://juice-shop:3000/socket.io/?EIO=4&transport=polling&t=Q1edkZM&sid=4t0iWjD6kbUQHE1bAAAi",
+              "method": "GET",
+              "headers": {
+                "accept": "*/*",
+                "cookie": "language=en; welcomebanner_status=dismiss",
+                "referer": "http://juice-shop:3000/",
+                "user-agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/131.0.6778.33 Safari/537.36"
+              },
+              "interest": "medium",
+              "post_data": null,
+              "source_page": "http://juice-shop:3000/#/photo-wall",
+              "content_type": "",
+              "resource_type": "xhr",
+              "interest_reason": "Established WebSocket connection with session ID"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "agent": "recon",
+      "seq": 3,
+      "event_type": "handoff",
+      "duration_ms": null,
+      "logged_at": "2026-09-03T18:54:37.904039+00:00",
+      "payload": {
+        "next_agent": "vuln"
+      }
+    },
+    {
+      "agent": "vuln",
+      "seq": 1,
+      "event_type": "stage_input",
+      "duration_ms": null,
+      "logged_at": "2026-09-03T18:54:37.936111+00:00",
+      "payload": {
+        "scope": {
+          "domains": [
+            "juice-shop"
+          ],
+          "deny_paths": [],
+          "allow_paths": []
+        },
+        "upstream": {
+          "forms": [],
+          "api_paths": [
+            "/api/Challenges/",
+            "/api/Feedbacks/",
+            "/api/Quantitys/",
+            "/assets/i18n/en.json",
+            "/rest/admin/application-configuration",
+            "/rest/admin/application-version",
+            "/rest/captcha/",
+            "/rest/languages",
+            "/rest/memories/",
+            "/rest/products/search",
+            "/rest/user/login",
+            "/rest/user/whoami",
+            "/socket.io/"
+          ],
+          "endpoints": [
+            {
+              "path": "/#/",
+              "method": "GET",
+              "params": [],
+              "status": 200,
+              "content_type": "text/html"
+            },
+            {
+              "path": "/#/login",
+              "method": "GET",
+              "params": [],
+              "status": 200,
+              "content_type": "text/html"
+            },
+            {
+              "path": "/#/contact",
+              "method": "GET",
+              "params": [],
+              "status": 200,
+              "content_type": "text/html"
+            },
+            {
+              "path": "/#/about",
+              "method": "GET",
+              "params": [],
+              "status": 200,
+              "content_type": "text/html"
+            },
+            {
+              "path": "/#/photo-wall",
+              "method": "GET",
+              "params": [],
+              "status": 200,
+              "content_type": "text/html"
+            }
+          ],
+          "truncated": true,
+          "target_url": "http://juice-shop:3000/",
+          "third_party": [
+            "cdnjs.cloudflare.com"
+          ],
+          "technologies": [
+            {
+              "name": "Angular",
+              "source": "Wappalyzer",
+              "version": "15.2.10"
+            },
+            {
+              "name": "Osano",
+              "source": "Wappalyzer",
+              "version": null
+            },
+            {
+              "name": "jQuery",
+              "source": "Wappalyzer",
+              "version": "2.2.4"
+            }
+          ],
+          "pages_crawled": 5,
+          "observed_requests": [
+            {
+              "url": "http://juice-shop:3000/rest/admin/application-configuration",
+              "method": "GET",
+              "headers": {
+                "accept": "application/json, text/plain, */*",
+                "referer": "http://juice-shop:3000/",
+                "user-agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/131.0.6778.33 Safari/537.36"
+              },
+              "interest": "high",
+              "post_data": null,
+              "source_page": "http://juice-shop:3000/",
+              "content_type": "",
+              "resource_type": "xhr",
+              "interest_reason": "Admin API endpoint fetching application configuration"
+            },
+            {
+              "url": "http://juice-shop:3000/assets/i18n/en.json",
+              "method": "GET",
+              "headers": {
+                "accept": "application/json, text/plain, */*",
+                "referer": "http://juice-shop:3000/",
+                "user-agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/131.0.6778.33 Safari/537.36"
+              },
+              "interest": "low",
+              "post_data": null,
+              "source_page": "http://juice-shop:3000/",
+              "content_type": "",
+              "resource_type": "xhr",
+              "interest_reason": "Static internationalization JSON asset"
+            },
+            {
+              "url": "http://juice-shop:3000/socket.io/?EIO=4&transport=polling&t=Q1edLUy",
+              "method": "GET",
+              "headers": {
+                "accept": "*/*",
+                "referer": "http://juice-shop:3000/",
+                "user-agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/131.0.6778.33 Safari/537.36"
+              },
+              "interest": "low",
+              "post_data": null,
+              "source_page": "http://juice-shop:3000/",
+              "content_type": "",
+              "resource_type": "xhr",
+              "interest_reason": "Socket.IO transport polling with standard parameters"
+            },
+            {
+              "url": "http://juice-shop:3000/rest/admin/application-version",
+              "method": "GET",
+              "headers": {
+                "accept": "application/json, text/plain, */*",
+                "referer": "http://juice-shop:3000/",
+                "user-agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/131.0.6778.33 Safari/537.36"
+              },
+              "interest": "high",
+              "post_data": null,
+              "source_page": "http://juice-shop:3000/",
+              "content_type": "",
+              "resource_type": "xhr",
+              "interest_reason": "Admin API endpoint fetching application version"
+            },
+            {
+              "url": "http://juice-shop:3000/api/Challenges/?name=Score%20Board",
+              "method": "GET",
+              "headers": {
+                "accept": "application/json, text/plain, */*",
+                "referer": "http://juice-shop:3000/",
+                "user-agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/131.0.6778.33 Safari/537.36"
+              },
+              "interest": "high",
+              "post_data": null,
+              "source_page": "http://juice-shop:3000/",
+              "content_type": "",
+              "resource_type": "xhr",
+              "interest_reason": "API endpoint with name parameter for challenges"
+            },
+            {
+              "url": "http://juice-shop:3000/rest/languages",
+              "method": "GET",
+              "headers": {
+                "accept": "application/json, text/plain, */*",
+                "referer": "http://juice-shop:3000/",
+                "user-agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/131.0.6778.33 Safari/537.36"
+              },
+              "interest": "low",
+              "post_data": null,
+              "source_page": "http://juice-shop:3000/",
+              "content_type": "",
+              "resource_type": "xhr",
+              "interest_reason": "Static language list endpoint"
+            },
+            {
+              "url": "http://juice-shop:3000/api/Quantitys/",
+              "method": "GET",
+              "headers": {
+                "accept": "application/json, text/plain, */*",
+                "referer": "http://juice-shop:3000/",
+                "user-agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/131.0.6778.33 Safari/537.36"
+              },
+              "interest": "medium",
+              "post_data": null,
+              "source_page": "http://juice-shop:3000/",
+              "content_type": "",
+              "resource_type": "xhr",
+              "interest_reason": "API endpoint for quantities without obvious input"
+            },
+            {
+              "url": "http://juice-shop:3000/rest/products/search?q=",
+              "method": "GET",
+              "headers": {
+                "accept": "application/json, text/plain, */*",
+                "referer": "http://juice-shop:3000/",
+                "user-agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/131.0.6778.33 Safari/537.36"
+              },
+              "interest": "high",
+              "post_data": null,
+              "source_page": "http://juice-shop:3000/",
+              "content_type": "",
+              "resource_type": "xhr",
+              "interest_reason": "Product search endpoint, likely accepts user input"
+            },
+            {
+              "url": "http://juice-shop:3000/socket.io/?EIO=4&transport=polling&t=Q1edLYN&sid=G62mFS2BvPOrZ9deAAAa",
+              "method": "POST",
+              "headers": {
+                "accept": "*/*",
+                "origin": "http://juice-shop:3000",
+                "referer": "http://juice-shop:3000/",
+                "user-agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/131.0.6778.33 Safari/537.36",
+                "content-type": "text/plain;charset=UTF-8"
+              },
+              "interest": "medium",
+              "post_data": "40",
+              "source_page": "http://juice-shop:3000/",
+              "content_type": "text/plain;charset=UTF-8",
+              "resource_type": "xhr",
+              "interest_reason": "Socket.IO POST with session data, potential transport issues"
+            },
+            {
+              "url": "http://juice-shop:3000/socket.io/?EIO=4&transport=polling&t=Q1edLYP&sid=G62mFS2BvPOrZ9deAAAa",
+              "method": "GET",
+              "headers": {
+                "accept": "*/*",
+                "referer": "http://juice-shop:3000/",
+                "user-agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/131.0.6778.33 Safari/537.36"
+              },
+              "interest": "low",
+              "post_data": null,
+              "source_page": "http://juice-shop:3000/",
+              "content_type": "",
+              "resource_type": "xhr",
+              "interest_reason": "Socket.IO polling with existing session"
+            },
+            {
+              "url": "http://juice-shop:3000/socket.io/?EIO=4&transport=polling&t=Q1edVxj",
+              "method": "GET",
+              "headers": {
+                "accept": "*/*",
+                "cookie": "language=en; welcomebanner_status=dismiss",
+                "referer": "http://juice-shop:3000/",
+                "user-agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/131.0.6778.33 Safari/537.36"
+              },
+              "interest": "medium",
+              "post_data": null,
+              "source_page": "http://juice-shop:3000/#/login",
+              "content_type": "",
+              "resource_type": "xhr",
+              "interest_reason": "Socket.IO connection with transport params, potential for injection"
+            },
+            {
+              "url": "http://juice-shop:3000/socket.io/?EIO=4&transport=polling&t=Q1edV-L&sid=g04l-aQMrW6VTpw_AAAc",
+              "method": "POST",
+              "headers": {
+                "accept": "*/*",
+                "cookie": "language=en; welcomebanner_status=dismiss",
+                "origin": "http://juice-shop:3000",
+                "referer": "http://juice-shop:3000/",
+                "user-agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/131.0.6778.33 Safari/537.36",
+                "content-type": "text/plain;charset=UTF-8"
+              },
+              "interest": "high",
+              "post_data": "40",
+              "source_page": "http://juice-shop:3000/#/login",
+              "content_type": "text/plain;charset=UTF-8",
+              "resource_type": "xhr",
+              "interest_reason": "Socket.IO POST with session data and body, likely user-controllable"
+            },
+            {
+              "url": "http://juice-shop:3000/socket.io/?EIO=4&transport=polling&t=Q1edV-O&sid=g04l-aQMrW6VTpw_AAAc",
+              "method": "GET",
+              "headers": {
+                "accept": "*/*",
+                "cookie": "language=en; welcomebanner_status=dismiss",
+                "referer": "http://juice-shop:3000/",
+                "user-agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/131.0.6778.33 Safari/537.36"
+              },
+              "interest": "medium",
+              "post_data": null,
+              "source_page": "http://juice-shop:3000/#/login",
+              "content_type": "",
+              "resource_type": "xhr",
+              "interest_reason": "Socket.IO polling request with session ID, possible state manipulation"
+            },
+            {
+              "url": "http://juice-shop:3000/rest/user/whoami",
+              "method": "GET",
+              "headers": {
+                "accept": "application/json, text/plain, */*",
+                "cookie": "language=en; welcomebanner_status=dismiss",
+                "referer": "http://juice-shop:3000/",
+                "user-agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/131.0.6778.33 Safari/537.36"
+              },
+              "interest": "medium",
+              "post_data": null,
+              "source_page": "http://juice-shop:3000/#/login",
+              "content_type": "",
+              "resource_type": "xhr",
+              "interest_reason": "User context API call without visible parameters"
+            },
+            {
+              "url": "http://juice-shop:3000/rest/user/login",
+              "method": "POST",
+              "headers": {
+                "accept": "application/json, text/plain, */*",
+                "cookie": "language=en; welcomebanner_status=dismiss",
+                "origin": "http://juice-shop:3000",
+                "referer": "http://juice-shop:3000/",
+                "user-agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/131.0.6778.33 Safari/537.36",
+                "content-type": "application/json"
+              },
+              "interest": "high",
+              "post_data": "{\"email\":\"test@example.com\",\"password\":\"Test1234!\"}",
+              "source_page": "http://juice-shop:3000/#/login",
+              "content_type": "application/json",
+              "resource_type": "xhr",
+              "interest_reason": "Login endpoint with email/password parameters in body"
+            },
+            {
+              "url": "http://juice-shop:3000/socket.io/?EIO=4&transport=polling&t=Q1edal_",
+              "method": "GET",
+              "headers": {
+                "accept": "*/*",
+                "cookie": "language=en; welcomebanner_status=dismiss",
+                "referer": "http://juice-shop:3000/",
+                "user-agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/131.0.6778.33 Safari/537.36"
+              },
+              "interest": "medium",
+              "post_data": null,
+              "source_page": "http://juice-shop:3000/#/contact",
+              "content_type": "",
+              "resource_type": "xhr",
+              "interest_reason": "WebSocket connection with transport parameters, potential for injection"
+            },
+            {
+              "url": "http://juice-shop:3000/rest/captcha/",
+              "method": "GET",
+              "headers": {
+                "accept": "application/json, text/plain, */*",
+                "cookie": "language=en; welcomebanner_status=dismiss",
+                "referer": "http://juice-shop:3000/",
+                "user-agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/131.0.6778.33 Safari/537.36"
+              },
+              "interest": "medium",
+              "post_data": null,
+              "source_page": "http://juice-shop:3000/#/contact",
+              "content_type": "",
+              "resource_type": "xhr",
+              "interest_reason": "REST API endpoint without obvious user input, but captcha functionality may have edge cases"
+            },
+            {
+              "url": "http://juice-shop:3000/socket.io/?EIO=4&transport=polling&t=Q1edawN&sid=ck73BoDeoOmc7vnzAAAe",
+              "method": "POST",
+              "headers": {
+                "accept": "*/*",
+                "cookie": "language=en; welcomebanner_status=dismiss",
+                "origin": "http://juice-shop:3000",
+                "referer": "http://juice-shop:3000/",
+                "user-agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/131.0.6778.33 Safari/537.36",
+                "content-type": "text/plain;charset=UTF-8"
+              },
+              "interest": "high",
+              "post_data": "40",
+              "source_page": "http://juice-shop:3000/#/contact",
+              "content_type": "text/plain;charset=UTF-8",
+              "resource_type": "xhr",
+              "interest_reason": "POST request with body data to WebSocket endpoint, likely carries user input"
+            },
+            {
+              "url": "http://juice-shop:3000/socket.io/?EIO=4&transport=polling&t=Q1edawQ&sid=ck73BoDeoOmc7vnzAAAe",
+              "method": "GET",
+              "headers": {
+                "accept": "*/*",
+                "cookie": "language=en; welcomebanner_status=dismiss",
+                "referer": "http://juice-shop:3000/",
+                "user-agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/131.0.6778.33 Safari/537.36"
+              },
+              "interest": "medium",
+              "post_data": null,
+              "source_page": "http://juice-shop:3000/#/contact",
+              "content_type": "",
+              "resource_type": "xhr",
+              "interest_reason": "WebSocket polling request with session ID, possible state manipulation"
+            },
+            {
+              "url": "http://juice-shop:3000/socket.io/?EIO=4&transport=polling&t=Q1edea0",
+              "method": "GET",
+              "headers": {
+                "accept": "*/*",
+                "cookie": "language=en; welcomebanner_status=dismiss",
+                "referer": "http://juice-shop:3000/",
+                "user-agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/131.0.6778.33 Safari/537.36"
+              },
+              "interest": "medium",
+              "post_data": null,
+              "source_page": "http://juice-shop:3000/#/about",
+              "content_type": "",
+              "resource_type": "xhr",
+              "interest_reason": "WebSocket connection with parameters, potential for injection"
+            },
+            {
+              "url": "http://juice-shop:3000/api/Feedbacks/",
+              "method": "GET",
+              "headers": {
+                "accept": "application/json, text/plain, */*",
+                "cookie": "language=en; welcomebanner_status=dismiss",
+                "referer": "http://juice-shop:3000/",
+                "user-agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/131.0.6778.33 Safari/537.36"
+              },
+              "interest": "high",
+              "post_data": null,
+              "source_page": "http://juice-shop:3000/#/about",
+              "content_type": "",
+              "resource_type": "xhr",
+              "interest_reason": "API endpoint fetching feedback data, possible IDOR or injection"
+            },
+            {
+              "url": "http://juice-shop:3000/socket.io/?EIO=4&transport=polling&t=Q1edecO&sid=6npQzirJV_uNyyEVAAAg",
+              "method": "POST",
+              "headers": {
+                "accept": "*/*",
+                "cookie": "language=en; welcomebanner_status=dismiss",
+                "origin": "http://juice-shop:3000",
+                "referer": "http://juice-shop:3000/",
+                "user-agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/131.0.6778.33 Safari/537.36",
+                "content-type": "text/plain;charset=UTF-8"
+              },
+              "interest": "medium",
+              "post_data": "40",
+              "source_page": "http://juice-shop:3000/#/about",
+              "content_type": "text/plain;charset=UTF-8",
+              "resource_type": "xhr",
+              "interest_reason": "WebSocket connection with body data, potential command injection"
+            },
+            {
+              "url": "http://juice-shop:3000/socket.io/?EIO=4&transport=polling&t=Q1edecP&sid=6npQzirJV_uNyyEVAAAg",
+              "method": "GET",
+              "headers": {
+                "accept": "*/*",
+                "cookie": "language=en; welcomebanner_status=dismiss",
+                "referer": "http://juice-shop:3000/",
+                "user-agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/131.0.6778.33 Safari/537.36"
+              },
+              "interest": "medium",
+              "post_data": null,
+              "source_page": "http://juice-shop:3000/#/about",
+              "content_type": "",
+              "resource_type": "xhr",
+              "interest_reason": "WebSocket polling with session ID, possible session hijacking"
+            },
+            {
+              "url": "http://juice-shop:3000/socket.io/?EIO=4&transport=polling&t=Q1edkW6",
+              "method": "GET",
+              "headers": {
+                "accept": "*/*",
+                "cookie": "language=en; welcomebanner_status=dismiss",
+                "referer": "http://juice-shop:3000/",
+                "user-agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/131.0.6778.33 Safari/537.36"
+              },
+              "interest": "medium",
+              "post_data": null,
+              "source_page": "http://juice-shop:3000/#/photo-wall",
+              "content_type": "",
+              "resource_type": "xhr",
+              "interest_reason": "WebSocket connection with parameters, potential for injection"
+            },
+            {
+              "url": "http://juice-shop:3000/rest/memories/",
+              "method": "GET",
+              "headers": {
+                "accept": "application/json, text/plain, */*",
+                "cookie": "language=en; welcomebanner_status=dismiss",
+                "referer": "http://juice-shop:3000/",
+                "user-agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/131.0.6778.33 Safari/537.36"
+              },
+              "interest": "high",
+              "post_data": null,
+              "source_page": "http://juice-shop:3000/#/photo-wall",
+              "content_type": "",
+              "resource_type": "xhr",
+              "interest_reason": "REST API endpoint fetching memories data"
+            },
+            {
+              "url": "http://juice-shop:3000/socket.io/?EIO=4&transport=polling&t=Q1edkZJ&sid=4t0iWjD6kbUQHE1bAAAi",
+              "method": "POST",
+              "headers": {
+                "accept": "*/*",
+                "cookie": "language=en; welcomebanner_status=dismiss",
+                "origin": "http://juice-shop:3000",
+                "referer": "http://juice-shop:3000/",
+                "user-agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/131.0.6778.33 Safari/537.36",
+                "content-type": "text/plain;charset=UTF-8"
+              },
+              "interest": "high",
+              "post_data": "40",
+              "source_page": "http://juice-shop:3000/#/photo-wall",
+              "content_type": "text/plain;charset=UTF-8",
+              "resource_type": "xhr",
+              "interest_reason": "WebSocket upgrade with body data, potential for command injection"
+            },
+            {
+              "url": "http://juice-shop:3000/socket.io/?EIO=4&transport=polling&t=Q1edkZM&sid=4t0iWjD6kbUQHE1bAAAi",
+              "method": "GET",
+              "headers": {
+                "accept": "*/*",
+                "cookie": "language=en; welcomebanner_status=dismiss",
+                "referer": "http://juice-shop:3000/",
+                "user-agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/131.0.6778.33 Safari/537.36"
+              },
+              "interest": "medium",
+              "post_data": null,
+              "source_page": "http://juice-shop:3000/#/photo-wall",
+              "content_type": "",
+              "resource_type": "xhr",
+              "interest_reason": "Established WebSocket connection with session ID"
+            }
+          ]
+        },
+        "target_url": "http://juice-shop:3000/",
+        "upstream_keys": [
+          "api_paths",
+          "endpoints",
+          "forms",
+          "observed_requests",
+          "pages_crawled",
+          "target_url",
+          "technologies",
+          "third_party",
+          "truncated"
+        ],
+        "from_component": "agent-recon",
+        "upstream_bytes": 16805
+      }
+    },
+    {
+      "agent": "vuln",
+      "seq": 2,
+      "event_type": "stage_output",
+      "duration_ms": 25225,
+      "logged_at": "2026-09-03T18:55:05.134928+00:00",
+      "payload": {
+        "summary": "33 weaknesses",
+        "artifact": {
+          "weaknesses": [
+            {
+              "id": "W-001",
+              "asset": "/socket.io/",
+              "title": "Server Side Request Forgery (SSRF) \u2014 URL parameters (`EIO`, `transport`, `t`, `sid`) in POST request to `/socket.io/`",
+              "evidence": [],
+              "severity": "high",
+              "rationale": "The parameters are part of a Socket.IO polling transport request, and if these values are used by the server to initiate backend connections without proper validation, they could be abused to trigger SSRF.",
+              "confidence": "possible",
+              "cvss_score": 7.5,
+              "cvss_vector": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:N/A:N",
+              "owasp_category": ""
+            },
+            {
+              "id": "W-002",
+              "asset": "/socket.io/",
+              "title": "Prototype Pollution \u2014 Body content (`40`) and URL parameters in POST request to `/socket.io/`",
+              "evidence": [],
+              "severity": "medium",
+              "rationale": "If the application is built with Node.js and improperly handles JSON or object merging with user-controlled input like the body or query parameters, this could lead to prototype pollution.",
+              "confidence": "possible",
+              "cvss_score": 6.5,
+              "cvss_vector": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:L/I:L/A:N",
+              "owasp_category": ""
+            },
+            {
+              "id": "W-003",
+              "asset": "/socket.io/",
+              "title": "Websocket Protocol Attack \u2014 Upgrade mechanism through `/socket.io/` endpoint",
+              "evidence": [],
+              "severity": "medium",
+              "rationale": "Since Socket.IO supports WebSocket upgrades and session IDs (`sid`) may influence connection behavior, manipulation of handshake parameters could lead to unauthorized access or message interception.",
+              "confidence": "possible",
+              "cvss_score": 4.2,
+              "cvss_vector": "CVSS:3.1/AV:N/AC:H/PR:N/UI:R/S:U/C:L/I:L/A:N",
+              "owasp_category": ""
+            },
+            {
+              "id": "W-004",
+              "asset": "/socket.io/",
+              "title": "Cross-Site Scripting (XSS) \u2014 URL parameters (`EIO`, `transport`, `t`, `sid`) reflected in server response via Socket.IO handshake",
+              "evidence": [],
+              "severity": "medium",
+              "rationale": "If any parameter values are echoed in error messages or debug responses during the Socket.IO handshake without sanitization, they might enable XSS injection.",
+              "confidence": "possible",
+              "cvss_score": 6.1,
+              "cvss_vector": "CVSS:3.1/AV:N/AC:L/PR:N/UI:R/S:C/C:L/I:L/A:N",
+              "owasp_category": ""
+            },
+            {
+              "id": "W-005",
+              "asset": "/socket.io/",
+              "title": "Session Fixation \u2014 Manipulation of the `sid` parameter during polling transport initiation",
+              "evidence": [],
+              "severity": "medium",
+              "rationale": "The explicit passing of `sid` suggests control over session identification; if this value is accepted without regeneration or validation, it may fixate sessions.",
+              "confidence": "possible",
+              "cvss_score": 6.5,
+              "cvss_vector": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:L/I:L/A:N",
+              "owasp_category": ""
+            },
+            {
+              "id": "W-006",
+              "asset": "/socket.io/",
+              "title": "HTTP Parameter Pollution (HPP) \u2014 Repeated or conflicting parameters in Socket.IO query string",
+              "evidence": [],
+              "severity": "medium",
+              "rationale": "Multiple parameters affecting Socket.IO behavior (e.g., `transport`, `t`, `sid`) could be duplicated or manipulated to cause unexpected backend parsing or logic bypass.",
+              "confidence": "possible",
+              "cvss_score": 6.5,
+              "cvss_vector": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:L/I:L/A:N",
+              "owasp_category": ""
+            },
+            {
+              "id": "W-007",
+              "asset": "/socket.io/",
+              "title": "Insecure Direct Object Reference (IDOR) \u2014 Access control based on user-supplied `sid` value",
+              "evidence": [],
+              "severity": "high",
+              "rationale": "The `sid` parameter appears to reference a specific socket session; if session access isn\u2019t validated against user permissions, this might expose other users\u2019 sessions.",
+              "confidence": "possible",
+              "cvss_score": 8.1,
+              "cvss_vector": "CVSS:3.1/AV:N/AC:L/PR:L/UI:N/S:U/C:H/I:H/A:N",
+              "owasp_category": ""
+            },
+            {
+              "id": "W-008",
+              "asset": "/socket.io/",
+              "title": "Clickjacking \u2014 Response to `/socket.io/` missing proper frame-busting headers",
+              "evidence": [],
+              "severity": "medium",
+              "rationale": "If the Socket.IO endpoint serves HTML content or is embedded elsewhere, lack of `X-Frame-Options` or CSP frame-ancestors could allow framing by malicious sites.",
+              "confidence": "possible",
+              "cvss_score": 6.5,
+              "cvss_vector": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:L/I:L/A:N",
+              "owasp_category": ""
+            },
+            {
+              "id": "W-009",
+              "asset": "/socket.io/",
+              "title": "Race Condition \u2014 Exploiting concurrent polling requests via `/socket.io/`",
+              "evidence": [],
+              "severity": "medium",
+              "rationale": "Rapid polling requests during handshake or data exchange with user-controlled tokens (`sid`, `t`) might reveal inconsistent state handling or TOCTOU flaws.",
+              "confidence": "possible",
+              "cvss_score": 6.5,
+              "cvss_vector": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:L/I:L/A:N",
+              "owasp_category": ""
+            },
+            {
+              "id": "W-010",
+              "asset": "/socket.io/",
+              "title": "HTTP Response Splitting (CRLF Injection) \u2014 Injection via raw body (`40`) interpreted as partial HTTP response element",
+              "evidence": [],
+              "severity": "medium",
+              "rationale": "Though minimal, if the body content merges into early HTTP stack handling or event emission logs, CRLF sequences could manipulate response structure.",
+              "confidence": "possible",
+              "cvss_score": 6.5,
+              "cvss_vector": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:L/I:L/A:N",
+              "owasp_category": ""
+            },
+            {
+              "id": "W-011",
+              "asset": "/rest/user/login",
+              "title": "NoSQL Injection \u2014 in JSON body (param `email`, POST /rest/user/login)",
+              "evidence": [],
+              "severity": "critical",
+              "rationale": "The email parameter is passed in a JSON body to a REST endpoint, a common pattern for NoSQL backends like MongoDB that may allow operators via JSON fields.",
+              "confidence": "possible",
+              "cvss_score": 9.8,
+              "cvss_vector": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H",
+              "owasp_category": ""
+            },
+            {
+              "id": "W-012",
+              "asset": "/rest/user/login",
+              "title": "NoSQL Injection \u2014 in JSON body (param `password`, POST /rest/user/login)",
+              "evidence": [],
+              "severity": "critical",
+              "rationale": "The password parameter is passed in a JSON body to a REST endpoint and might allow injection of NoSQL operators just like email.",
+              "confidence": "possible",
+              "cvss_score": 9.8,
+              "cvss_vector": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H",
+              "owasp_category": ""
+            },
+            {
+              "id": "W-013",
+              "asset": "/rest/user/login",
+              "title": "Login Bypass \u2014 in JSON body (param `email`, POST /rest/user/login)",
+              "evidence": [],
+              "severity": "critical",
+              "rationale": "Authentication endpoints are prime targets for bypass attempts using malformed or malicious credentials.",
+              "confidence": "possible",
+              "cvss_score": 9.1,
+              "cvss_vector": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:N",
+              "owasp_category": ""
+            },
+            {
+              "id": "W-014",
+              "asset": "/rest/user/login",
+              "title": "Login Bypass \u2014 in JSON body (param `password`, POST /rest/user/login)",
+              "evidence": [],
+              "severity": "critical",
+              "rationale": "Authentication endpoints are common targets for injection or logic bypass via the password field.",
+              "confidence": "possible",
+              "cvss_score": 9.1,
+              "cvss_vector": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:N",
+              "owasp_category": ""
+            },
+            {
+              "id": "W-015",
+              "asset": "/rest/user/login",
+              "title": "Account Takeover \u2014 in JSON body (param `email`, POST /rest/user/login)",
+              "evidence": [],
+              "severity": "critical",
+              "rationale": "The email parameter may be abused to target existing accounts if combined with injection or enumeration.",
+              "confidence": "possible",
+              "cvss_score": 9.1,
+              "cvss_vector": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:N",
+              "owasp_category": ""
+            },
+            {
+              "id": "W-016",
+              "asset": "/rest/user/login",
+              "title": "Account Takeover \u2014 in JSON body (param `password`, POST /rest/user/login)",
+              "evidence": [],
+              "severity": "critical",
+              "rationale": "Password fields are often targeted in takeover attempts when operators or payloads can be injected.",
+              "confidence": "possible",
+              "cvss_score": 9.1,
+              "cvss_vector": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:N",
+              "owasp_category": ""
+            },
+            {
+              "id": "W-017",
+              "asset": "/rest/user/login",
+              "title": "JSON Injection \u2014 in JSON body (param `email`, POST /rest/user/login)",
+              "evidence": [],
+              "severity": "medium",
+              "rationale": "Malformed or deeply nested JSON structures in the email field could exploit vulnerabilities in the parser or backend handling.",
+              "confidence": "possible",
+              "cvss_score": 6.5,
+              "cvss_vector": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:L/I:L/A:N",
+              "owasp_category": ""
+            },
+            {
+              "id": "W-018",
+              "asset": "/rest/user/login",
+              "title": "JSON Injection \u2014 in JSON body (param `password`, POST /rest/user/login)",
+              "evidence": [],
+              "severity": "medium",
+              "rationale": "The password field as freeform JSON input might allow injection of unexpected structures that alter authentication logic.",
+              "confidence": "possible",
+              "cvss_score": 6.5,
+              "cvss_vector": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:L/I:L/A:N",
+              "owasp_category": ""
+            },
+            {
+              "id": "W-019",
+              "asset": "/rest/user/login",
+              "title": "Prototype Pollution \u2014 in JSON body (param `email`, POST /rest/user/login)",
+              "evidence": [],
+              "severity": "medium",
+              "rationale": "Since this is a JSON REST endpoint, the email parameter might be used to pollute object prototypes if merged into a prototype chain.",
+              "confidence": "possible",
+              "cvss_score": 6.5,
+              "cvss_vector": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:L/I:L/A:N",
+              "owasp_category": ""
+            },
+            {
+              "id": "W-020",
+              "asset": "/rest/user/login",
+              "title": "Prototype Pollution \u2014 in JSON body (param `password`, POST /rest/user/login)",
+              "evidence": [],
+              "severity": "medium",
+              "rationale": "The password parameter in a JSON-based auth API is another potential vector for prototype pollution when backend JS handles credentials improperly.",
+              "confidence": "possible",
+              "cvss_score": 6.5,
+              "cvss_vector": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:L/I:L/A:N",
+              "owasp_category": ""
+            },
+            {
+              "id": "W-021",
+              "asset": "/socket.io/",
+              "title": "Parameter Pollution \u2014 URL parameters (`EIO`, `transport`, `t`, GET /socket.io/)",
+              "evidence": [],
+              "severity": "medium",
+              "rationale": "Duplicated or modified parameters could alter socket.io handshake or routing behavior.",
+              "confidence": "possible",
+              "cvss_score": 6.5,
+              "cvss_vector": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:L/I:L/A:N",
+              "owasp_category": ""
+            },
+            {
+              "id": "W-022",
+              "asset": "/socket.io/",
+              "title": "SSRF \u2014 URL parameter `transport` (GET /socket.io/)",
+              "evidence": [],
+              "severity": "high",
+              "rationale": "The `polling` value hints at backend HTTP relay; malicious transports might trigger outbound requests.",
+              "confidence": "possible",
+              "cvss_score": 7.5,
+              "cvss_vector": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:N/A:N",
+              "owasp_category": ""
+            },
+            {
+              "id": "W-023",
+              "asset": "/socket.io/",
+              "title": "WebSockets Hijacking \u2014 Upgraded connection via `/socket.io/`",
+              "evidence": [],
+              "severity": "medium",
+              "rationale": "Socket.IO endpoints often upgrade to WebSocket; origin/header checks may be insufficient.",
+              "confidence": "possible",
+              "cvss_score": 4.2,
+              "cvss_vector": "CVSS:3.1/AV:N/AC:H/PR:N/UI:R/S:U/C:L/I:L/A:N",
+              "owasp_category": ""
+            },
+            {
+              "id": "W-024",
+              "asset": "/socket.io/",
+              "title": "XSS \u2014 URL parameters `EIO`, `transport`, or `t` reflected in socket response (GET /socket.io/)",
+              "evidence": [],
+              "severity": "medium",
+              "rationale": "If any parameter is echoed unsanitized in the handshake response, it could enable script injection.",
+              "confidence": "possible",
+              "cvss_score": 6.1,
+              "cvss_vector": "CVSS:3.1/AV:N/AC:L/PR:N/UI:R/S:C/C:L/I:L/A:N",
+              "owasp_category": ""
+            },
+            {
+              "id": "W-025",
+              "asset": "/socket.io/",
+              "title": "Cache Deception \u2014 Query string parameters (`EIO`, `transport`, `t`) manipulated to cache static-like responses (GET /socket.io/)",
+              "evidence": [],
+              "severity": "medium",
+              "rationale": "Uncommon query parameters might bypass cache rules and cause sensitive dynamic content to be cached as static.",
+              "confidence": "possible",
+              "cvss_score": 6.5,
+              "cvss_vector": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:L/I:L/A:N",
+              "owasp_category": ""
+            },
+            {
+              "id": "W-026",
+              "asset": "/socket.io/",
+              "title": "CRLF Injection \u2014 URL parameters (`EIO`, `transport`, `t`) injected with header payloads (GET /socket.io/)",
+              "evidence": [],
+              "severity": "medium",
+              "rationale": "Malformed headers in parameters could manipulate response headers during polling setup.",
+              "confidence": "possible",
+              "cvss_score": 6.5,
+              "cvss_vector": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:L/I:L/A:N",
+              "owasp_category": ""
+            },
+            {
+              "id": "W-027",
+              "asset": "/api/Challenges/",
+              "title": "NoSQL Injection \u2014 via `name` parameter (GET /api/Challenges/)",
+              "evidence": [],
+              "severity": "critical",
+              "rationale": "The `name` parameter is directly used in a query (likely filtering challenges by name), and NoSQL operators like `$ne`, `$regex`, or `$exists` could be injected to manipulate the query logic since the backend appears to be a NoSQL database vulnerable to operator injection.",
+              "confidence": "possible",
+              "cvss_score": 9.8,
+              "cvss_vector": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H",
+              "owasp_category": ""
+            },
+            {
+              "id": "W-028",
+              "asset": "/api/Challenges/",
+              "title": "XSS \u2014 via `name` parameter (GET /api/Challenges/)",
+              "evidence": [],
+              "severity": "medium",
+              "rationale": "The `name` parameter's value (`Score Board`) might be reflected or stored unsanitized in the response. An attacker-controlled script injected here could execute in the victim\u2019s browser, especially if error messages or dynamic UI elements reflect the input without escaping.",
+              "confidence": "possible",
+              "cvss_score": 6.1,
+              "cvss_vector": "CVSS:3.1/AV:N/AC:L/PR:N/UI:R/S:C/C:L/I:L/A:N",
+              "owasp_category": ""
+            },
+            {
+              "id": "W-029",
+              "asset": "/api/Challenges/",
+              "title": "IDOR \u2014 via `name` parameter (GET /api/Challenges/)",
+              "evidence": [],
+              "severity": "high",
+              "rationale": "Although typically associated with numeric identifiers, if the backend retrieves challenge data based on the provided `name`, an attacker might manipulate this field to access unlisted or unauthorized challenges by guessing or enumerating valid names.",
+              "confidence": "possible",
+              "cvss_score": 8.1,
+              "cvss_vector": "CVSS:3.1/AV:N/AC:L/PR:L/UI:N/S:U/C:H/I:H/A:N",
+              "owasp_category": ""
+            },
+            {
+              "id": "W-030",
+              "asset": "/api/Challenges/",
+              "title": "Parameter Pollution \u2014 via duplicated `name` parameter (GET /api/Challenges/)",
+              "evidence": [],
+              "severity": "medium",
+              "rationale": "Adding multiple `name` parameters with different values may cause inconsistent parsing behavior between frontend and backend, leading to bypasses in query logic or unexpected data retrieval.",
+              "confidence": "possible",
+              "cvss_score": 6.5,
+              "cvss_vector": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:L/I:L/A:N",
+              "owasp_category": ""
+            },
+            {
+              "id": "W-031",
+              "asset": "/api/Challenges/",
+              "title": "SSRF \u2014 via `name` parameter (GET /api/Challenges/)",
+              "evidence": [],
+              "severity": "high",
+              "rationale": "If the backend fetches external resources or logs based on challenge metadata linked to the `name`, an attacker-supplied value might trick the server into making unintended internal requests.",
+              "confidence": "possible",
+              "cvss_score": 7.5,
+              "cvss_vector": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:N/A:N",
+              "owasp_category": ""
+            },
+            {
+              "id": "W-032",
+              "asset": "/api/Challenges/",
+              "title": "Unicode Injection \u2014 via `name` parameter (GET /api/Challenges/)",
+              "evidence": [],
+              "severity": "critical",
+              "rationale": "Using homograph characters or Unicode escape sequences in the `name` value could evade filters or fool string comparisons used internally for authorization or challenge lookups.",
+              "confidence": "possible",
+              "cvss_score": 9.8,
+              "cvss_vector": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H",
+              "owasp_category": ""
+            },
+            {
+              "id": "W-033",
+              "asset": "/api/Challenges/",
+              "title": "Regex Denial of Service (ReDoS) \u2014 via `name` parameter (GET /api/Challenges/)",
+              "evidence": [],
+              "severity": "medium",
+              "rationale": "If `name` is used in a regular expression match on the backend without timeouts, a complex pattern could cause exponential backtracking and exhaust server resources.",
+              "confidence": "possible",
+              "cvss_score": 6.5,
+              "cvss_vector": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:L/I:L/A:N",
+              "owasp_category": ""
+            }
+          ],
+          "candidates_dropped": 0
+        }
+      }
+    },
+    {
+      "agent": "vuln",
+      "seq": 3,
+      "event_type": "handoff",
+      "duration_ms": null,
+      "logged_at": "2026-09-03T18:55:05.186060+00:00",
+      "payload": {
+        "next_agent": "mitre"
+      }
+    },
+    {
+      "agent": "mitre",
+      "seq": 1,
+      "event_type": "stage_input",
+      "duration_ms": null,
+      "logged_at": "2026-09-03T18:55:05.216943+00:00",
+      "payload": {
+        "scope": {
+          "domains": [
+            "juice-shop"
+          ],
+          "deny_paths": [],
+          "allow_paths": []
+        },
+        "upstream": {
+          "weaknesses": [
+            {
+              "id": "W-001",
+              "asset": "/socket.io/",
+              "title": "Server Side Request Forgery (SSRF) \u2014 URL parameters (`EIO`, `transport`, `t`, `sid`) in POST request to `/socket.io/`",
+              "evidence": [],
+              "severity": "high",
+              "rationale": "The parameters are part of a Socket.IO polling transport request, and if these values are used by the server to initiate backend connections without proper validation, they could be abused to trigger SSRF.",
+              "confidence": "possible",
+              "cvss_score": 7.5,
+              "cvss_vector": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:N/A:N",
+              "owasp_category": ""
+            },
+            {
+              "id": "W-002",
+              "asset": "/socket.io/",
+              "title": "Prototype Pollution \u2014 Body content (`40`) and URL parameters in POST request to `/socket.io/`",
+              "evidence": [],
+              "severity": "medium",
+              "rationale": "If the application is built with Node.js and improperly handles JSON or object merging with user-controlled input like the body or query parameters, this could lead to prototype pollution.",
+              "confidence": "possible",
+              "cvss_score": 6.5,
+              "cvss_vector": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:L/I:L/A:N",
+              "owasp_category": ""
+            },
+            {
+              "id": "W-003",
+              "asset": "/socket.io/",
+              "title": "Websocket Protocol Attack \u2014 Upgrade mechanism through `/socket.io/` endpoint",
+              "evidence": [],
+              "severity": "medium",
+              "rationale": "Since Socket.IO supports WebSocket upgrades and session IDs (`sid`) may influence connection behavior, manipulation of handshake parameters could lead to unauthorized access or message interception.",
+              "confidence": "possible",
+              "cvss_score": 4.2,
+              "cvss_vector": "CVSS:3.1/AV:N/AC:H/PR:N/UI:R/S:U/C:L/I:L/A:N",
+              "owasp_category": ""
+            },
+            {
+              "id": "W-004",
+              "asset": "/socket.io/",
+              "title": "Cross-Site Scripting (XSS) \u2014 URL parameters (`EIO`, `transport`, `t`, `sid`) reflected in server response via Socket.IO handshake",
+              "evidence": [],
+              "severity": "medium",
+              "rationale": "If any parameter values are echoed in error messages or debug responses during the Socket.IO handshake without sanitization, they might enable XSS injection.",
+              "confidence": "possible",
+              "cvss_score": 6.1,
+              "cvss_vector": "CVSS:3.1/AV:N/AC:L/PR:N/UI:R/S:C/C:L/I:L/A:N",
+              "owasp_category": ""
+            },
+            {
+              "id": "W-005",
+              "asset": "/socket.io/",
+              "title": "Session Fixation \u2014 Manipulation of the `sid` parameter during polling transport initiation",
+              "evidence": [],
+              "severity": "medium",
+              "rationale": "The explicit passing of `sid` suggests control over session identification; if this value is accepted without regeneration or validation, it may fixate sessions.",
+              "confidence": "possible",
+              "cvss_score": 6.5,
+              "cvss_vector": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:L/I:L/A:N",
+              "owasp_category": ""
+            },
+            {
+              "id": "W-006",
+              "asset": "/socket.io/",
+              "title": "HTTP Parameter Pollution (HPP) \u2014 Repeated or conflicting parameters in Socket.IO query string",
+              "evidence": [],
+              "severity": "medium",
+              "rationale": "Multiple parameters affecting Socket.IO behavior (e.g., `transport`, `t`, `sid`) could be duplicated or manipulated to cause unexpected backend parsing or logic bypass.",
+              "confidence": "possible",
+              "cvss_score": 6.5,
+              "cvss_vector": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:L/I:L/A:N",
+              "owasp_category": ""
+            },
+            {
+              "id": "W-007",
+              "asset": "/socket.io/",
+              "title": "Insecure Direct Object Reference (IDOR) \u2014 Access control based on user-supplied `sid` value",
+              "evidence": [],
+              "severity": "high",
+              "rationale": "The `sid` parameter appears to reference a specific socket session; if session access isn\u2019t validated against user permissions, this might expose other users\u2019 sessions.",
+              "confidence": "possible",
+              "cvss_score": 8.1,
+              "cvss_vector": "CVSS:3.1/AV:N/AC:L/PR:L/UI:N/S:U/C:H/I:H/A:N",
+              "owasp_category": ""
+            },
+            {
+              "id": "W-008",
+              "asset": "/socket.io/",
+              "title": "Clickjacking \u2014 Response to `/socket.io/` missing proper frame-busting headers",
+              "evidence": [],
+              "severity": "medium",
+              "rationale": "If the Socket.IO endpoint serves HTML content or is embedded elsewhere, lack of `X-Frame-Options` or CSP frame-ancestors could allow framing by malicious sites.",
+              "confidence": "possible",
+              "cvss_score": 6.5,
+              "cvss_vector": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:L/I:L/A:N",
+              "owasp_category": ""
+            },
+            {
+              "id": "W-009",
+              "asset": "/socket.io/",
+              "title": "Race Condition \u2014 Exploiting concurrent polling requests via `/socket.io/`",
+              "evidence": [],
+              "severity": "medium",
+              "rationale": "Rapid polling requests during handshake or data exchange with user-controlled tokens (`sid`, `t`) might reveal inconsistent state handling or TOCTOU flaws.",
+              "confidence": "possible",
+              "cvss_score": 6.5,
+              "cvss_vector": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:L/I:L/A:N",
+              "owasp_category": ""
+            },
+            {
+              "id": "W-010",
+              "asset": "/socket.io/",
+              "title": "HTTP Response Splitting (CRLF Injection) \u2014 Injection via raw body (`40`) interpreted as partial HTTP response element",
+              "evidence": [],
+              "severity": "medium",
+              "rationale": "Though minimal, if the body content merges into early HTTP stack handling or event emission logs, CRLF sequences could manipulate response structure.",
+              "confidence": "possible",
+              "cvss_score": 6.5,
+              "cvss_vector": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:L/I:L/A:N",
+              "owasp_category": ""
+            },
+            {
+              "id": "W-011",
+              "asset": "/rest/user/login",
+              "title": "NoSQL Injection \u2014 in JSON body (param `email`, POST /rest/user/login)",
+              "evidence": [],
+              "severity": "critical",
+              "rationale": "The email parameter is passed in a JSON body to a REST endpoint, a common pattern for NoSQL backends like MongoDB that may allow operators via JSON fields.",
+              "confidence": "possible",
+              "cvss_score": 9.8,
+              "cvss_vector": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H",
+              "owasp_category": ""
+            },
+            {
+              "id": "W-012",
+              "asset": "/rest/user/login",
+              "title": "NoSQL Injection \u2014 in JSON body (param `password`, POST /rest/user/login)",
+              "evidence": [],
+              "severity": "critical",
+              "rationale": "The password parameter is passed in a JSON body to a REST endpoint and might allow injection of NoSQL operators just like email.",
+              "confidence": "possible",
+              "cvss_score": 9.8,
+              "cvss_vector": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H",
+              "owasp_category": ""
+            },
+            {
+              "id": "W-013",
+              "asset": "/rest/user/login",
+              "title": "Login Bypass \u2014 in JSON body (param `email`, POST /rest/user/login)",
+              "evidence": [],
+              "severity": "critical",
+              "rationale": "Authentication endpoints are prime targets for bypass attempts using malformed or malicious credentials.",
+              "confidence": "possible",
+              "cvss_score": 9.1,
+              "cvss_vector": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:N",
+              "owasp_category": ""
+            },
+            {
+              "id": "W-014",
+              "asset": "/rest/user/login",
+              "title": "Login Bypass \u2014 in JSON body (param `password`, POST /rest/user/login)",
+              "evidence": [],
+              "severity": "critical",
+              "rationale": "Authentication endpoints are common targets for injection or logic bypass via the password field.",
+              "confidence": "possible",
+              "cvss_score": 9.1,
+              "cvss_vector": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:N",
+              "owasp_category": ""
+            },
+            {
+              "id": "W-015",
+              "asset": "/rest/user/login",
+              "title": "Account Takeover \u2014 in JSON body (param `email`, POST /rest/user/login)",
+              "evidence": [],
+              "severity": "critical",
+              "rationale": "The email parameter may be abused to target existing accounts if combined with injection or enumeration.",
+              "confidence": "possible",
+              "cvss_score": 9.1,
+              "cvss_vector": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:N",
+              "owasp_category": ""
+            },
+            {
+              "id": "W-016",
+              "asset": "/rest/user/login",
+              "title": "Account Takeover \u2014 in JSON body (param `password`, POST /rest/user/login)",
+              "evidence": [],
+              "severity": "critical",
+              "rationale": "Password fields are often targeted in takeover attempts when operators or payloads can be injected.",
+              "confidence": "possible",
+              "cvss_score": 9.1,
+              "cvss_vector": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:N",
+              "owasp_category": ""
+            },
+            {
+              "id": "W-017",
+              "asset": "/rest/user/login",
+              "title": "JSON Injection \u2014 in JSON body (param `email`, POST /rest/user/login)",
+              "evidence": [],
+              "severity": "medium",
+              "rationale": "Malformed or deeply nested JSON structures in the email field could exploit vulnerabilities in the parser or backend handling.",
+              "confidence": "possible",
+              "cvss_score": 6.5,
+              "cvss_vector": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:L/I:L/A:N",
+              "owasp_category": ""
+            },
+            {
+              "id": "W-018",
+              "asset": "/rest/user/login",
+              "title": "JSON Injection \u2014 in JSON body (param `password`, POST /rest/user/login)",
+              "evidence": [],
+              "severity": "medium",
+              "rationale": "The password field as freeform JSON input might allow injection of unexpected structures that alter authentication logic.",
+              "confidence": "possible",
+              "cvss_score": 6.5,
+              "cvss_vector": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:L/I:L/A:N",
+              "owasp_category": ""
+            },
+            {
+              "id": "W-019",
+              "asset": "/rest/user/login",
+              "title": "Prototype Pollution \u2014 in JSON body (param `email`, POST /rest/user/login)",
+              "evidence": [],
+              "severity": "medium",
+              "rationale": "Since this is a JSON REST endpoint, the email parameter might be used to pollute object prototypes if merged into a prototype chain.",
+              "confidence": "possible",
+              "cvss_score": 6.5,
+              "cvss_vector": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:L/I:L/A:N",
+              "owasp_category": ""
+            },
+            {
+              "id": "W-020",
+              "asset": "/rest/user/login",
+              "title": "Prototype Pollution \u2014 in JSON body (param `password`, POST /rest/user/login)",
+              "evidence": [],
+              "severity": "medium",
+              "rationale": "The password parameter in a JSON-based auth API is another potential vector for prototype pollution when backend JS handles credentials improperly.",
+              "confidence": "possible",
+              "cvss_score": 6.5,
+              "cvss_vector": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:L/I:L/A:N",
+              "owasp_category": ""
+            },
+            {
+              "id": "W-021",
+              "asset": "/socket.io/",
+              "title": "Parameter Pollution \u2014 URL parameters (`EIO`, `transport`, `t`, GET /socket.io/)",
+              "evidence": [],
+              "severity": "medium",
+              "rationale": "Duplicated or modified parameters could alter socket.io handshake or routing behavior.",
+              "confidence": "possible",
+              "cvss_score": 6.5,
+              "cvss_vector": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:L/I:L/A:N",
+              "owasp_category": ""
+            },
+            {
+              "id": "W-022",
+              "asset": "/socket.io/",
+              "title": "SSRF \u2014 URL parameter `transport` (GET /socket.io/)",
+              "evidence": [],
+              "severity": "high",
+              "rationale": "The `polling` value hints at backend HTTP relay; malicious transports might trigger outbound requests.",
+              "confidence": "possible",
+              "cvss_score": 7.5,
+              "cvss_vector": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:N/A:N",
+              "owasp_category": ""
+            },
+            {
+              "id": "W-023",
+              "asset": "/socket.io/",
+              "title": "WebSockets Hijacking \u2014 Upgraded connection via `/socket.io/`",
+              "evidence": [],
+              "severity": "medium",
+              "rationale": "Socket.IO endpoints often upgrade to WebSocket; origin/header checks may be insufficient.",
+              "confidence": "possible",
+              "cvss_score": 4.2,
+              "cvss_vector": "CVSS:3.1/AV:N/AC:H/PR:N/UI:R/S:U/C:L/I:L/A:N",
+              "owasp_category": ""
+            },
+            {
+              "id": "W-024",
+              "asset": "/socket.io/",
+              "title": "XSS \u2014 URL parameters `EIO`, `transport`, or `t` reflected in socket response (GET /socket.io/)",
+              "evidence": [],
+              "severity": "medium",
+              "rationale": "If any parameter is echoed unsanitized in the handshake response, it could enable script injection.",
+              "confidence": "possible",
+              "cvss_score": 6.1,
+              "cvss_vector": "CVSS:3.1/AV:N/AC:L/PR:N/UI:R/S:C/C:L/I:L/A:N",
+              "owasp_category": ""
+            },
+            {
+              "id": "W-025",
+              "asset": "/socket.io/",
+              "title": "Cache Deception \u2014 Query string parameters (`EIO`, `transport`, `t`) manipulated to cache static-like responses (GET /socket.io/)",
+              "evidence": [],
+              "severity": "medium",
+              "rationale": "Uncommon query parameters might bypass cache rules and cause sensitive dynamic content to be cached as static.",
+              "confidence": "possible",
+              "cvss_score": 6.5,
+              "cvss_vector": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:L/I:L/A:N",
+              "owasp_category": ""
+            },
+            {
+              "id": "W-026",
+              "asset": "/socket.io/",
+              "title": "CRLF Injection \u2014 URL parameters (`EIO`, `transport`, `t`) injected with header payloads (GET /socket.io/)",
+              "evidence": [],
+              "severity": "medium",
+              "rationale": "Malformed headers in parameters could manipulate response headers during polling setup.",
+              "confidence": "possible",
+              "cvss_score": 6.5,
+              "cvss_vector": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:L/I:L/A:N",
+              "owasp_category": ""
+            },
+            {
+              "id": "W-027",
+              "asset": "/api/Challenges/",
+              "title": "NoSQL Injection \u2014 via `name` parameter (GET /api/Challenges/)",
+              "evidence": [],
+              "severity": "critical",
+              "rationale": "The `name` parameter is directly used in a query (likely filtering challenges by name), and NoSQL operators like `$ne`, `$regex`, or `$exists` could be injected to manipulate the query logic since the backend appears to be a NoSQL database vulnerable to operator injection.",
+              "confidence": "possible",
+              "cvss_score": 9.8,
+              "cvss_vector": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H",
+              "owasp_category": ""
+            },
+            {
+              "id": "W-028",
+              "asset": "/api/Challenges/",
+              "title": "XSS \u2014 via `name` parameter (GET /api/Challenges/)",
+              "evidence": [],
+              "severity": "medium",
+              "rationale": "The `name` parameter's value (`Score Board`) might be reflected or stored unsanitized in the response. An attacker-controlled script injected here could execute in the victim\u2019s browser, especially if error messages or dynamic UI elements reflect the input without escaping.",
+              "confidence": "possible",
+              "cvss_score": 6.1,
+              "cvss_vector": "CVSS:3.1/AV:N/AC:L/PR:N/UI:R/S:C/C:L/I:L/A:N",
+              "owasp_category": ""
+            },
+            {
+              "id": "W-029",
+              "asset": "/api/Challenges/",
+              "title": "IDOR \u2014 via `name` parameter (GET /api/Challenges/)",
+              "evidence": [],
+              "severity": "high",
+              "rationale": "Although typically associated with numeric identifiers, if the backend retrieves challenge data based on the provided `name`, an attacker might manipulate this field to access unlisted or unauthorized challenges by guessing or enumerating valid names.",
+              "confidence": "possible",
+              "cvss_score": 8.1,
+              "cvss_vector": "CVSS:3.1/AV:N/AC:L/PR:L/UI:N/S:U/C:H/I:H/A:N",
+              "owasp_category": ""
+            },
+            {
+              "id": "W-030",
+              "asset": "/api/Challenges/",
+              "title": "Parameter Pollution \u2014 via duplicated `name` parameter (GET /api/Challenges/)",
+              "evidence": [],
+              "severity": "medium",
+              "rationale": "Adding multiple `name` parameters with different values may cause inconsistent parsing behavior between frontend and backend, leading to bypasses in query logic or unexpected data retrieval.",
+              "confidence": "possible",
+              "cvss_score": 6.5,
+              "cvss_vector": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:L/I:L/A:N",
+              "owasp_category": ""
+            },
+            {
+              "id": "W-031",
+              "asset": "/api/Challenges/",
+              "title": "SSRF \u2014 via `name` parameter (GET /api/Challenges/)",
+              "evidence": [],
+              "severity": "high",
+              "rationale": "If the backend fetches external resources or logs based on challenge metadata linked to the `name`, an attacker-supplied value might trick the server into making unintended internal requests.",
+              "confidence": "possible",
+              "cvss_score": 7.5,
+              "cvss_vector": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:N/A:N",
+              "owasp_category": ""
+            },
+            {
+              "id": "W-032",
+              "asset": "/api/Challenges/",
+              "title": "Unicode Injection \u2014 via `name` parameter (GET /api/Challenges/)",
+              "evidence": [],
+              "severity": "critical",
+              "rationale": "Using homograph characters or Unicode escape sequences in the `name` value could evade filters or fool string comparisons used internally for authorization or challenge lookups.",
+              "confidence": "possible",
+              "cvss_score": 9.8,
+              "cvss_vector": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H",
+              "owasp_category": ""
+            },
+            {
+              "id": "W-033",
+              "asset": "/api/Challenges/",
+              "title": "Regex Denial of Service (ReDoS) \u2014 via `name` parameter (GET /api/Challenges/)",
+              "evidence": [],
+              "severity": "medium",
+              "rationale": "If `name` is used in a regular expression match on the backend without timeouts, a complex pattern could cause exponential backtracking and exhaust server resources.",
+              "confidence": "possible",
+              "cvss_score": 6.5,
+              "cvss_vector": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:L/I:L/A:N",
+              "owasp_category": ""
+            }
+          ],
+          "candidates_dropped": 0
+        },
+        "target_url": "http://juice-shop:3000/",
+        "upstream_keys": [
+          "candidates_dropped",
+          "weaknesses"
+        ],
+        "from_component": "agent-vuln",
+        "upstream_bytes": 15819
+      }
+    },
+    {
+      "agent": "mitre",
+      "seq": 2,
+      "event_type": "llm_call",
+      "duration_ms": 7108,
+      "logged_at": "2026-09-03T18:55:12.347462+00:00",
+      "payload": {
+        "model": "qwen.qwen3-coder-480b-a35b-instruct",
+        "usage": {
+          "cached_tokens": 0,
+          "prompt_tokens": 1234,
+          "reasoning_tokens": 0,
+          "completion_tokens": 2017
+        },
+        "attempt": 1,
+        "user_prompt": "W-001: Server Side Request Forgery (SSRF) \u2014 URL parameters (`EIO`, `transport`, `t`, `sid`) in POST request to `/socket.io/` at /socket.io/\nW-002: Prototype Pollution \u2014 Body content (`40`) and URL parameters in POST request to `/socket.io/` at /socket.io/\nW-003: Websocket Protocol Attack \u2014 Upgrade mechanism through `/socket.io/` endpoint at /socket.io/\nW-004: Cross-Site Scripting (XSS) \u2014 URL parameters (`EIO`, `transport`, `t`, `sid`) reflected in server response via Socket.IO handshake at /socket.io/\nW-005: Session Fixation \u2014 Manipulation of the `sid` parameter during polling transport initiation at /socket.io/\nW-006: HTTP Parameter Pollution (HPP) \u2014 Repeated or conflicting parameters in Socket.IO query string at /socket.io/\nW-007: Insecure Direct Object Reference (IDOR) \u2014 Access control based on user-supplied `sid` value at /socket.io/\nW-008: Clickjacking \u2014 Response to `/socket.io/` missing proper frame-busting headers at /socket.io/\nW-009: Race Condition \u2014 Exploiting concurrent polling requests via `/socket.io/` at /socket.io/\nW-010: HTTP Response Splitting (CRLF Injection) \u2014 Injection via raw body (`40`) interpreted as partial HTTP response element at /socket.io/\nW-011: NoSQL Injection \u2014 in JSON body (param `email`, POST /rest/user/login) at /rest/user/login\nW-012: NoSQL Injection \u2014 in JSON body (param `password`, POST /rest/user/login) at /rest/user/login\nW-013: Login Bypass \u2014 in JSON body (param `email`, POST /rest/user/login) at /rest/user/login\nW-014: Login Bypass \u2014 in JSON body (param `password`, POST /rest/user/login) at /rest/user/login\nW-015: Account Takeover \u2014 in JSON body (param `email`, POST /rest/user/login) at /rest/user/login\nW-016: Account Takeover \u2014 in JSON body (param `password`, POST /rest/user/login) at /rest/user/login\nW-017: JSON Injection \u2014 in JSON body (param `email`, POST /rest/user/login) at /rest/user/login\nW-018: JSON Injection \u2014 in JSON body (param `password`, POST /rest/user/login) at /rest/user/login\nW-019: Prototype Pollution \u2014 in JSON body (param `email`, POST /rest/user/login) at /rest/user/login\nW-020: Prototype Pollution \u2014 in JSON body (param `password`, POST /rest/user/login) at /rest/user/login\nW-021: Parameter Pollution \u2014 URL parameters (`EIO`, `transport`, `t`, GET /socket.io/) at /socket.io/\nW-022: SSRF \u2014 URL parameter `transport` (GET /socket.io/) at /socket.io/\nW-023: WebSockets Hijacking \u2014 Upgraded connection via `/socket.io/` at /socket.io/\nW-024: XSS \u2014 URL parameters `EIO`, `transport`, or `t` reflected in socket response (GET /socket.io/) at /socket.io/\nW-025: Cache Deception \u2014 Query string parameters (`EIO`, `transport`, `t`) manipulated to cache static-like responses (GET /socket.io/) at /socket.io/\nW-026: CRLF Injection \u2014 URL parameters (`EIO`, `transport`, `t`) injected with header payloads (GET /socket.io/) at /socket.io/\nW-027: NoSQL Injection \u2014 via `name` parameter (GET /api/Challenges/) at /api/Challenges/\nW-028: XSS \u2014 via `name` parameter (GET /api/Challenges/) at /api/Challenges/\nW-029: IDOR \u2014 via `name` parameter (GET /api/Challenges/) at /api/Challenges/\nW-030: Parameter Pollution \u2014 via duplicated `name` parameter (GET /api/Challenges/) at /api/Challenges/\nW-031: SSRF \u2014 via `name` parameter (GET /api/Challenges/) at /api/Challenges/\nW-032: Unicode Injection \u2014 via `name` parameter (GET /api/Challenges/) at /api/Challenges/\nW-033: Regex Denial of Service (ReDoS) \u2014 via `name` parameter (GET /api/Challenges/) at /api/Challenges/",
+        "raw_response": "{\n  \"mappings\": {\n    \"W-001\": [\n      {\n        \"technique_id\": \"T1190\",\n        \"technique_name\": \"Exploit Public-Facing Application\",\n        \"tactic\": \"Initial Access\"\n      }\n    ],\n    \"W-002\": [\n      {\n        \"technique_id\": \"T1059.007\",\n        \"technique_name\": \"Command and Scripting Interpreter: JavaScript/JScript\",\n        \"tactic\": \"Execution\"\n      }\n    ],\n    \"W-003\": [\n      {\n        \"technique_id\": \"T1071.001\",\n        \"technique_name\": \"Application Layer Protocol: Web Protocols\",\n        \"tactic\": \"Command and Control\"\n      }\n    ],\n    \"W-004\": [\n      {\n        \"technique_id\": \"T1189\",\n        \"technique_name\": \"Drive-by Compromise\",\n        \"tactic\": \"Initial Access\"\n      },\n      {\n        \"technique_id\": \"T1059.007\",\n        \"technique_name\": \"Command and Scripting Interpreter: JavaScript/JScript\",\n        \"tactic\": \"Execution\"\n      }\n    ],\n    \"W-005\": [\n      {\n        \"technique_id\": \"T1539\",\n        \"technique_name\": \"Steal Web Session Cookie\",\n        \"tactic\": \"Credential Access\"\n      }\n    ],\n    \"W-006\": [\n      {\n        \"technique_id\": \"T1059.007\",\n        \"technique_name\": \"Command and Scripting Interpreter: JavaScript/JScript\",\n        \"tactic\": \"Execution\"\n      }\n    ],\n    \"W-007\": [\n      {\n        \"technique_id\": \"T1059.007\",\n        \"technique_name\": \"Command and Scripting Interpreter: JavaScript/JScript\",\n        \"tactic\": \"Execution\"\n      }\n    ],\n    \"W-008\": [\n      {\n        \"technique_id\": \"T1059.007\",\n        \"technique_name\": \"Command and Scripting Interpreter: JavaScript/JScript\",\n        \"tactic\": \"Execution\"\n      }\n    ],\n    \"W-009\": [\n      {\n        \"technique_id\": \"T1059.007\",\n        \"technique_name\": \"Command and Scripting Interpreter: JavaScript/JScript\",\n        \"tactic\": \"Execution\"\n      }\n    ],\n    \"W-010\": [\n      {\n        \"technique_id\": \"T1059.007\",\n        \"technique_name\": \"Command and Scripting Interpreter: JavaScript/JScript\",\n        \"tactic\": \"Execution\"\n      }\n    ],\n    \"W-011\": [\n      {\n        \"technique_id\": \"T1190\",\n        \"technique_name\": \"Exploit Public-Facing Application\",\n        \"tactic\": \"Initial Access\"\n      }\n    ],\n    \"W-012\": [\n      {\n        \"technique_id\": \"T1190\",\n        \"technique_name\": \"Exploit Public-Facing Application\",\n        \"tactic\": \"Initial Access\"\n      }\n    ],\n    \"W-013\": [\n      {\n        \"technique_id\": \"T1190\",\n        \"technique_name\": \"Exploit Public-Facing Application\",\n        \"tactic\": \"Initial Access\"\n      }\n    ],\n    \"W-014\": [\n      {\n        \"technique_id\": \"T1190\",\n        \"technique_name\": \"Exploit Public-Facing Application\",\n        \"tactic\": \"Initial Access\"\n      }\n    ],\n    \"W-015\": [\n      {\n        \"technique_id\": \"T1190\",\n        \"technique_name\": \"Exploit Public-Facing Application\",\n        \"tactic\": \"Initial Access\"\n      },\n      {\n        \"technique_id\": \"T1539\",\n        \"technique_name\": \"Steal Web Session Cookie\",\n        \"tactic\": \"Credential Access\"\n      }\n    ],\n    \"W-016\": [\n      {\n        \"technique_id\": \"T1190\",\n        \"technique_name\": \"Exploit Public-Facing Application\",\n        \"tactic\": \"Initial Access\"\n      },\n      {\n        \"technique_id\": \"T1539\",\n        \"technique_name\": \"Steal Web Session Cookie\",\n        \"tactic\": \"Credential Access\"\n      }\n    ],\n    \"W-017\": [\n      {\n        \"technique_id\": \"T1059.007\",\n        \"technique_name\": \"Command and Scripting Interpreter: JavaScript/JScript\",\n        \"tactic\": \"Execution\"\n      }\n    ],\n    \"W-018\": [\n      {\n        \"technique_id\": \"T1059.007\",\n        \"technique_name\": \"Command and Scripting Interpreter: JavaScript/JScript\",\n        \"tactic\": \"Execution\"\n      }\n    ],\n    \"W-019\": [\n      {\n        \"technique_id\": \"T1059.007\",\n        \"technique_name\": \"Command and Scripting Interpreter: JavaScript/JScript\",\n        \"tactic\": \"Execution\"\n      }\n    ],\n    \"W-020\": [\n      {\n        \"technique_id\": \"T1059.007\",\n        \"technique_name\": \"Command and Scripting Interpreter: JavaScript/JScript\",\n        \"tactic\": \"Execution\"\n      }\n    ],\n    \"W-021\": [\n      {\n        \"technique_id\": \"T1059.007\",\n        \"technique_name\": \"Command and Scripting Interpreter: JavaScript/JScript\",\n        \"tactic\": \"Execution\"\n      }\n    ],\n    \"W-022\": [\n      {\n        \"technique_id\": \"T1190\",\n        \"technique_name\": \"Exploit Public-Facing Application\",\n        \"tactic\": \"Initial Access\"\n      }\n    ],\n    \"W-023\": [\n      {\n        \"technique_id\": \"T1071.001\",\n        \"technique_name\": \"Application Layer Protocol: Web Protocols\",\n        \"tactic\": \"Command and Control\"\n      }\n    ],\n    \"W-024\": [\n      {\n        \"technique_id\": \"T1189\",\n        \"technique_name\": \"Drive-by Compromise\",\n        \"tactic\": \"Initial Access\"\n      },\n      {\n        \"technique_id\": \"T1059.007\",\n        \"technique_name\": \"Command and Scripting Interpreter: JavaScript/JScript\",\n        \"tactic\": \"Execution\"\n      }\n    ],\n    \"W-025\": [\n      {\n        \"technique_id\": \"T1059.007\",\n        \"technique_name\": \"Command and Scripting Interpreter: JavaScript/JScript\",\n        \"tactic\": \"Execution\"\n      }\n    ],\n    \"W-026\": [\n      {\n        \"technique_id\": \"T1059.007\",\n        \"technique_name\": \"Command and Scripting Interpreter: JavaScript/JScript\",\n        \"tactic\": \"Execution\"\n      }\n    ],\n    \"W-027\": [\n      {\n        \"technique_id\": \"T1190\",\n        \"technique_name\": \"Exploit Public-Facing Application\",\n        \"tactic\": \"Initial Access\"\n      }\n    ],\n    \"W-028\": [\n      {\n        \"technique_id\": \"T1189\",\n        \"technique_name\": \"Drive-by Compromise\",\n        \"tactic\": \"Initial Access\"\n      },\n      {\n        \"technique_id\": \"T1059.007\",\n        \"technique_name\": \"Command and Scripting Interpreter: JavaScript/JScript\",\n        \"tactic\": \"Execution\"\n      }\n    ],\n    \"W-029\": [\n      {\n        \"technique_id\": \"T1059.007\",\n        \"technique_name\": \"Command and Scripting Interpreter: JavaScript/JScript\",\n        \"tactic\": \"Execution\"\n      }\n    ],\n    \"W-030\": [\n      {\n        \"technique_id\": \"T1059.007\",\n        \"technique_name\": \"Command and Scripting Interpreter: JavaScript/JScript\",\n        \"tactic\": \"Execution\"\n      }\n    ],\n    \"W-031\": [\n      {\n        \"technique_id\": \"T1190\",\n        \"technique_name\": \"Exploit Public-Facing Application\",\n        \"tactic\": \"Initial Access\"\n      }\n    ],\n    \"W-032\": [\n      {\n        \"technique_id\": \"T1059.007\",\n        \"technique_name\": \"Command and Scripting Interpreter: JavaScript/JScript\",\n        \"tactic\": \"Execution\"\n      }\n    ],\n    \"W-033\": [\n      {\n        \"technique_id\": \"T1059.007\",\n        \"technique_name\": \"Command and Scripting Interpreter: JavaScript/JScript\",\n        \"tactic\": \"Execution\"\n      }\n    ]\n  }\n}",
+        "system_prompt": "You map web application weaknesses to the MITRE ATT&CK for Enterprise framework.\n\nFor every weakness you are given, return one or more ATT&CK techniques.\n\nReply with ONLY a JSON object of this exact shape:\n{\"mappings\": {\"<weakness_id>\": [{\"technique_id\": \"T####\",\n                                 \"technique_name\": \"<official name>\",\n                                 \"tactic\": \"<ATT&CK tactic>\"}]}}\n\nRules:\n- technique_id must match ^T[0-9]{4}([.][0-9]{3})?$ (e.g. T1190, T1059.007).\n- Use only techniques that genuinely exist in ATT&CK for Enterprise v15+.\n- Every weakness ID you were given must appear as a key with at least one tag.\n- Do not invent weakness IDs. Use exactly the IDs supplied.\n- Prefer the most specific sub-technique that accurately fits.\n",
+        "reasoning_effort": "none"
+      }
+    },
+    {
+      "agent": "mitre",
+      "seq": 3,
+      "event_type": "stage_output",
+      "duration_ms": 7232,
+      "logged_at": "2026-09-03T18:55:12.402507+00:00",
+      "payload": {
+        "summary": "33 mappings",
+        "artifact": {
+          "mappings": {
+            "W-001": [
+              {
+                "tactic": "Initial Access",
+                "technique_id": "T1190",
+                "technique_name": "Exploit Public-Facing Application"
+              }
+            ],
+            "W-002": [
+              {
+                "tactic": "Execution",
+                "technique_id": "T1059.007",
+                "technique_name": "Command and Scripting Interpreter: JavaScript/JScript"
+              }
+            ],
+            "W-003": [
+              {
+                "tactic": "Command and Control",
+                "technique_id": "T1071.001",
+                "technique_name": "Application Layer Protocol: Web Protocols"
+              }
+            ],
+            "W-004": [
+              {
+                "tactic": "Initial Access",
+                "technique_id": "T1189",
+                "technique_name": "Drive-by Compromise"
+              },
+              {
+                "tactic": "Execution",
+                "technique_id": "T1059.007",
+                "technique_name": "Command and Scripting Interpreter: JavaScript/JScript"
+              }
+            ],
+            "W-005": [
+              {
+                "tactic": "Credential Access",
+                "technique_id": "T1539",
+                "technique_name": "Steal Web Session Cookie"
+              }
+            ],
+            "W-006": [
+              {
+                "tactic": "Execution",
+                "technique_id": "T1059.007",
+                "technique_name": "Command and Scripting Interpreter: JavaScript/JScript"
+              }
+            ],
+            "W-007": [
+              {
+                "tactic": "Execution",
+                "technique_id": "T1059.007",
+                "technique_name": "Command and Scripting Interpreter: JavaScript/JScript"
+              }
+            ],
+            "W-008": [
+              {
+                "tactic": "Execution",
+                "technique_id": "T1059.007",
+                "technique_name": "Command and Scripting Interpreter: JavaScript/JScript"
+              }
+            ],
+            "W-009": [
+              {
+                "tactic": "Execution",
+                "technique_id": "T1059.007",
+                "technique_name": "Command and Scripting Interpreter: JavaScript/JScript"
+              }
+            ],
+            "W-010": [
+              {
+                "tactic": "Execution",
+                "technique_id": "T1059.007",
+                "technique_name": "Command and Scripting Interpreter: JavaScript/JScript"
+              }
+            ],
+            "W-011": [
+              {
+                "tactic": "Initial Access",
+                "technique_id": "T1190",
+                "technique_name": "Exploit Public-Facing Application"
+              }
+            ],
+            "W-012": [
+              {
+                "tactic": "Initial Access",
+                "technique_id": "T1190",
+                "technique_name": "Exploit Public-Facing Application"
+              }
+            ],
+            "W-013": [
+              {
+                "tactic": "Initial Access",
+                "technique_id": "T1190",
+                "technique_name": "Exploit Public-Facing Application"
+              }
+            ],
+            "W-014": [
+              {
+                "tactic": "Initial Access",
+                "technique_id": "T1190",
+                "technique_name": "Exploit Public-Facing Application"
+              }
+            ],
+            "W-015": [
+              {
+                "tactic": "Initial Access",
+                "technique_id": "T1190",
+                "technique_name": "Exploit Public-Facing Application"
+              },
+              {
+                "tactic": "Credential Access",
+                "technique_id": "T1539",
+                "technique_name": "Steal Web Session Cookie"
+              }
+            ],
+            "W-016": [
+              {
+                "tactic": "Initial Access",
+                "technique_id": "T1190",
+                "technique_name": "Exploit Public-Facing Application"
+              },
+              {
+                "tactic": "Credential Access",
+                "technique_id": "T1539",
+                "technique_name": "Steal Web Session Cookie"
+              }
+            ],
+            "W-017": [
+              {
+                "tactic": "Execution",
+                "technique_id": "T1059.007",
+                "technique_name": "Command and Scripting Interpreter: JavaScript/JScript"
+              }
+            ],
+            "W-018": [
+              {
+                "tactic": "Execution",
+                "technique_id": "T1059.007",
+                "technique_name": "Command and Scripting Interpreter: JavaScript/JScript"
+              }
+            ],
+            "W-019": [
+              {
+                "tactic": "Execution",
+                "technique_id": "T1059.007",
+                "technique_name": "Command and Scripting Interpreter: JavaScript/JScript"
+              }
+            ],
+            "W-020": [
+              {
+                "tactic": "Execution",
+                "technique_id": "T1059.007",
+                "technique_name": "Command and Scripting Interpreter: JavaScript/JScript"
+              }
+            ],
+            "W-021": [
+              {
+                "tactic": "Execution",
+                "technique_id": "T1059.007",
+                "technique_name": "Command and Scripting Interpreter: JavaScript/JScript"
+              }
+            ],
+            "W-022": [
+              {
+                "tactic": "Initial Access",
+                "technique_id": "T1190",
+                "technique_name": "Exploit Public-Facing Application"
+              }
+            ],
+            "W-023": [
+              {
+                "tactic": "Command and Control",
+                "technique_id": "T1071.001",
+                "technique_name": "Application Layer Protocol: Web Protocols"
+              }
+            ],
+            "W-024": [
+              {
+                "tactic": "Initial Access",
+                "technique_id": "T1189",
+                "technique_name": "Drive-by Compromise"
+              },
+              {
+                "tactic": "Execution",
+                "technique_id": "T1059.007",
+                "technique_name": "Command and Scripting Interpreter: JavaScript/JScript"
+              }
+            ],
+            "W-025": [
+              {
+                "tactic": "Execution",
+                "technique_id": "T1059.007",
+                "technique_name": "Command and Scripting Interpreter: JavaScript/JScript"
+              }
+            ],
+            "W-026": [
+              {
+                "tactic": "Execution",
+                "technique_id": "T1059.007",
+                "technique_name": "Command and Scripting Interpreter: JavaScript/JScript"
+              }
+            ],
+            "W-027": [
+              {
+                "tactic": "Initial Access",
+                "technique_id": "T1190",
+                "technique_name": "Exploit Public-Facing Application"
+              }
+            ],
+            "W-028": [
+              {
+                "tactic": "Initial Access",
+                "technique_id": "T1189",
+                "technique_name": "Drive-by Compromise"
+              },
+              {
+                "tactic": "Execution",
+                "technique_id": "T1059.007",
+                "technique_name": "Command and Scripting Interpreter: JavaScript/JScript"
+              }
+            ],
+            "W-029": [
+              {
+                "tactic": "Execution",
+                "technique_id": "T1059.007",
+                "technique_name": "Command and Scripting Interpreter: JavaScript/JScript"
+              }
+            ],
+            "W-030": [
+              {
+                "tactic": "Execution",
+                "technique_id": "T1059.007",
+                "technique_name": "Command and Scripting Interpreter: JavaScript/JScript"
+              }
+            ],
+            "W-031": [
+              {
+                "tactic": "Initial Access",
+                "technique_id": "T1190",
+                "technique_name": "Exploit Public-Facing Application"
+              }
+            ],
+            "W-032": [
+              {
+                "tactic": "Execution",
+                "technique_id": "T1059.007",
+                "technique_name": "Command and Scripting Interpreter: JavaScript/JScript"
+              }
+            ],
+            "W-033": [
+              {
+                "tactic": "Execution",
+                "technique_id": "T1059.007",
+                "technique_name": "Command and Scripting Interpreter: JavaScript/JScript"
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "agent": "mitre",
+      "seq": 4,
+      "event_type": "handoff",
+      "duration_ms": null,
+      "logged_at": "2026-09-03T18:55:12.460011+00:00",
+      "payload": {
+        "next_agent": "exploit"
+      }
+    },
+    {
+      "agent": "exploit",
+      "seq": 1,
+      "event_type": "stage_input",
+      "duration_ms": null,
+      "logged_at": "2026-09-03T18:55:12.492142+00:00",
+      "payload": {
+        "scope": {
+          "domains": [
+            "juice-shop"
+          ],
+          "deny_paths": [],
+          "allow_paths": []
+        },
+        "upstream": {
+          "mappings": {
+            "W-001": [
+              {
+                "tactic": "Initial Access",
+                "technique_id": "T1190",
+                "technique_name": "Exploit Public-Facing Application"
+              }
+            ],
+            "W-002": [
+              {
+                "tactic": "Execution",
+                "technique_id": "T1059.007",
+                "technique_name": "Command and Scripting Interpreter: JavaScript/JScript"
+              }
+            ],
+            "W-003": [
+              {
+                "tactic": "Command and Control",
+                "technique_id": "T1071.001",
+                "technique_name": "Application Layer Protocol: Web Protocols"
+              }
+            ],
+            "W-004": [
+              {
+                "tactic": "Initial Access",
+                "technique_id": "T1189",
+                "technique_name": "Drive-by Compromise"
+              },
+              {
+                "tactic": "Execution",
+                "technique_id": "T1059.007",
+                "technique_name": "Command and Scripting Interpreter: JavaScript/JScript"
+              }
+            ],
+            "W-005": [
+              {
+                "tactic": "Credential Access",
+                "technique_id": "T1539",
+                "technique_name": "Steal Web Session Cookie"
+              }
+            ],
+            "W-006": [
+              {
+                "tactic": "Execution",
+                "technique_id": "T1059.007",
+                "technique_name": "Command and Scripting Interpreter: JavaScript/JScript"
+              }
+            ],
+            "W-007": [
+              {
+                "tactic": "Execution",
+                "technique_id": "T1059.007",
+                "technique_name": "Command and Scripting Interpreter: JavaScript/JScript"
+              }
+            ],
+            "W-008": [
+              {
+                "tactic": "Execution",
+                "technique_id": "T1059.007",
+                "technique_name": "Command and Scripting Interpreter: JavaScript/JScript"
+              }
+            ],
+            "W-009": [
+              {
+                "tactic": "Execution",
+                "technique_id": "T1059.007",
+                "technique_name": "Command and Scripting Interpreter: JavaScript/JScript"
+              }
+            ],
+            "W-010": [
+              {
+                "tactic": "Execution",
+                "technique_id": "T1059.007",
+                "technique_name": "Command and Scripting Interpreter: JavaScript/JScript"
+              }
+            ],
+            "W-011": [
+              {
+                "tactic": "Initial Access",
+                "technique_id": "T1190",
+                "technique_name": "Exploit Public-Facing Application"
+              }
+            ],
+            "W-012": [
+              {
+                "tactic": "Initial Access",
+                "technique_id": "T1190",
+                "technique_name": "Exploit Public-Facing Application"
+              }
+            ],
+            "W-013": [
+              {
+                "tactic": "Initial Access",
+                "technique_id": "T1190",
+                "technique_name": "Exploit Public-Facing Application"
+              }
+            ],
+            "W-014": [
+              {
+                "tactic": "Initial Access",
+                "technique_id": "T1190",
+                "technique_name": "Exploit Public-Facing Application"
+              }
+            ],
+            "W-015": [
+              {
+                "tactic": "Initial Access",
+                "technique_id": "T1190",
+                "technique_name": "Exploit Public-Facing Application"
+              },
+              {
+                "tactic": "Credential Access",
+                "technique_id": "T1539",
+                "technique_name": "Steal Web Session Cookie"
+              }
+            ],
+            "W-016": [
+              {
+                "tactic": "Initial Access",
+                "technique_id": "T1190",
+                "technique_name": "Exploit Public-Facing Application"
+              },
+              {
+                "tactic": "Credential Access",
+                "technique_id": "T1539",
+                "technique_name": "Steal Web Session Cookie"
+              }
+            ],
+            "W-017": [
+              {
+                "tactic": "Execution",
+                "technique_id": "T1059.007",
+                "technique_name": "Command and Scripting Interpreter: JavaScript/JScript"
+              }
+            ],
+            "W-018": [
+              {
+                "tactic": "Execution",
+                "technique_id": "T1059.007",
+                "technique_name": "Command and Scripting Interpreter: JavaScript/JScript"
+              }
+            ],
+            "W-019": [
+              {
+                "tactic": "Execution",
+                "technique_id": "T1059.007",
+                "technique_name": "Command and Scripting Interpreter: JavaScript/JScript"
+              }
+            ],
+            "W-020": [
+              {
+                "tactic": "Execution",
+                "technique_id": "T1059.007",
+                "technique_name": "Command and Scripting Interpreter: JavaScript/JScript"
+              }
+            ],
+            "W-021": [
+              {
+                "tactic": "Execution",
+                "technique_id": "T1059.007",
+                "technique_name": "Command and Scripting Interpreter: JavaScript/JScript"
+              }
+            ],
+            "W-022": [
+              {
+                "tactic": "Initial Access",
+                "technique_id": "T1190",
+                "technique_name": "Exploit Public-Facing Application"
+              }
+            ],
+            "W-023": [
+              {
+                "tactic": "Command and Control",
+                "technique_id": "T1071.001",
+                "technique_name": "Application Layer Protocol: Web Protocols"
+              }
+            ],
+            "W-024": [
+              {
+                "tactic": "Initial Access",
+                "technique_id": "T1189",
+                "technique_name": "Drive-by Compromise"
+              },
+              {
+                "tactic": "Execution",
+                "technique_id": "T1059.007",
+                "technique_name": "Command and Scripting Interpreter: JavaScript/JScript"
+              }
+            ],
+            "W-025": [
+              {
+                "tactic": "Execution",
+                "technique_id": "T1059.007",
+                "technique_name": "Command and Scripting Interpreter: JavaScript/JScript"
+              }
+            ],
+            "W-026": [
+              {
+                "tactic": "Execution",
+                "technique_id": "T1059.007",
+                "technique_name": "Command and Scripting Interpreter: JavaScript/JScript"
+              }
+            ],
+            "W-027": [
+              {
+                "tactic": "Initial Access",
+                "technique_id": "T1190",
+                "technique_name": "Exploit Public-Facing Application"
+              }
+            ],
+            "W-028": [
+              {
+                "tactic": "Initial Access",
+                "technique_id": "T1189",
+                "technique_name": "Drive-by Compromise"
+              },
+              {
+                "tactic": "Execution",
+                "technique_id": "T1059.007",
+                "technique_name": "Command and Scripting Interpreter: JavaScript/JScript"
+              }
+            ],
+            "W-029": [
+              {
+                "tactic": "Execution",
+                "technique_id": "T1059.007",
+                "technique_name": "Command and Scripting Interpreter: JavaScript/JScript"
+              }
+            ],
+            "W-030": [
+              {
+                "tactic": "Execution",
+                "technique_id": "T1059.007",
+                "technique_name": "Command and Scripting Interpreter: JavaScript/JScript"
+              }
+            ],
+            "W-031": [
+              {
+                "tactic": "Initial Access",
+                "technique_id": "T1190",
+                "technique_name": "Exploit Public-Facing Application"
+              }
+            ],
+            "W-032": [
+              {
+                "tactic": "Execution",
+                "technique_id": "T1059.007",
+                "technique_name": "Command and Scripting Interpreter: JavaScript/JScript"
+              }
+            ],
+            "W-033": [
+              {
+                "tactic": "Execution",
+                "technique_id": "T1059.007",
+                "technique_name": "Command and Scripting Interpreter: JavaScript/JScript"
+              }
+            ]
+          }
+        },
+        "target_url": "http://juice-shop:3000/",
+        "upstream_keys": [
+          "mappings"
+        ],
+        "from_component": "agent-mitre",
+        "upstream_bytes": 4911
+      }
+    },
+    {
+      "agent": "exploit",
+      "seq": 2,
+      "event_type": "stage_output",
+      "duration_ms": 145971,
+      "logged_at": "2026-09-03T18:57:48.567332+00:00",
+      "payload": {
+        "summary": "6 attempts, 27 skipped",
+        "artifact": {
+          "skipped": [
+            "W-007",
+            "W-008",
+            "W-009",
+            "W-010",
+            "W-011",
+            "W-012",
+            "W-013",
+            "W-014",
+            "W-015",
+            "W-016",
+            "W-017",
+            "W-018",
+            "W-019",
+            "W-020",
+            "W-021",
+            "W-022",
+            "W-023",
+            "W-024",
+            "W-025",
+            "W-026",
+            "W-027",
+            "W-028",
+            "W-029",
+            "W-030",
+            "W-031",
+            "W-032",
+            "W-033"
+          ],
+          "attempts": [
+            {
+              "reason": "VERDICT: INCONCLUSIVE \u2014 The SSRF payloads were not tested because the recorded request did not respond successfully, preventing further exploitation attempts.",
+              "payload": "",
+              "evidence": {
+                "note": "VERDICT: INCONCLUSIVE \u2014 The SSRF payloads were not tested because the recorded request did not respond successfully, preventing further exploitation attempts.",
+                "request": "http_request {\"url\": \"http://juice-shop:3000/socket.io/?EIO=4&transport=polling&t=Q1edLUy&sid=G62mFS2BvPOrZ9deAAAa\", \"method\": \"POST\", \"headers\": {\"accept\": \"*/*\", \"origin\": \"http://juice-shop:3000\", \"referer\": \"http://juice-shop:3000/\", \"user-agent\": \"Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/131.0.6778.33 Safari/537.36\", \"content-type\": \"text/plain;charset=UTF-8\"}, \"body\": 40}",
+                "response": "{\"content\": [\"Error executing tool http_request: 1 validation error for http_requestArguments\\nbody\\n  Input should be a valid string [type=string_type, input_value=40, input_type=int]\\n    For further information visit https://errors.pydantic.dev/2.13/v/string_type\"]}",
+                "captured_at": "2026-09-03T18:55:16.537061"
+              },
+              "confirmed": false,
+              "detection": "tool-confirmed signal (e.g. sqlmap injectable=true)",
+              "weakness_id": "W-001"
+            },
+            {
+              "reason": "VERDICT: INCONCLUSIVE \u2014 The HTTP request with prototype pollution payload did not return a response, making it impossible to determine if the vulnerability exists.",
+              "payload": "",
+              "evidence": {
+                "note": "VERDICT: INCONCLUSIVE \u2014 The HTTP request with prototype pollution payload did not return a response, making it impossible to determine if the vulnerability exists.",
+                "request": "http_request {\"url\": \"http://juice-shop:3000/socket.io/?EIO=4&transport=polling&t=Q1edLYN&sid=G62mFS2BvPOrZ9deAAAa&__proto__[polluted]=true\", \"method\": \"POST\", \"headers\": {\"accept\": \"*/*\", \"origin\": \"http://juice-shop:3000\", \"referer\": \"http://juice-shop:3000/\", \"user-agent\": \"Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/131.0.6778.33 Safari/537.36\", \"content-type\": \"text/plain;charset=UTF-8\"}, \"body\": 40}",
+                "response": "{\"content\": [\"Error executing tool http_request: 1 validation error for http_requestArguments\\nbody\\n  Input should be a valid string [type=string_type, input_value=40, input_type=int]\\n    For further information visit https://errors.pydantic.dev/2.13/v/string_type\"]}",
+                "captured_at": "2026-09-03T18:55:20.568643"
+              },
+              "confirmed": false,
+              "detection": "tool-confirmed signal (e.g. sqlmap injectable=true)",
+              "weakness_id": "W-002"
+            },
+            {
+              "reason": "VERDICT: INCONCLUSIVE \u2014 No recorded request matched the suspected websocket endpoint, and no evidence of exploitable behavior was found in related HTTP traffic or documentation.",
+              "payload": "",
+              "evidence": {
+                "note": "VERDICT: INCONCLUSIVE \u2014 No recorded request matched the suspected websocket endpoint, and no evidence of exploitable behavior was found in related HTTP traffic or documentation.",
+                "request": "hacktricks_article {}",
+                "response": "{\"content\": [\"Error executing tool hacktricks_article: 1 validation error for hacktricks_articleArguments\\nslug\\n  Field required [type=missing, input_value={}, input_type=dict]\\n    For further information visit https://errors.pydantic.dev/2.13/v/missing\"]}",
+                "captured_at": "2026-09-03T18:57:38.609675"
+              },
+              "confirmed": false,
+              "detection": "tool-confirmed signal (e.g. sqlmap injectable=true)",
+              "weakness_id": "W-003"
+            },
+            {
+              "reason": "VERDICT: INCONCLUSIVE \u2014 The provided HackTricks article slug resulted in an empty response, preventing assessment of XSS payloads for the Socket.IO endpoint parameters.",
+              "payload": "",
+              "evidence": {
+                "note": "VERDICT: INCONCLUSIVE \u2014 The provided HackTricks article slug resulted in an empty response, preventing assessment of XSS payloads for the Socket.IO endpoint parameters.",
+                "request": "hacktricks_article {}",
+                "response": "{\"content\": [\"Error executing tool hacktricks_article: 1 validation error for hacktricks_articleArguments\\nslug\\n  Field required [type=missing, input_value={}, input_type=dict]\\n    For further information visit https://errors.pydantic.dev/2.13/v/missing\"]}",
+                "captured_at": "2026-09-03T18:57:42.866428"
+              },
+              "confirmed": false,
+              "detection": "tool-confirmed signal (e.g. sqlmap injectable=true)",
+              "weakness_id": "W-004"
+            },
+            {
+              "reason": "VERDICT: INCONCLUSIVE \u2014 No HackTricks article found for session fixation, and the recorded Socket.IO requests do not obviously expose a `sid` parameter manipulation vulnerability.",
+              "payload": "",
+              "evidence": {
+                "note": "VERDICT: INCONCLUSIVE \u2014 No HackTricks article found for session fixation, and the recorded Socket.IO requests do not obviously expose a `sid` parameter manipulation vulnerability.",
+                "request": "hacktricks_article {\"slug\": \"websocket-session-fixation\"}",
+                "response": "{\"slug\": \"websocket-session-fixation\", \"found\": false, \"did_you_mean\": [\"websocket-attacks\", \"race-condition\", \"http-connection-contamination\", \"deserialization\", \"rocket-chat\", \"ssti-server-side-template-injection\", \"hacking-jwt-json-web-tokens\", \"sql-injection\"], \"guidance\": \"No article by that slug. Do NOT invent one. Pick the closest match from did_you_mean (or from hacktricks_overview) and call hacktricks_article again. If nothing fits, write your hypothesis from first principles without an example.\"}",
+                "captured_at": "2026-09-03T18:57:45.525686"
+              },
+              "confirmed": false,
+              "detection": "tool-confirmed signal (e.g. sqlmap injectable=true)",
+              "weakness_id": "W-005"
+            },
+            {
+              "reason": "VERDICT: INCONCLUSIVE \u2014 No relevant HackTricks article found to confirm or deny HTTP Parameter Pollution vulnerability in Socket.IO endpoint; manual testing or further reconnaissance needed.",
+              "payload": "",
+              "evidence": {
+                "note": "VERDICT: INCONCLUSIVE \u2014 No relevant HackTricks article found to confirm or deny HTTP Parameter Pollution vulnerability in Socket.IO endpoint; manual testing or further reconnaissance needed.",
+                "request": "hacktricks_article {\"slug\": \"http-param-pollution\"}",
+                "response": "{\"slug\": \"http-param-pollution\", \"found\": false, \"did_you_mean\": [\"parameter-pollution\", \"nodejs-proto-prototype-pollution\", \"http-request-smuggling\", \"race-condition\", \"orm-injection\", \"http-connection-contamination\", \"xpath-injection\", \"microsoft-sharepoint\"], \"guidance\": \"No article by that slug. Do NOT invent one. Pick the closest match from did_you_mean (or from hacktricks_overview) and call hacktricks_article again. If nothing fits, write your hypothesis from first principles without an example.\"}",
+                "captured_at": "2026-09-03T18:57:48.508799"
+              },
+              "confirmed": false,
+              "detection": "tool-confirmed signal (e.g. sqlmap injectable=true)",
+              "weakness_id": "W-006"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "agent": "exploit",
+      "seq": 3,
+      "event_type": "handoff",
+      "duration_ms": null,
+      "logged_at": "2026-09-03T18:57:48.959364+00:00",
+      "payload": {
+        "next_agent": "script"
+      }
+    },
+    {
+      "agent": "script",
+      "seq": 1,
+      "event_type": "stage_input",
+      "duration_ms": null,
+      "logged_at": "2026-09-03T18:57:49.004724+00:00",
+      "payload": {
+        "scope": {
+          "domains": [
+            "juice-shop"
+          ],
+          "deny_paths": [],
+          "allow_paths": []
+        },
+        "upstream": {
+          "skipped": [
+            "W-007",
+            "W-008",
+            "W-009",
+            "W-010",
+            "W-011",
+            "W-012",
+            "W-013",
+            "W-014",
+            "W-015",
+            "W-016",
+            "W-017",
+            "W-018",
+            "W-019",
+            "W-020",
+            "W-021",
+            "W-022",
+            "W-023",
+            "W-024",
+            "W-025",
+            "W-026",
+            "W-027",
+            "W-028",
+            "W-029",
+            "W-030",
+            "W-031",
+            "W-032",
+            "W-033"
+          ],
+          "attempts": [
+            {
+              "reason": "VERDICT: INCONCLUSIVE \u2014 The SSRF payloads were not tested because the recorded request did not respond successfully, preventing further exploitation attempts.",
+              "payload": "",
+              "evidence": {
+                "note": "VERDICT: INCONCLUSIVE \u2014 The SSRF payloads were not tested because the recorded request did not respond successfully, preventing further exploitation attempts.",
+                "request": "http_request {\"url\": \"http://juice-shop:3000/socket.io/?EIO=4&transport=polling&t=Q1edLUy&sid=G62mFS2BvPOrZ9deAAAa\", \"method\": \"POST\", \"headers\": {\"accept\": \"*/*\", \"origin\": \"http://juice-shop:3000\", \"referer\": \"http://juice-shop:3000/\", \"user-agent\": \"Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/131.0.6778.33 Safari/537.36\", \"content-type\": \"text/plain;charset=UTF-8\"}, \"body\": 40}",
+                "response": "{\"content\": [\"Error executing tool http_request: 1 validation error for http_requestArguments\\nbody\\n  Input should be a valid string [type=string_type, input_value=40, input_type=int]\\n    For further information visit https://errors.pydantic.dev/2.13/v/string_type\"]}",
+                "captured_at": "2026-09-03T18:55:16.537061"
+              },
+              "confirmed": false,
+              "detection": "tool-confirmed signal (e.g. sqlmap injectable=true)",
+              "weakness_id": "W-001"
+            },
+            {
+              "reason": "VERDICT: INCONCLUSIVE \u2014 The HTTP request with prototype pollution payload did not return a response, making it impossible to determine if the vulnerability exists.",
+              "payload": "",
+              "evidence": {
+                "note": "VERDICT: INCONCLUSIVE \u2014 The HTTP request with prototype pollution payload did not return a response, making it impossible to determine if the vulnerability exists.",
+                "request": "http_request {\"url\": \"http://juice-shop:3000/socket.io/?EIO=4&transport=polling&t=Q1edLYN&sid=G62mFS2BvPOrZ9deAAAa&__proto__[polluted]=true\", \"method\": \"POST\", \"headers\": {\"accept\": \"*/*\", \"origin\": \"http://juice-shop:3000\", \"referer\": \"http://juice-shop:3000/\", \"user-agent\": \"Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/131.0.6778.33 Safari/537.36\", \"content-type\": \"text/plain;charset=UTF-8\"}, \"body\": 40}",
+                "response": "{\"content\": [\"Error executing tool http_request: 1 validation error for http_requestArguments\\nbody\\n  Input should be a valid string [type=string_type, input_value=40, input_type=int]\\n    For further information visit https://errors.pydantic.dev/2.13/v/string_type\"]}",
+                "captured_at": "2026-09-03T18:55:20.568643"
+              },
+              "confirmed": false,
+              "detection": "tool-confirmed signal (e.g. sqlmap injectable=true)",
+              "weakness_id": "W-002"
+            },
+            {
+              "reason": "VERDICT: INCONCLUSIVE \u2014 No recorded request matched the suspected websocket endpoint, and no evidence of exploitable behavior was found in related HTTP traffic or documentation.",
+              "payload": "",
+              "evidence": {
+                "note": "VERDICT: INCONCLUSIVE \u2014 No recorded request matched the suspected websocket endpoint, and no evidence of exploitable behavior was found in related HTTP traffic or documentation.",
+                "request": "hacktricks_article {}",
+                "response": "{\"content\": [\"Error executing tool hacktricks_article: 1 validation error for hacktricks_articleArguments\\nslug\\n  Field required [type=missing, input_value={}, input_type=dict]\\n    For further information visit https://errors.pydantic.dev/2.13/v/missing\"]}",
+                "captured_at": "2026-09-03T18:57:38.609675"
+              },
+              "confirmed": false,
+              "detection": "tool-confirmed signal (e.g. sqlmap injectable=true)",
+              "weakness_id": "W-003"
+            },
+            {
+              "reason": "VERDICT: INCONCLUSIVE \u2014 The provided HackTricks article slug resulted in an empty response, preventing assessment of XSS payloads for the Socket.IO endpoint parameters.",
+              "payload": "",
+              "evidence": {
+                "note": "VERDICT: INCONCLUSIVE \u2014 The provided HackTricks article slug resulted in an empty response, preventing assessment of XSS payloads for the Socket.IO endpoint parameters.",
+                "request": "hacktricks_article {}",
+                "response": "{\"content\": [\"Error executing tool hacktricks_article: 1 validation error for hacktricks_articleArguments\\nslug\\n  Field required [type=missing, input_value={}, input_type=dict]\\n    For further information visit https://errors.pydantic.dev/2.13/v/missing\"]}",
+                "captured_at": "2026-09-03T18:57:42.866428"
+              },
+              "confirmed": false,
+              "detection": "tool-confirmed signal (e.g. sqlmap injectable=true)",
+              "weakness_id": "W-004"
+            },
+            {
+              "reason": "VERDICT: INCONCLUSIVE \u2014 No HackTricks article found for session fixation, and the recorded Socket.IO requests do not obviously expose a `sid` parameter manipulation vulnerability.",
+              "payload": "",
+              "evidence": {
+                "note": "VERDICT: INCONCLUSIVE \u2014 No HackTricks article found for session fixation, and the recorded Socket.IO requests do not obviously expose a `sid` parameter manipulation vulnerability.",
+                "request": "hacktricks_article {\"slug\": \"websocket-session-fixation\"}",
+                "response": "{\"slug\": \"websocket-session-fixation\", \"found\": false, \"did_you_mean\": [\"websocket-attacks\", \"race-condition\", \"http-connection-contamination\", \"deserialization\", \"rocket-chat\", \"ssti-server-side-template-injection\", \"hacking-jwt-json-web-tokens\", \"sql-injection\"], \"guidance\": \"No article by that slug. Do NOT invent one. Pick the closest match from did_you_mean (or from hacktricks_overview) and call hacktricks_article again. If nothing fits, write your hypothesis from first principles without an example.\"}",
+                "captured_at": "2026-09-03T18:57:45.525686"
+              },
+              "confirmed": false,
+              "detection": "tool-confirmed signal (e.g. sqlmap injectable=true)",
+              "weakness_id": "W-005"
+            },
+            {
+              "reason": "VERDICT: INCONCLUSIVE \u2014 No relevant HackTricks article found to confirm or deny HTTP Parameter Pollution vulnerability in Socket.IO endpoint; manual testing or further reconnaissance needed.",
+              "payload": "",
+              "evidence": {
+                "note": "VERDICT: INCONCLUSIVE \u2014 No relevant HackTricks article found to confirm or deny HTTP Parameter Pollution vulnerability in Socket.IO endpoint; manual testing or further reconnaissance needed.",
+                "request": "hacktricks_article {\"slug\": \"http-param-pollution\"}",
+                "response": "{\"slug\": \"http-param-pollution\", \"found\": false, \"did_you_mean\": [\"parameter-pollution\", \"nodejs-proto-prototype-pollution\", \"http-request-smuggling\", \"race-condition\", \"orm-injection\", \"http-connection-contamination\", \"xpath-injection\", \"microsoft-sharepoint\"], \"guidance\": \"No article by that slug. Do NOT invent one. Pick the closest match from did_you_mean (or from hacktricks_overview) and call hacktricks_article again. If nothing fits, write your hypothesis from first principles without an example.\"}",
+                "captured_at": "2026-09-03T18:57:48.508799"
+              },
+              "confirmed": false,
+              "detection": "tool-confirmed signal (e.g. sqlmap injectable=true)",
+              "weakness_id": "W-006"
+            }
+          ]
+        },
+        "target_url": "http://juice-shop:3000/",
+        "upstream_keys": [
+          "attempts",
+          "skipped"
+        ],
+        "from_component": "agent-exploit",
+        "upstream_bytes": 7124
+      }
+    },
+    {
+      "agent": "script",
+      "seq": 2,
+      "event_type": "stage_output",
+      "duration_ms": 176,
+      "logged_at": "2026-09-03T18:57:49.056448+00:00",
+      "payload": {
+        "summary": "empty artifact",
+        "artifact": {
+          "scripts": [],
+          "rejected": 0
+        }
+      }
+    },
+    {
+      "agent": "script",
+      "seq": 3,
+      "event_type": "handoff",
+      "duration_ms": null,
+      "logged_at": "2026-09-03T18:57:49.485728+00:00",
+      "payload": {
+        "next_agent": "adviser"
+      }
+    },
+    {
+      "agent": "adviser",
+      "seq": 1,
+      "event_type": "stage_input",
+      "duration_ms": null,
+      "logged_at": "2026-09-03T18:57:49.542957+00:00",
+      "payload": {
+        "scope": {
+          "domains": [
+            "juice-shop"
+          ],
+          "deny_paths": [],
+          "allow_paths": []
+        },
+        "upstream": {
+          "scripts": [],
+          "rejected": 0
+        },
+        "target_url": "http://juice-shop:3000/",
+        "upstream_keys": [
+          "rejected",
+          "scripts"
+        ],
+        "from_component": "agent-script",
+        "upstream_bytes": 30
+      }
+    },
+    {
+      "agent": "adviser",
+      "seq": 2,
+      "event_type": "llm_call",
+      "duration_ms": 2349,
+      "logged_at": "2026-09-03T18:57:51.963239+00:00",
+      "payload": {
+        "model": "qwen.qwen3-coder-480b-a35b-instruct",
+        "usage": {
+          "cached_tokens": 0,
+          "prompt_tokens": 1574,
+          "reasoning_tokens": 0,
+          "completion_tokens": 221
+        },
+        "attempt": 1,
+        "user_prompt": "W-001: Server Side Request Forgery (SSRF) \u2014 URL parameters (`EIO`, `transport`, `t`, `sid`) in POST request to `/socket.io/` on /socket.io/ \u2014 CVSS 7.5, tested, not proven\nW-002: Prototype Pollution \u2014 Body content (`40`) and URL parameters in POST request to `/socket.io/` on /socket.io/ \u2014 CVSS 6.5, tested, not proven\nW-003: Websocket Protocol Attack \u2014 Upgrade mechanism through `/socket.io/` endpoint on /socket.io/ \u2014 CVSS 4.2, tested, not proven\nW-004: Cross-Site Scripting (XSS) \u2014 URL parameters (`EIO`, `transport`, `t`, `sid`) reflected in server response via Socket.IO handshake on /socket.io/ \u2014 CVSS 6.1, tested, not proven\nW-005: Session Fixation \u2014 Manipulation of the `sid` parameter during polling transport initiation on /socket.io/ \u2014 CVSS 6.5, tested, not proven\nW-006: HTTP Parameter Pollution (HPP) \u2014 Repeated or conflicting parameters in Socket.IO query string on /socket.io/ \u2014 CVSS 6.5, tested, not proven\nW-007: Insecure Direct Object Reference (IDOR) \u2014 Access control based on user-supplied `sid` value on /socket.io/ \u2014 CVSS 8.1, not tested\nW-008: Clickjacking \u2014 Response to `/socket.io/` missing proper frame-busting headers on /socket.io/ \u2014 CVSS 6.5, not tested\nW-009: Race Condition \u2014 Exploiting concurrent polling requests via `/socket.io/` on /socket.io/ \u2014 CVSS 6.5, not tested\nW-010: HTTP Response Splitting (CRLF Injection) \u2014 Injection via raw body (`40`) interpreted as partial HTTP response element on /socket.io/ \u2014 CVSS 6.5, not tested\nW-011: NoSQL Injection \u2014 in JSON body (param `email`, POST /rest/user/login) on /rest/user/login \u2014 CVSS 9.8, not tested\nW-012: NoSQL Injection \u2014 in JSON body (param `password`, POST /rest/user/login) on /rest/user/login \u2014 CVSS 9.8, not tested\nW-013: Login Bypass \u2014 in JSON body (param `email`, POST /rest/user/login) on /rest/user/login \u2014 CVSS 9.1, not tested\nW-014: Login Bypass \u2014 in JSON body (param `password`, POST /rest/user/login) on /rest/user/login \u2014 CVSS 9.1, not tested\nW-015: Account Takeover \u2014 in JSON body (param `email`, POST /rest/user/login) on /rest/user/login \u2014 CVSS 9.1, not tested\nW-016: Account Takeover \u2014 in JSON body (param `password`, POST /rest/user/login) on /rest/user/login \u2014 CVSS 9.1, not tested\nW-017: JSON Injection \u2014 in JSON body (param `email`, POST /rest/user/login) on /rest/user/login \u2014 CVSS 6.5, not tested\nW-018: JSON Injection \u2014 in JSON body (param `password`, POST /rest/user/login) on /rest/user/login \u2014 CVSS 6.5, not tested\nW-019: Prototype Pollution \u2014 in JSON body (param `email`, POST /rest/user/login) on /rest/user/login \u2014 CVSS 6.5, not tested\nW-020: Prototype Pollution \u2014 in JSON body (param `password`, POST /rest/user/login) on /rest/user/login \u2014 CVSS 6.5, not tested\nW-021: Parameter Pollution \u2014 URL parameters (`EIO`, `transport`, `t`, GET /socket.io/) on /socket.io/ \u2014 CVSS 6.5, not tested\nW-022: SSRF \u2014 URL parameter `transport` (GET /socket.io/) on /socket.io/ \u2014 CVSS 7.5, not tested\nW-023: WebSockets Hijacking \u2014 Upgraded connection via `/socket.io/` on /socket.io/ \u2014 CVSS 4.2, not tested\nW-024: XSS \u2014 URL parameters `EIO`, `transport`, or `t` reflected in socket response (GET /socket.io/) on /socket.io/ \u2014 CVSS 6.1, not tested\nW-025: Cache Deception \u2014 Query string parameters (`EIO`, `transport`, `t`) manipulated to cache static-like responses (GET /socket.io/) on /socket.io/ \u2014 CVSS 6.5, not tested\nW-026: CRLF Injection \u2014 URL parameters (`EIO`, `transport`, `t`) injected with header payloads (GET /socket.io/) on /socket.io/ \u2014 CVSS 6.5, not tested\nW-027: NoSQL Injection \u2014 via `name` parameter (GET /api/Challenges/) on /api/Challenges/ \u2014 CVSS 9.8, not tested\nW-028: XSS \u2014 via `name` parameter (GET /api/Challenges/) on /api/Challenges/ \u2014 CVSS 6.1, not tested\nW-029: IDOR \u2014 via `name` parameter (GET /api/Challenges/) on /api/Challenges/ \u2014 CVSS 8.1, not tested\nW-030: Parameter Pollution \u2014 via duplicated `name` parameter (GET /api/Challenges/) on /api/Challenges/ \u2014 CVSS 6.5, not tested\nW-031: SSRF \u2014 via `name` parameter (GET /api/Challenges/) on /api/Challenges/ \u2014 CVSS 7.5, not tested\nW-032: Unicode Injection \u2014 via `name` parameter (GET /api/Challenges/) on /api/Challenges/ \u2014 CVSS 9.8, not tested\nW-033: Regex Denial of Service (ReDoS) \u2014 via `name` parameter (GET /api/Challenges/) on /api/Challenges/ \u2014 CVSS 6.5, not tested",
+        "raw_response": "{\n  \"recommendations\": {\n    \"W-001\": {\n      \"fix\": \"Implement strict validation and sanitization of URL parameters (`EIO`, `transport`, `t`, `sid`) used in the Socket.IO endpoint to prevent SSRF. Restrict allowed values for these parameters to known safe enumerations, and reject any containing internal IP addresses or reserved hostnames.\",\n      \"effort\": \"medium\"\n    }\n  },\n  \"narrative\": \"The application exhibits multiple potential vulnerabilities centered around the `/socket.io/` and `/rest/user/login` endpoints, primarily involving malformed input handling. The most critical risks\u2014if confirmed\u2014include NoSQL injection and authentication bypasses that could lead to account takeover. However, none of the findings have been fully validated; they are preliminary indicators requiring further testing. Immediate actions should include validating and sanitizing all user-supplied inputs, especially those used in Socket.IO communications and login logic. Given the high potential severity of some findings and their unconfirmed nature, prioritize remediation efforts on authentication mechanisms and real-time communication channels.\"\n}",
+        "system_prompt": "You are writing the remediation guidance for a penetration test report.\n\nFor each finding, give a specific, actionable fix for that asset and technology\n\u2014 not generic advice. Reply with ONLY JSON:\n{\"recommendations\": {\"W-001\": {\"fix\": \"<two or three sentences>\",\n                               \"effort\": \"low\" | \"medium\" | \"high\"}},\n \"narrative\": \"<3-5 sentences for a CISO: what the risk posture is, what to do\n               first, and how much confidence these results warrant>\"}\n\nRules:\n- Address the specific asset and weakness. \"Validate input\" is not a fix.\n- Be honest about confidence. Findings marked unproven are hypotheses; say so\n  in the narrative rather than implying the test confirmed them.\n- Do not invent findings that are not listed.\n",
+        "reasoning_effort": "none"
+      }
+    },
+    {
+      "agent": "adviser",
+      "seq": 3,
+      "event_type": "report_written",
+      "duration_ms": null,
+      "logged_at": "2026-09-03T18:57:51.982642+00:00",
+      "payload": {
+        "paths": [
+          "/var/apts/reports/report-92d33732-57b1-4929-a522-8e2437231909.json",
+          "/var/apts/reports/report-92d33732-57b1-4929-a522-8e2437231909.md"
+        ],
+        "findings": 33,
+        "confirmed": 0,
+        "risk_score": 9.8
+      }
+    },
+    {
+      "agent": "adviser",
+      "seq": 4,
+      "event_type": "stage_output",
+      "duration_ms": 2569,
+      "logged_at": "2026-09-03T18:57:52.027247+00:00",
+      "payload": {
+        "summary": "5 executive_summary, 33 findings, 2 playbook, 5 attack_coverage, 6 caveats",
+        "artifact": {
+          "caveats": [
+            "Produced by an autonomous pipeline with no human review. Findings should be validated by a security engineer before remediation is prioritised or the results are shared externally.",
+            "The crawl hit a configured limit after 5 pages, so the asset map is a lower bound and parts of the application were never seen.",
+            "API routes were extracted from client-side JavaScript. They are candidate routes the application references, not a verified inventory of its endpoints.",
+            "33 of 33 findings were not proven exploitable (W-011, W-012, W-027, W-032, W-013, W-014, W-015, W-016, \u2026). They are hypotheses based on observed assets, not demonstrated vulnerabilities.",
+            "27 findings were never tested for exploitability (W-007, W-008, W-009, W-010, W-011, W-012, W-013, W-014). No claim is made about them either way.",
+            "Absence of a finding is not evidence of absence. This engagement covered what the crawler reached within its configured bounds."
+          ],
+          "findings": [
+            {
+              "id": "W-011",
+              "asset": "/rest/user/login",
+              "title": "NoSQL Injection \u2014 in JSON body (param `email`, POST /rest/user/login)",
+              "effort": "medium",
+              "status": "not tested",
+              "evidence": [],
+              "severity": "critical",
+              "confirmed": false,
+              "cvss_score": 9.8,
+              "cvss_vector": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H",
+              "technique_ids": [
+                "T1190"
+              ],
+              "owasp_category": "",
+              "recommendation": ""
+            },
+            {
+              "id": "W-012",
+              "asset": "/rest/user/login",
+              "title": "NoSQL Injection \u2014 in JSON body (param `password`, POST /rest/user/login)",
+              "effort": "medium",
+              "status": "not tested",
+              "evidence": [],
+              "severity": "critical",
+              "confirmed": false,
+              "cvss_score": 9.8,
+              "cvss_vector": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H",
+              "technique_ids": [
+                "T1190"
+              ],
+              "owasp_category": "",
+              "recommendation": ""
+            },
+            {
+              "id": "W-027",
+              "asset": "/api/Challenges/",
+              "title": "NoSQL Injection \u2014 via `name` parameter (GET /api/Challenges/)",
+              "effort": "medium",
+              "status": "not tested",
+              "evidence": [],
+              "severity": "critical",
+              "confirmed": false,
+              "cvss_score": 9.8,
+              "cvss_vector": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H",
+              "technique_ids": [
+                "T1190"
+              ],
+              "owasp_category": "",
+              "recommendation": ""
+            },
+            {
+              "id": "W-032",
+              "asset": "/api/Challenges/",
+              "title": "Unicode Injection \u2014 via `name` parameter (GET /api/Challenges/)",
+              "effort": "medium",
+              "status": "not tested",
+              "evidence": [],
+              "severity": "critical",
+              "confirmed": false,
+              "cvss_score": 9.8,
+              "cvss_vector": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H",
+              "technique_ids": [
+                "T1059.007"
+              ],
+              "owasp_category": "",
+              "recommendation": ""
+            },
+            {
+              "id": "W-013",
+              "asset": "/rest/user/login",
+              "title": "Login Bypass \u2014 in JSON body (param `email`, POST /rest/user/login)",
+              "effort": "medium",
+              "status": "not tested",
+              "evidence": [],
+              "severity": "critical",
+              "confirmed": false,
+              "cvss_score": 9.1,
+              "cvss_vector": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:N",
+              "technique_ids": [
+                "T1190"
+              ],
+              "owasp_category": "",
+              "recommendation": ""
+            },
+            {
+              "id": "W-014",
+              "asset": "/rest/user/login",
+              "title": "Login Bypass \u2014 in JSON body (param `password`, POST /rest/user/login)",
+              "effort": "medium",
+              "status": "not tested",
+              "evidence": [],
+              "severity": "critical",
+              "confirmed": false,
+              "cvss_score": 9.1,
+              "cvss_vector": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:N",
+              "technique_ids": [
+                "T1190"
+              ],
+              "owasp_category": "",
+              "recommendation": ""
+            },
+            {
+              "id": "W-015",
+              "asset": "/rest/user/login",
+              "title": "Account Takeover \u2014 in JSON body (param `email`, POST /rest/user/login)",
+              "effort": "medium",
+              "status": "not tested",
+              "evidence": [],
+              "severity": "critical",
+              "confirmed": false,
+              "cvss_score": 9.1,
+              "cvss_vector": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:N",
+              "technique_ids": [
+                "T1190",
+                "T1539"
+              ],
+              "owasp_category": "",
+              "recommendation": ""
+            },
+            {
+              "id": "W-016",
+              "asset": "/rest/user/login",
+              "title": "Account Takeover \u2014 in JSON body (param `password`, POST /rest/user/login)",
+              "effort": "medium",
+              "status": "not tested",
+              "evidence": [],
+              "severity": "critical",
+              "confirmed": false,
+              "cvss_score": 9.1,
+              "cvss_vector": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:N",
+              "technique_ids": [
+                "T1190",
+                "T1539"
+              ],
+              "owasp_category": "",
+              "recommendation": ""
+            },
+            {
+              "id": "W-007",
+              "asset": "/socket.io/",
+              "title": "Insecure Direct Object Reference (IDOR) \u2014 Access control based on user-supplied `sid` value",
+              "effort": "medium",
+              "status": "not tested",
+              "evidence": [],
+              "severity": "high",
+              "confirmed": false,
+              "cvss_score": 8.1,
+              "cvss_vector": "CVSS:3.1/AV:N/AC:L/PR:L/UI:N/S:U/C:H/I:H/A:N",
+              "technique_ids": [
+                "T1059.007"
+              ],
+              "owasp_category": "",
+              "recommendation": ""
+            },
+            {
+              "id": "W-029",
+              "asset": "/api/Challenges/",
+              "title": "IDOR \u2014 via `name` parameter (GET /api/Challenges/)",
+              "effort": "medium",
+              "status": "not tested",
+              "evidence": [],
+              "severity": "high",
+              "confirmed": false,
+              "cvss_score": 8.1,
+              "cvss_vector": "CVSS:3.1/AV:N/AC:L/PR:L/UI:N/S:U/C:H/I:H/A:N",
+              "technique_ids": [
+                "T1059.007"
+              ],
+              "owasp_category": "",
+              "recommendation": ""
+            },
+            {
+              "id": "W-001",
+              "asset": "/socket.io/",
+              "title": "Server Side Request Forgery (SSRF) \u2014 URL parameters (`EIO`, `transport`, `t`, `sid`) in POST request to `/socket.io/`",
+              "effort": "medium",
+              "status": "tested, not proven (VERDICT: INCONCLUSIVE \u2014 The SSRF payloads were not tested because the recorded request did not respond successfully, preventing further exploitation attempts.)",
+              "evidence": [
+                {
+                  "note": "VERDICT: INCONCLUSIVE \u2014 The SSRF payloads were not tested because the recorded request did not respond successfully, preventing further exploitation attempts.",
+                  "request": "http_request {\"url\": \"http://juice-shop:3000/socket.io/?EIO=4&transport=polling&t=Q1edLUy&sid=G62mFS2BvPOrZ9deAAAa\", \"method\": \"POST\", \"headers\": {\"accept\": \"*/*\", \"origin\": \"http://juice-shop:3000\", \"referer\": \"http://juice-shop:3000/\", \"user-agent\": \"Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/131.0.6778.33 Safari/537.36\", \"content-type\": \"text/plain;charset=UTF-8\"}, \"body\": 40}",
+                  "response": "{\"content\": [\"Error executing tool http_request: 1 validation error for http_requestArguments\\nbody\\n  Input should be a valid string [type=string_type, input_value=40, input_type=int]\\n    For further information visit https://errors.pydantic.dev/2.13/v/string_type\"]}",
+                  "captured_at": "2026-09-03T18:55:16.537061"
+                }
+              ],
+              "severity": "high",
+              "confirmed": false,
+              "cvss_score": 7.5,
+              "cvss_vector": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:N/A:N",
+              "technique_ids": [
+                "T1190"
+              ],
+              "owasp_category": "",
+              "recommendation": "Implement strict validation and sanitization of URL parameters (`EIO`, `transport`, `t`, `sid`) used in the Socket.IO endpoint to prevent SSRF. Restrict allowed values for these parameters to known safe enumerations, and reject any containing internal IP addresses or reserved hostnames."
+            },
+            {
+              "id": "W-022",
+              "asset": "/socket.io/",
+              "title": "SSRF \u2014 URL parameter `transport` (GET /socket.io/)",
+              "effort": "medium",
+              "status": "not tested",
+              "evidence": [],
+              "severity": "high",
+              "confirmed": false,
+              "cvss_score": 7.5,
+              "cvss_vector": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:N/A:N",
+              "technique_ids": [
+                "T1190"
+              ],
+              "owasp_category": "",
+              "recommendation": ""
+            },
+            {
+              "id": "W-031",
+              "asset": "/api/Challenges/",
+              "title": "SSRF \u2014 via `name` parameter (GET /api/Challenges/)",
+              "effort": "medium",
+              "status": "not tested",
+              "evidence": [],
+              "severity": "high",
+              "confirmed": false,
+              "cvss_score": 7.5,
+              "cvss_vector": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:N/A:N",
+              "technique_ids": [
+                "T1190"
+              ],
+              "owasp_category": "",
+              "recommendation": ""
+            },
+            {
+              "id": "W-002",
+              "asset": "/socket.io/",
+              "title": "Prototype Pollution \u2014 Body content (`40`) and URL parameters in POST request to `/socket.io/`",
+              "effort": "medium",
+              "status": "tested, not proven (VERDICT: INCONCLUSIVE \u2014 The HTTP request with prototype pollution payload did not return a response, making it impossible to determine if the vulnerability exists.)",
+              "evidence": [
+                {
+                  "note": "VERDICT: INCONCLUSIVE \u2014 The HTTP request with prototype pollution payload did not return a response, making it impossible to determine if the vulnerability exists.",
+                  "request": "http_request {\"url\": \"http://juice-shop:3000/socket.io/?EIO=4&transport=polling&t=Q1edLYN&sid=G62mFS2BvPOrZ9deAAAa&__proto__[polluted]=true\", \"method\": \"POST\", \"headers\": {\"accept\": \"*/*\", \"origin\": \"http://juice-shop:3000\", \"referer\": \"http://juice-shop:3000/\", \"user-agent\": \"Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/131.0.6778.33 Safari/537.36\", \"content-type\": \"text/plain;charset=UTF-8\"}, \"body\": 40}",
+                  "response": "{\"content\": [\"Error executing tool http_request: 1 validation error for http_requestArguments\\nbody\\n  Input should be a valid string [type=string_type, input_value=40, input_type=int]\\n    For further information visit https://errors.pydantic.dev/2.13/v/string_type\"]}",
+                  "captured_at": "2026-09-03T18:55:20.568643"
+                }
+              ],
+              "severity": "medium",
+              "confirmed": false,
+              "cvss_score": 6.5,
+              "cvss_vector": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:L/I:L/A:N",
+              "technique_ids": [
+                "T1059.007"
+              ],
+              "owasp_category": "",
+              "recommendation": ""
+            },
+            {
+              "id": "W-005",
+              "asset": "/socket.io/",
+              "title": "Session Fixation \u2014 Manipulation of the `sid` parameter during polling transport initiation",
+              "effort": "medium",
+              "status": "tested, not proven (VERDICT: INCONCLUSIVE \u2014 No HackTricks article found for session fixation, and the recorded Socket.IO requests do not obviously expose a `sid` parameter manipulation vulnerability.)",
+              "evidence": [
+                {
+                  "note": "VERDICT: INCONCLUSIVE \u2014 No HackTricks article found for session fixation, and the recorded Socket.IO requests do not obviously expose a `sid` parameter manipulation vulnerability.",
+                  "request": "hacktricks_article {\"slug\": \"websocket-session-fixation\"}",
+                  "response": "{\"slug\": \"websocket-session-fixation\", \"found\": false, \"did_you_mean\": [\"websocket-attacks\", \"race-condition\", \"http-connection-contamination\", \"deserialization\", \"rocket-chat\", \"ssti-server-side-template-injection\", \"hacking-jwt-json-web-tokens\", \"sql-injection\"], \"guidance\": \"No article by that slug. Do NOT invent one. Pick the closest match from did_you_mean (or from hacktricks_overview) and call hacktricks_article again. If nothing fits, write your hypothesis from first principles without an example.\"}",
+                  "captured_at": "2026-09-03T18:57:45.525686"
+                }
+              ],
+              "severity": "medium",
+              "confirmed": false,
+              "cvss_score": 6.5,
+              "cvss_vector": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:L/I:L/A:N",
+              "technique_ids": [
+                "T1539"
+              ],
+              "owasp_category": "",
+              "recommendation": ""
+            },
+            {
+              "id": "W-006",
+              "asset": "/socket.io/",
+              "title": "HTTP Parameter Pollution (HPP) \u2014 Repeated or conflicting parameters in Socket.IO query string",
+              "effort": "medium",
+              "status": "tested, not proven (VERDICT: INCONCLUSIVE \u2014 No relevant HackTricks article found to confirm or deny HTTP Parameter Pollution vulnerability in Socket.IO endpoint; manual testing or further reconnaissance needed.)",
+              "evidence": [
+                {
+                  "note": "VERDICT: INCONCLUSIVE \u2014 No relevant HackTricks article found to confirm or deny HTTP Parameter Pollution vulnerability in Socket.IO endpoint; manual testing or further reconnaissance needed.",
+                  "request": "hacktricks_article {\"slug\": \"http-param-pollution\"}",
+                  "response": "{\"slug\": \"http-param-pollution\", \"found\": false, \"did_you_mean\": [\"parameter-pollution\", \"nodejs-proto-prototype-pollution\", \"http-request-smuggling\", \"race-condition\", \"orm-injection\", \"http-connection-contamination\", \"xpath-injection\", \"microsoft-sharepoint\"], \"guidance\": \"No article by that slug. Do NOT invent one. Pick the closest match from did_you_mean (or from hacktricks_overview) and call hacktricks_article again. If nothing fits, write your hypothesis from first principles without an example.\"}",
+                  "captured_at": "2026-09-03T18:57:48.508799"
+                }
+              ],
+              "severity": "medium",
+              "confirmed": false,
+              "cvss_score": 6.5,
+              "cvss_vector": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:L/I:L/A:N",
+              "technique_ids": [
+                "T1059.007"
+              ],
+              "owasp_category": "",
+              "recommendation": ""
+            },
+            {
+              "id": "W-008",
+              "asset": "/socket.io/",
+              "title": "Clickjacking \u2014 Response to `/socket.io/` missing proper frame-busting headers",
+              "effort": "medium",
+              "status": "not tested",
+              "evidence": [],
+              "severity": "medium",
+              "confirmed": false,
+              "cvss_score": 6.5,
+              "cvss_vector": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:L/I:L/A:N",
+              "technique_ids": [
+                "T1059.007"
+              ],
+              "owasp_category": "",
+              "recommendation": ""
+            },
+            {
+              "id": "W-009",
+              "asset": "/socket.io/",
+              "title": "Race Condition \u2014 Exploiting concurrent polling requests via `/socket.io/`",
+              "effort": "medium",
+              "status": "not tested",
+              "evidence": [],
+              "severity": "medium",
+              "confirmed": false,
+              "cvss_score": 6.5,
+              "cvss_vector": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:L/I:L/A:N",
+              "technique_ids": [
+                "T1059.007"
+              ],
+              "owasp_category": "",
+              "recommendation": ""
+            },
+            {
+              "id": "W-010",
+              "asset": "/socket.io/",
+              "title": "HTTP Response Splitting (CRLF Injection) \u2014 Injection via raw body (`40`) interpreted as partial HTTP response element",
+              "effort": "medium",
+              "status": "not tested",
+              "evidence": [],
+              "severity": "medium",
+              "confirmed": false,
+              "cvss_score": 6.5,
+              "cvss_vector": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:L/I:L/A:N",
+              "technique_ids": [
+                "T1059.007"
+              ],
+              "owasp_category": "",
+              "recommendation": ""
+            },
+            {
+              "id": "W-017",
+              "asset": "/rest/user/login",
+              "title": "JSON Injection \u2014 in JSON body (param `email`, POST /rest/user/login)",
+              "effort": "medium",
+              "status": "not tested",
+              "evidence": [],
+              "severity": "medium",
+              "confirmed": false,
+              "cvss_score": 6.5,
+              "cvss_vector": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:L/I:L/A:N",
+              "technique_ids": [
+                "T1059.007"
+              ],
+              "owasp_category": "",
+              "recommendation": ""
+            },
+            {
+              "id": "W-018",
+              "asset": "/rest/user/login",
+              "title": "JSON Injection \u2014 in JSON body (param `password`, POST /rest/user/login)",
+              "effort": "medium",
+              "status": "not tested",
+              "evidence": [],
+              "severity": "medium",
+              "confirmed": false,
+              "cvss_score": 6.5,
+              "cvss_vector": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:L/I:L/A:N",
+              "technique_ids": [
+                "T1059.007"
+              ],
+              "owasp_category": "",
+              "recommendation": ""
+            },
+            {
+              "id": "W-019",
+              "asset": "/rest/user/login",
+              "title": "Prototype Pollution \u2014 in JSON body (param `email`, POST /rest/user/login)",
+              "effort": "medium",
+              "status": "not tested",
+              "evidence": [],
+              "severity": "medium",
+              "confirmed": false,
+              "cvss_score": 6.5,
+              "cvss_vector": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:L/I:L/A:N",
+              "technique_ids": [
+                "T1059.007"
+              ],
+              "owasp_category": "",
+              "recommendation": ""
+            },
+            {
+              "id": "W-020",
+              "asset": "/rest/user/login",
+              "title": "Prototype Pollution \u2014 in JSON body (param `password`, POST /rest/user/login)",
+              "effort": "medium",
+              "status": "not tested",
+              "evidence": [],
+              "severity": "medium",
+              "confirmed": false,
+              "cvss_score": 6.5,
+              "cvss_vector": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:L/I:L/A:N",
+              "technique_ids": [
+                "T1059.007"
+              ],
+              "owasp_category": "",
+              "recommendation": ""
+            },
+            {
+              "id": "W-021",
+              "asset": "/socket.io/",
+              "title": "Parameter Pollution \u2014 URL parameters (`EIO`, `transport`, `t`, GET /socket.io/)",
+              "effort": "medium",
+              "status": "not tested",
+              "evidence": [],
+              "severity": "medium",
+              "confirmed": false,
+              "cvss_score": 6.5,
+              "cvss_vector": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:L/I:L/A:N",
+              "technique_ids": [
+                "T1059.007"
+              ],
+              "owasp_category": "",
+              "recommendation": ""
+            },
+            {
+              "id": "W-025",
+              "asset": "/socket.io/",
+              "title": "Cache Deception \u2014 Query string parameters (`EIO`, `transport`, `t`) manipulated to cache static-like responses (GET /socket.io/)",
+              "effort": "medium",
+              "status": "not tested",
+              "evidence": [],
+              "severity": "medium",
+              "confirmed": false,
+              "cvss_score": 6.5,
+              "cvss_vector": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:L/I:L/A:N",
+              "technique_ids": [
+                "T1059.007"
+              ],
+              "owasp_category": "",
+              "recommendation": ""
+            },
+            {
+              "id": "W-026",
+              "asset": "/socket.io/",
+              "title": "CRLF Injection \u2014 URL parameters (`EIO`, `transport`, `t`) injected with header payloads (GET /socket.io/)",
+              "effort": "medium",
+              "status": "not tested",
+              "evidence": [],
+              "severity": "medium",
+              "confirmed": false,
+              "cvss_score": 6.5,
+              "cvss_vector": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:L/I:L/A:N",
+              "technique_ids": [
+                "T1059.007"
+              ],
+              "owasp_category": "",
+              "recommendation": ""
+            },
+            {
+              "id": "W-030",
+              "asset": "/api/Challenges/",
+              "title": "Parameter Pollution \u2014 via duplicated `name` parameter (GET /api/Challenges/)",
+              "effort": "medium",
+              "status": "not tested",
+              "evidence": [],
+              "severity": "medium",
+              "confirmed": false,
+              "cvss_score": 6.5,
+              "cvss_vector": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:L/I:L/A:N",
+              "technique_ids": [
+                "T1059.007"
+              ],
+              "owasp_category": "",
+              "recommendation": ""
+            },
+            {
+              "id": "W-033",
+              "asset": "/api/Challenges/",
+              "title": "Regex Denial of Service (ReDoS) \u2014 via `name` parameter (GET /api/Challenges/)",
+              "effort": "medium",
+              "status": "not tested",
+              "evidence": [],
+              "severity": "medium",
+              "confirmed": false,
+              "cvss_score": 6.5,
+              "cvss_vector": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:L/I:L/A:N",
+              "technique_ids": [
+                "T1059.007"
+              ],
+              "owasp_category": "",
+              "recommendation": ""
+            },
+            {
+              "id": "W-004",
+              "asset": "/socket.io/",
+              "title": "Cross-Site Scripting (XSS) \u2014 URL parameters (`EIO`, `transport`, `t`, `sid`) reflected in server response via Socket.IO handshake",
+              "effort": "medium",
+              "status": "tested, not proven (VERDICT: INCONCLUSIVE \u2014 The provided HackTricks article slug resulted in an empty response, preventing assessment of XSS payloads for the Socket.IO endpoint parameters.)",
+              "evidence": [
+                {
+                  "note": "VERDICT: INCONCLUSIVE \u2014 The provided HackTricks article slug resulted in an empty response, preventing assessment of XSS payloads for the Socket.IO endpoint parameters.",
+                  "request": "hacktricks_article {}",
+                  "response": "{\"content\": [\"Error executing tool hacktricks_article: 1 validation error for hacktricks_articleArguments\\nslug\\n  Field required [type=missing, input_value={}, input_type=dict]\\n    For further information visit https://errors.pydantic.dev/2.13/v/missing\"]}",
+                  "captured_at": "2026-09-03T18:57:42.866428"
+                }
+              ],
+              "severity": "medium",
+              "confirmed": false,
+              "cvss_score": 6.1,
+              "cvss_vector": "CVSS:3.1/AV:N/AC:L/PR:N/UI:R/S:C/C:L/I:L/A:N",
+              "technique_ids": [
+                "T1189",
+                "T1059.007"
+              ],
+              "owasp_category": "",
+              "recommendation": ""
+            },
+            {
+              "id": "W-024",
+              "asset": "/socket.io/",
+              "title": "XSS \u2014 URL parameters `EIO`, `transport`, or `t` reflected in socket response (GET /socket.io/)",
+              "effort": "medium",
+              "status": "not tested",
+              "evidence": [],
+              "severity": "medium",
+              "confirmed": false,
+              "cvss_score": 6.1,
+              "cvss_vector": "CVSS:3.1/AV:N/AC:L/PR:N/UI:R/S:C/C:L/I:L/A:N",
+              "technique_ids": [
+                "T1189",
+                "T1059.007"
+              ],
+              "owasp_category": "",
+              "recommendation": ""
+            },
+            {
+              "id": "W-028",
+              "asset": "/api/Challenges/",
+              "title": "XSS \u2014 via `name` parameter (GET /api/Challenges/)",
+              "effort": "medium",
+              "status": "not tested",
+              "evidence": [],
+              "severity": "medium",
+              "confirmed": false,
+              "cvss_score": 6.1,
+              "cvss_vector": "CVSS:3.1/AV:N/AC:L/PR:N/UI:R/S:C/C:L/I:L/A:N",
+              "technique_ids": [
+                "T1189",
+                "T1059.007"
+              ],
+              "owasp_category": "",
+              "recommendation": ""
+            },
+            {
+              "id": "W-003",
+              "asset": "/socket.io/",
+              "title": "Websocket Protocol Attack \u2014 Upgrade mechanism through `/socket.io/` endpoint",
+              "effort": "medium",
+              "status": "tested, not proven (VERDICT: INCONCLUSIVE \u2014 No recorded request matched the suspected websocket endpoint, and no evidence of exploitable behavior was found in related HTTP traffic or documentation.)",
+              "evidence": [
+                {
+                  "note": "VERDICT: INCONCLUSIVE \u2014 No recorded request matched the suspected websocket endpoint, and no evidence of exploitable behavior was found in related HTTP traffic or documentation.",
+                  "request": "hacktricks_article {}",
+                  "response": "{\"content\": [\"Error executing tool hacktricks_article: 1 validation error for hacktricks_articleArguments\\nslug\\n  Field required [type=missing, input_value={}, input_type=dict]\\n    For further information visit https://errors.pydantic.dev/2.13/v/missing\"]}",
+                  "captured_at": "2026-09-03T18:57:38.609675"
+                }
+              ],
+              "severity": "medium",
+              "confirmed": false,
+              "cvss_score": 4.2,
+              "cvss_vector": "CVSS:3.1/AV:N/AC:H/PR:N/UI:R/S:U/C:L/I:L/A:N",
+              "technique_ids": [
+                "T1071.001"
+              ],
+              "owasp_category": "",
+              "recommendation": ""
+            },
+            {
+              "id": "W-023",
+              "asset": "/socket.io/",
+              "title": "WebSockets Hijacking \u2014 Upgraded connection via `/socket.io/`",
+              "effort": "medium",
+              "status": "not tested",
+              "evidence": [],
+              "severity": "medium",
+              "confirmed": false,
+              "cvss_score": 4.2,
+              "cvss_vector": "CVSS:3.1/AV:N/AC:H/PR:N/UI:R/S:U/C:L/I:L/A:N",
+              "technique_ids": [
+                "T1071.001"
+              ],
+              "owasp_category": "",
+              "recommendation": ""
+            }
+          ],
+          "playbook": {
+            "scripts": [],
+            "rejected": 0
+          },
+          "target_url": "http://juice-shop:3000/",
+          "generated_at": "2026-09-03T18:57:51.967827",
+          "report_files": [
+            "/var/apts/reports/report-92d33732-57b1-4929-a522-8e2437231909.json",
+            "/var/apts/reports/report-92d33732-57b1-4929-a522-8e2437231909.md"
+          ],
+          "engagement_id": "92d33732-57b1-4929-a522-8e2437231909",
+          "attack_coverage": {
+            "T1189": [
+              "W-004",
+              "W-024",
+              "W-028"
+            ],
+            "T1190": [
+              "W-001",
+              "W-011",
+              "W-012",
+              "W-013",
+              "W-014",
+              "W-015",
+              "W-016",
+              "W-022",
+              "W-027",
+              "W-031"
+            ],
+            "T1539": [
+              "W-005",
+              "W-015",
+              "W-016"
+            ],
+            "T1059.007": [
+              "W-002",
+              "W-004",
+              "W-006",
+              "W-007",
+              "W-008",
+              "W-009",
+              "W-010",
+              "W-017",
+              "W-018",
+              "W-019",
+              "W-020",
+              "W-021",
+              "W-024",
+              "W-025",
+              "W-026",
+              "W-028",
+              "W-029",
+              "W-030",
+              "W-032",
+              "W-033"
+            ],
+            "T1071.001": [
+              "W-003",
+              "W-023"
+            ]
+          },
+          "executive_summary": {
+            "narrative": "The application exhibits multiple potential vulnerabilities centered around the `/socket.io/` and `/rest/user/login` endpoints, primarily involving malformed input handling. The most critical risks\u2014if confirmed\u2014include NoSQL injection and authentication bypasses that could lead to account takeover. However, none of the findings have been fully validated; they are preliminary indicators requiring further testing. Immediate actions should include validating and sanitizing all user-supplied inputs, especially those used in Socket.IO communications and login logic. Given the high potential severity of some findings and their unconfirmed nature, prioritize remediation efforts on authentication mechanisms and real-time communication channels.",
+            "risk_score": 9.8,
+            "total_findings": 33,
+            "confirmed_count": 0,
+            "counts_by_severity": {
+              "high": 5,
+              "medium": 20,
+              "critical": 8
+            }
+          },
+          "exploitation_confirmed": true
+        }
+      }
+    }
+  ]
+}

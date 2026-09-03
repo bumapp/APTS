@@ -5,6 +5,7 @@ Redirects are not followed; the Location header is returned instead.
 """
 from __future__ import annotations
 
+import json
 from typing import Any
 
 import httpx
@@ -17,7 +18,7 @@ async def http_request(
     url: str,
     method: str = "GET",
     headers: dict[str, str] | None = None,
-    body: str | None = None,
+    body: str | int | float | bool | dict | list | None = None,
 ) -> dict[str, Any]:
     """Perform a single HTTP request.
 
@@ -25,12 +26,16 @@ async def http_request(
         url: The full URL to request, e.g. "http://juice-shop:3000/rest/user/login".
         method: GET, POST, PUT, PATCH, DELETE, HEAD, or OPTIONS.
         headers: Optional request headers as a flat string->string map.
-        body: Optional raw request body (e.g. a JSON string for a POST).
+        body: Optional request body. A string is sent as-is; a dict/list is sent
+            as JSON; a number/bool is stringified — so a model passing e.g. the
+            engine.io frame ``40`` never crashes the tool on a type mismatch.
     """
     verb = method.upper()
     if verb not in _ALLOWED_METHODS:
         return {"error": f"method {verb!r} not allowed",
                 "allowed": sorted(_ALLOWED_METHODS)}
+    if body is not None and not isinstance(body, str):
+        body = json.dumps(body) if isinstance(body, (dict, list)) else str(body)
     try:
         async with httpx.AsyncClient(follow_redirects=False, timeout=20.0) as client:
             response = await client.request(
