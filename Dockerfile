@@ -54,10 +54,6 @@ COPY orchestrator/ /app/orchestrator/
 COPY agent/        /app/agent/
 COPY mcp_tools/    /app/mcp_tools/
 COPY sandbox/      /app/sandbox/
-# The MITRE worker imports the standalone ATT&CK loop (mcp_native.mitre_loop);
-# the HackTricks/attack corpora are excluded by .dockerignore (they live in the
-# mcp-native image, not here).
-COPY mcp_native/   /app/mcp_native/
 
 # Directory where each service expects to find its TLS cert and the trust bundle
 RUN mkdir -p /etc/apts && chown -R apts:apts /etc/apts /app /ms-playwright
