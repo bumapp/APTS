@@ -6,8 +6,11 @@
 fastapi==0.115.5
 uvicorn[standard]==0.32.1
 httpx==0.27.2
-pydantic==2.9.2
+pydantic==2.13.5
 psycopg[binary]==3.2.3
+# Native MCP client — the vuln/exploit agentic loops drive the mcp-native server.
+# Requires pydantic>=2.12 (hence the bump above); schemas verified under 2.13.
+mcp==2.1.0
 # Only mcp-tools' crawl tool uses this — every service shares one image
 # (see Dockerfile), so it ships in all of them, but only mcp-tools launches a
 # browser with it.

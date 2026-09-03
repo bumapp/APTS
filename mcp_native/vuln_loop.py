@@ -45,6 +45,25 @@ from mcp import Client
 MCP_URL = os.environ.get("APTS_MCP_URL", "http://localhost:9000/mcp")
 LLM_URL = os.environ.get("APTS_LOOP_LLM_URL", "http://localhost:18080/v1/chat/completions")
 LLM_MODEL = os.environ.get("APTS_LOOP_LLM_MODEL", "qwen3-8b")
+# Bearer token for a hosted OpenAI-compatible endpoint (e.g. AWS Bedrock). Empty
+# for local llama.cpp, which needs no auth. Falls back to the mounted secret file
+# (same one shared.llm_aws uses) so the in-container workers need no extra env.
+def _loop_key() -> str:
+    k = os.environ.get("APTS_LOOP_LLM_KEY")
+    if k:
+        return k
+    try:
+        with open(os.environ.get("APTS_LLM_KEY_FILE", "/run/secrets/llm_api_key")) as fh:
+            return fh.read().strip()
+    except OSError:
+        return ""
+
+
+LLM_KEY = _loop_key()
+_HEADERS = {"Authorization": f"Bearer {LLM_KEY}"} if LLM_KEY else {}
+# llama.cpp honours chat_template_kwargs to disable thinking; a hosted endpoint
+# rejects unknown fields, so send it only when talking to local llama (no key).
+_LLAMA_EXTRA = {} if LLM_KEY else {"chat_template_kwargs": {"enable_thinking": False}}
 MAX_STEPS = int(os.environ.get("APTS_VULN_MAX_STEPS", "6"))
 LLM_TIMEOUT = float(os.environ.get("APTS_LOOP_LLM_TIMEOUT", "900"))
 MAX_REQUESTS = int(os.environ.get("APTS_VULN_MAX_REQUESTS", "8"))
@@ -58,6 +77,10 @@ SKIP_NOISE = os.environ.get("APTS_VULN_SKIP_NOISE", "1") not in ("0", "false", "
 FORCE_FETCH = os.environ.get("APTS_VULN_FORCE_FETCH", "1") not in ("0", "false", "")
 # Optional comma-separated path substrings to restrict the batch to (demo focus).
 ONLY = [s for s in os.environ.get("APTS_VULN_ONLY", "").split(",") if s.strip()]
+# Reflection: after the model proposes its hypotheses, show them back and ask
+# whether MORE are worth adding, merging any new ones. 0 disables; each round is
+# one extra model call, stopped early when the model says DONE or adds nothing.
+REFLECT_ROUNDS = int(os.environ.get("APTS_VULN_REFLECT_ROUNDS", "1"))
 _CONTEXT_BUDGET_CHARS = int(os.environ.get("APTS_LOOP_CONTEXT_CHARS", "16000"))
 # Budget for the FIRST prompt (system + request + injected menu). The running
 # conversation is guarded by _compact once tool results exist; this guards the
@@ -264,6 +287,70 @@ def _extract_hypotheses(text: str) -> list[str]:
     return blocks
 
 
+REFLECT_PROMPT_TMPL = """\
+You proposed these hypotheses for THIS request:
+{current}
+
+Think again. Are there OTHER distinct, testable hypotheses worth adding — a
+different vulnerability class, a different parameter, or an attack angle you have
+not covered yet? Speculative long shots are welcome; someone else proves or kills
+them later.
+- If yes: output ONLY the NEW HYPOTHESIS blocks (same HYPOTHESIS: / WHY: format).
+  Do not repeat any listed above.
+- If nothing worth adding: reply with exactly DONE.
+"""
+
+
+def _norm_hyp(h: str) -> str:
+    """First line of a hypothesis, normalised, for de-duplication."""
+    return re.sub(r"\s+", " ", h.splitlines()[0].lower()).strip()
+
+
+def _merge_hyps(existing: list[str], new: list[str]) -> list[str]:
+    """Append only the genuinely new hypotheses (by normalised first line)."""
+    seen = {_norm_hyp(h) for h in existing}
+    added = []
+    for h in new:
+        key = _norm_hyp(h)
+        if key and key not in seen:
+            seen.add(key)
+            added.append(h)
+    return added
+
+
+async def _reflect(llm, messages: list[dict], hypotheses: list[str],
+                   raw: str) -> tuple[list[str], str]:
+    """Ask the model whether more hypotheses are worth adding, and merge them.
+
+    Runs up to REFLECT_ROUNDS extra no-tool turns. Each shows the accumulated
+    hypotheses and requests only NEW ones; stops early when the model replies
+    DONE or contributes nothing new.
+    """
+    for r in range(REFLECT_ROUNDS):
+        current = "\n".join(f"{i}. {h.splitlines()[0]}"
+                            for i, h in enumerate(hypotheses, 1))
+        messages.append({"role": "user",
+                         "content": REFLECT_PROMPT_TMPL.format(current=current)})
+        try:
+            resp = await llm.post(LLM_URL, headers=_HEADERS, json={
+                "model": LLM_MODEL, "messages": messages, "stream": False,
+                "max_tokens": MAX_TOKENS, **_LLAMA_EXTRA})
+            resp.raise_for_status()
+        except httpx.HTTPError:
+            break
+        reply = (resp.json()["choices"][0]["message"].get("content") or "").strip()
+        messages.append({"role": "assistant", "content": reply})
+        if reply.upper().replace(".", "").strip() == "DONE" or not reply:
+            break
+        added = _merge_hyps(hypotheses, _extract_hypotheses(reply))
+        if not added:
+            break
+        hypotheses += added
+        raw += f"\n\n--- reflection round {r + 1} (+{len(added)}) ---\n{reply}"
+        print(f"    reflect r{r + 1}: +{len(added)} hypothesis(es)", flush=True)
+    return hypotheses, raw
+
+
 async def run_request(client, llm, openai_tools, menu: str,
                       req: dict) -> tuple[list[str], str, list[dict]]:
     """Drive the model through one request. Returns (hypotheses, raw, trail)."""
@@ -292,23 +379,37 @@ async def run_request(client, llm, openai_tools, menu: str,
             choice = {"type": "function",
                       "function": {"name": "hacktricks_article"}}
         try:
-            resp = await llm.post(LLM_URL, json={
+            resp = await llm.post(LLM_URL, headers=_HEADERS, json={
                 "model": LLM_MODEL, "messages": messages,
                 "tools": openai_tools, "tool_choice": choice,
-                "stream": False, "max_tokens": MAX_TOKENS,
-                "chat_template_kwargs": {"enable_thinking": False},
+                "stream": False, "max_tokens": MAX_TOKENS, **_LLAMA_EXTRA,
             })
             resp.raise_for_status()
         except httpx.HTTPError as exc:
-            raw = f"(model call failed at step {step}: {type(exc).__name__}: {exc})"
+            body = getattr(getattr(exc, "response", None), "text", "") or ""
+            raw = (f"(model call failed at step {step}: {type(exc).__name__}: "
+                   f"{exc} :: {body[:400]})")
             return [f"(no hypothesis — {raw})"], raw, trail
         msg = resp.json()["choices"][0]["message"]
+        # Canonicalise tool-call arguments before echoing them back: hosted
+        # endpoints (Bedrock) re-parse the arguments string and 400 on empty or
+        # malformed JSON. Re-dump the tolerant parse so what we send is valid.
+        for _tc in (msg.get("tool_calls") or []):
+            _fn = _tc.get("function") or {}
+            _raw = (_fn.get("arguments") or "").strip()
+            try:
+                _fn["arguments"] = json.dumps(json.loads(_raw)) if _raw else "{}"
+            except (json.JSONDecodeError, TypeError):
+                _fn["arguments"] = "{}"
         messages.append(msg)
 
         calls = msg.get("tool_calls")
         if not calls:
             raw = (msg.get("content") or "").strip()
-            return _extract_hypotheses(raw), raw, trail
+            hypotheses = _extract_hypotheses(raw)
+            if REFLECT_ROUNDS > 0 and hypotheses:
+                hypotheses, raw = await _reflect(llm, messages, hypotheses, raw)
+            return hypotheses, raw, trail
 
         steps_left = MAX_STEPS - step - 1
         for call in calls:
@@ -346,15 +447,19 @@ async def run_request(client, llm, openai_tools, menu: str,
         "Step limit reached. Do not call tools. Write your HYPOTHESIS block(s) "
         "now from what you have, at least one.")})
     try:
-        resp = await llm.post(LLM_URL, json={
+        resp = await llm.post(LLM_URL, headers=_HEADERS, json={
             "model": LLM_MODEL, "messages": messages, "stream": False,
-            "max_tokens": MAX_TOKENS,
-            "chat_template_kwargs": {"enable_thinking": False}})
+            "max_tokens": MAX_TOKENS, **_LLAMA_EXTRA})
         resp.raise_for_status()
-        raw = (resp.json()["choices"][0]["message"].get("content") or "").strip()
+        reply = resp.json()["choices"][0]["message"]
+        raw = (reply.get("content") or "").strip()
+        messages.append({"role": "assistant", "content": raw})
     except httpx.HTTPError:
         raw = ""
-    return _extract_hypotheses(raw) or ["(no hypothesis produced)"], raw, trail
+    hypotheses = _extract_hypotheses(raw)
+    if REFLECT_ROUNDS > 0 and hypotheses:
+        hypotheses, raw = await _reflect(llm, messages, hypotheses, raw)
+    return hypotheses or ["(no hypothesis produced)"], raw, trail
 
 
 def _assemble_report(findings: list[dict], engagement_id: str | None) -> str:

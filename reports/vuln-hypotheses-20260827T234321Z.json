@@ -19,7 +19,7 @@
         "post_data": null
       },
       "hypotheses": [
-        "xs-search \u2014 /rest/products/search (q)\n   Hypothesis: The request is a search query on a product endpoint, which could be vulnerable to XS (XSSTL) attacks where special characters in the query parameter can be used to inject malicious content. This is a specific vulnerability class that targets search parameters in HTTP requests."
+         "xs-search \u2014 /rest/products/search (q)\n   Hypothesis: Therequest is a search query on a product endpoint, which could be vulnerable to XS (XSSTL) attacks where special characters in the query parameter can be used to inject malicious content. This is a specific vulnerability class that targets search parameters in HTTP requests."
       ],
       "raw": "HYPOTHESIS: xs-search \u2014 /rest/products/search (q)\n  WHY: The request is a search query on a product endpoint, which could be vulnerable to XS (XSSTL) attacks where special characters in the query parameter can be used to inject malicious content. This is a specific vulnerability class that targets search parameters in HTTP requests.",
       "trail": [

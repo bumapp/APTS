@@ -54,6 +54,9 @@ COPY orchestrator/ /app/orchestrator/
 COPY agent/        /app/agent/
 COPY mcp_tools/    /app/mcp_tools/
 COPY sandbox/      /app/sandbox/
+# The vuln/exploit workers import the agentic loops from here. The HackTricks
+# corpus is excluded by .dockerignore — those tools run in mcp-native, not here.
+COPY mcp_native/   /app/mcp_native/
 
 # Directory where each service expects to find its TLS cert and the trust bundle
 RUN mkdir -p /etc/apts && chown -R apts:apts /etc/apts /app /ms-playwright

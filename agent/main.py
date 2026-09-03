@@ -106,6 +106,10 @@ def _make_llm_client(agent_name: str):
         from shared.llm_local import LocalLlmClient
         log.info("LLM backend: local server (APTS_LLM_PROVIDER=%s)", provider)
         return LocalLlmClient(agent_name)
+    if provider in ("aws", "bedrock", "openai"):
+        from shared.llm_aws import AwsLlmClient
+        log.info("LLM backend: hosted OpenAI-compatible (APTS_LLM_PROVIDER=%s)", provider)
+        return AwsLlmClient(agent_name)
     return LlmClient(agent_name)
 
 

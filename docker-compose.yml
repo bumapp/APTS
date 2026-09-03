@@ -36,8 +36,8 @@ x-config-mount: &config-mount
 # file-mounted Docker secret like the DB password, so it never lands in an
 # environment variable and never shows up in `docker inspect`.
 x-llm-env: &llm-env
-  APTS_LLM_BASE_URL:         ${APTS_LLM_BASE_URL:-https://api.deepseek.com}
-  APTS_LLM_MODEL:            ${APTS_LLM_MODEL:-deepseek-v4-flash}
+  APTS_LLM_BASE_URL:         ${APTS_LLM_BASE_URL:-https://bedrock-mantle.eu-north-1.api.aws/v1}
+  APTS_LLM_MODEL:            ${APTS_LLM_MODEL:-qwen.qwen3-coder-480b-a35b-instruct}
   APTS_LLM_REASONING_EFFORT: ${APTS_LLM_REASONING_EFFORT:-none}
   APTS_LLM_MAX_TOKENS:       ${APTS_LLM_MAX_TOKENS:-4000}
   APTS_LLM_TIMEOUT:          ${APTS_LLM_TIMEOUT:-120}
@@ -47,7 +47,7 @@ x-llm-env: &llm-env
   # (shared/llm_local.py, http://llama:8080) — run it with the "localllm"
   # profile. Set to "openai" for the DeepSeek client above, or "hf" for the
   # Hugging Face Space client (shared/llm_hf.py).
-  APTS_LLM_PROVIDER:         ${APTS_LLM_PROVIDER:-local}
+  APTS_LLM_PROVIDER:         ${APTS_LLM_PROVIDER:-aws}
   APTS_HF_SPACE:             ${APTS_HF_SPACE:-Er33k/HIT}
   # Optional. A public Space needs none; supply one only to lift anonymous rate
   # limits — export APTS_HF_TOKEN in your shell, never commit it. Empty by default.
@@ -177,6 +177,16 @@ services:
     environment:
       <<: *llm-env
       AGENT_NAME: vuln
+      # The vuln worker runs the native-MCP hypothesis loop against mcp-native,
+      # driving the hosted AWS model directly (key from the llm_api_key secret).
+      APTS_MCP_URL:          ${APTS_MCP_URL:-http://mcp-native:9000/mcp}
+      APTS_LOOP_LLM_URL:     ${APTS_LOOP_LLM_URL:-https://bedrock-mantle.eu-north-1.api.aws/v1/chat/completions}
+      APTS_LOOP_LLM_MODEL:   ${APTS_LOOP_LLM_MODEL:-qwen.qwen3-coder-480b-a35b-instruct}
+      APTS_LOOP_LLM_TIMEOUT: ${APTS_LOOP_LLM_TIMEOUT:-150}
+      APTS_VULN_FORCE_FETCH: ${APTS_VULN_FORCE_FETCH:-0}
+      APTS_VULN_MAX_REQUESTS: ${APTS_VULN_MAX_REQUESTS:-4}
+      APTS_VULN_MAX_STEPS:   ${APTS_VULN_MAX_STEPS:-5}
+      APTS_VULN_MAX_TOKENS:  ${APTS_VULN_MAX_TOKENS:-900}
     secrets:
       - source: agent_vuln_token
         target: token
@@ -225,6 +235,14 @@ services:
     environment:
       <<: *llm-env
       AGENT_NAME: exploit
+      # The exploit worker runs the native-MCP proof loop against mcp-native
+      # (sqlmap/http/recorded-request), driving the hosted AWS model directly.
+      APTS_MCP_URL:          ${APTS_MCP_URL:-http://mcp-native:9000/mcp}
+      APTS_LOOP_LLM_URL:     ${APTS_LOOP_LLM_URL:-https://bedrock-mantle.eu-north-1.api.aws/v1/chat/completions}
+      APTS_LOOP_LLM_MODEL:   ${APTS_LOOP_LLM_MODEL:-qwen.qwen3-coder-480b-a35b-instruct}
+      APTS_LOOP_LLM_TIMEOUT: ${APTS_LOOP_LLM_TIMEOUT:-300}
+      APTS_LOOP_MAX_STEPS:   ${APTS_LOOP_MAX_STEPS:-6}
+      APTS_EXPLOIT_MAX_WEAKNESSES: ${APTS_EXPLOIT_MAX_WEAKNESSES:-4}
     secrets:
       - source: agent_exploit_token
         target: token
@@ -521,7 +539,7 @@ secrets:
   # LLM provider API key — mounted into the six agent containers only.
   # Nothing else needs it: the orchestrator coordinates, mcp-tools runs tools,
   # and the sandbox executes commands. None of them call a model.
-  llm_api_key:            { file: ./tokens/deepseek_api_key }
+  llm_api_key:            { file: ./tokens/aws_llm.key }
   # Bearer tokens (one per Python service)
   orchestrator_token:     { file: ./tokens/orchestrator.token }
   agent_recon_token:      { file: ./tokens/agent-recon.token }
