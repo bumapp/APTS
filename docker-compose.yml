@@ -217,6 +217,15 @@ services:
     environment:
       <<: *llm-env
       AGENT_NAME: mitre
+      # The mitre worker runs the native-MCP ATT&CK-mapping loop against
+      # mcp-native (attack_catalog/attack_search/attack_technique), driving the
+      # hosted AWS model directly (key from the llm_api_key secret).
+      APTS_MCP_URL:          ${APTS_MCP_URL:-http://mcp-native:9000/mcp}
+      APTS_LOOP_LLM_URL:     ${APTS_LOOP_LLM_URL:-https://bedrock-mantle.eu-north-1.api.aws/v1/chat/completions}
+      APTS_LOOP_LLM_MODEL:   ${APTS_LOOP_LLM_MODEL:-qwen.qwen3-coder-480b-a35b-instruct}
+      APTS_LOOP_LLM_TIMEOUT: ${APTS_LOOP_LLM_TIMEOUT:-150}
+      APTS_MITRE_MAX_STEPS:  ${APTS_MITRE_MAX_STEPS:-5}
+      APTS_MITRE_MAX_PASSES: ${APTS_MITRE_MAX_PASSES:-3}
     secrets:
       - source: agent_mitre_token
         target: token
@@ -442,6 +451,7 @@ services:
     environment:
       APTS_SQLMAP_PATH: /opt/sqlmap/sqlmap.py
       APTS_HACKTRICKS_DIR: /opt/hacktricks
+      APTS_ATTACK_DIR: /opt/attack
     secrets:
       - source: db_password
         target: db_password
@@ -453,6 +463,8 @@ services:
       - ${SQLMAP_DIR:-/home/asqwe/project/EXPLOIT/sqlmap-dev}:/opt/sqlmap:ro
       # HackTricks web-pentest corpus (overview + technique articles), read-only.
       - ./mcp_native/corpus/hacktricks:/opt/hacktricks:ro
+      # Curated MITRE ATT&CK technique catalogue for the mapping loop, read-only.
+      - ./mcp_native/corpus/attack:/opt/attack:ro
     ports:
       - "127.0.0.1:9000:9000"
     deploy:

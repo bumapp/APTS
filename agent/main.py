@@ -134,7 +134,9 @@ def build_worker(mcp: McpService, results: AgentResultRepository,
     llm = _make_llm_client(AGENT_NAME)
     exit_stack.append(llm)
     if AGENT_NAME == "mitre":
-        return MitreWorker(llm)
+        # Same shape as vuln/exploit: the worker runs an agentic loop against
+        # mcp-native; mcp is passed for constructor parity and is otherwise unused.
+        return MitreWorker(llm, mcp)
     if AGENT_NAME == "vuln":
         # The only worker needing both: a model to judge, and tools to verify.
         return VulnWorker(llm, mcp)

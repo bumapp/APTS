@@ -1,0 +1,442 @@
+{
+  "engagement_id": "dc565672-0c0e-4723-b3a8-b47218867d2b",
+  "event_count": 21,
+  "events": [
+    {
+      "agent": "orchestrator",
+      "seq": 0,
+      "event_type": "engagement_requested",
+      "duration_ms": null,
+      "logged_at": "2026-09-03T19:02:34.717412+00:00",
+      "payload": {
+        "chain": [
+          "recon",
+          "vuln",
+          "mitre",
+          "exploit",
+          "script",
+          "adviser"
+        ],
+        "scope": {
+          "domains": [
+            "juice-shop"
+          ],
+          "deny_paths": [],
+          "allow_paths": []
+        },
+        "target_url": "http://juice-shop:3000/",
+        "time_window": {}
+      }
+    },
+    {
+      "agent": "orchestrator",
+      "seq": 0,
+      "event_type": "kickoff",
+      "duration_ms": null,
+      "logged_at": "2026-09-03T19:02:35.295788+00:00",
+      "payload": {
+        "url": "https://agent-recon:8443/run",
+        "agent": "recon"
+      }
+    },
+    {
+      "agent": "recon",
+      "seq": 1,
+      "event_type": "stage_input",
+      "duration_ms": null,
+      "logged_at": "2026-09-03T19:02:35.673421+00:00",
+      "payload": {
+        "scope": {
+          "domains": [
+            "juice-shop"
+          ],
+          "deny_paths": [],
+          "allow_paths": []
+        },
+        "upstream": {},
+        "target_url": "http://juice-shop:3000/",
+        "upstream_keys": [],
+        "from_component": "orchestrator",
+        "upstream_bytes": 2
+      }
+    },
+    {
+      "agent": "recon",
+      "seq": 2,
+      "event_type": "tool_call",
+      "duration_ms": 51273,
+      "logged_at": "2026-09-03T19:03:27.147762+00:00",
+      "payload": {
+        "ok": true,
+        "args": {
+          "url": "http://juice-shop:3000/"
+        },
+        "tool": "crawl",
+        "output": {
+          "seed": "http://juice-shop:3000/",
+          "forms": [],
+          "pages": [
+            {
+              "url": "http://juice-shop:3000/",
+              "server": "",
+              "status": null,
+              "powered_by": "",
+              "content_type": ""
+            }
+          ],
+          "scripts": [],
+          "truncated": false,
+          "js_api_paths": [],
+          "technologies": [],
+          "pages_crawled": 1,
+          "observed_requests": [],
+          "third_party_hosts": [],
+          "out_of_scope_skipped": 0
+        },
+        "blocked": false
+      }
+    },
+    {
+      "agent": "recon",
+      "seq": 3,
+      "event_type": "stage_output",
+      "duration_ms": 52132,
+      "logged_at": "2026-09-03T19:03:27.512277+00:00",
+      "payload": {
+        "summary": "1 endpoints",
+        "artifact": {
+          "forms": [],
+          "api_paths": [],
+          "endpoints": [
+            {
+              "path": "/",
+              "method": "GET",
+              "params": [],
+              "status": null,
+              "content_type": ""
+            }
+          ],
+          "truncated": false,
+          "target_url": "http://juice-shop:3000/",
+          "third_party": [],
+          "technologies": [],
+          "pages_crawled": 1,
+          "observed_requests": []
+        }
+      }
+    },
+    {
+      "agent": "recon",
+      "seq": 4,
+      "event_type": "handoff",
+      "duration_ms": null,
+      "logged_at": "2026-09-03T19:03:27.706934+00:00",
+      "payload": {
+        "next_agent": "vuln"
+      }
+    },
+    {
+      "agent": "vuln",
+      "seq": 1,
+      "event_type": "stage_input",
+      "duration_ms": null,
+      "logged_at": "2026-09-03T19:03:27.831178+00:00",
+      "payload": {
+        "scope": {
+          "domains": [
+            "juice-shop"
+          ],
+          "deny_paths": [],
+          "allow_paths": []
+        },
+        "upstream": {
+          "forms": [],
+          "api_paths": [],
+          "endpoints": [
+            {
+              "path": "/",
+              "method": "GET",
+              "params": [],
+              "status": null,
+              "content_type": ""
+            }
+          ],
+          "truncated": false,
+          "target_url": "http://juice-shop:3000/",
+          "third_party": [],
+          "technologies": [],
+          "pages_crawled": 1,
+          "observed_requests": []
+        },
+        "target_url": "http://juice-shop:3000/",
+        "upstream_keys": [
+          "api_paths",
+          "endpoints",
+          "forms",
+          "observed_requests",
+          "pages_crawled",
+          "target_url",
+          "technologies",
+          "third_party",
+          "truncated"
+        ],
+        "from_component": "agent-recon",
+        "upstream_bytes": 272
+      }
+    },
+    {
+      "agent": "vuln",
+      "seq": 2,
+      "event_type": "stage_output",
+      "duration_ms": 5314,
+      "logged_at": "2026-09-03T19:03:32.975977+00:00",
+      "payload": {
+        "summary": "empty artifact",
+        "artifact": {
+          "weaknesses": [],
+          "candidates_dropped": 0
+        }
+      }
+    },
+    {
+      "agent": "vuln",
+      "seq": 3,
+      "event_type": "handoff",
+      "duration_ms": null,
+      "logged_at": "2026-09-03T19:03:33.739993+00:00",
+      "payload": {
+        "next_agent": "mitre"
+      }
+    },
+    {
+      "agent": "mitre",
+      "seq": 1,
+      "event_type": "stage_input",
+      "duration_ms": null,
+      "logged_at": "2026-09-03T19:03:34.213860+00:00",
+      "payload": {
+        "scope": {
+          "domains": [
+            "juice-shop"
+          ],
+          "deny_paths": [],
+          "allow_paths": []
+        },
+        "upstream": {
+          "weaknesses": [],
+          "candidates_dropped": 0
+        },
+        "target_url": "http://juice-shop:3000/",
+        "upstream_keys": [
+          "candidates_dropped",
+          "weaknesses"
+        ],
+        "from_component": "agent-vuln",
+        "upstream_bytes": 43
+      }
+    },
+    {
+      "agent": "mitre",
+      "seq": 2,
+      "event_type": "stage_output",
+      "duration_ms": 5936,
+      "logged_at": "2026-09-03T19:03:39.429783+00:00",
+      "payload": {
+        "summary": "empty artifact",
+        "artifact": {
+          "mappings": {}
+        }
+      }
+    },
+    {
+      "agent": "mitre",
+      "seq": 3,
+      "event_type": "handoff",
+      "duration_ms": null,
+      "logged_at": "2026-09-03T19:03:40.127723+00:00",
+      "payload": {
+        "next_agent": "exploit"
+      }
+    },
+    {
+      "agent": "exploit",
+      "seq": 1,
+      "event_type": "stage_input",
+      "duration_ms": null,
+      "logged_at": "2026-09-03T19:03:40.340238+00:00",
+      "payload": {
+        "scope": {
+          "domains": [
+            "juice-shop"
+          ],
+          "deny_paths": [],
+          "allow_paths": []
+        },
+        "upstream": {
+          "mappings": {}
+        },
+        "target_url": "http://juice-shop:3000/",
+        "upstream_keys": [
+          "mappings"
+        ],
+        "from_component": "agent-mitre",
+        "upstream_bytes": 16
+      }
+    },
+    {
+      "agent": "exploit",
+      "seq": 2,
+      "event_type": "stage_output",
+      "duration_ms": 559,
+      "logged_at": "2026-09-03T19:03:40.618227+00:00",
+      "payload": {
+        "summary": "empty artifact",
+        "artifact": {
+          "skipped": [],
+          "attempts": []
+        }
+      }
+    },
+    {
+      "agent": "exploit",
+      "seq": 3,
+      "event_type": "handoff",
+      "duration_ms": null,
+      "logged_at": "2026-09-03T19:03:41.140665+00:00",
+      "payload": {
+        "next_agent": "script"
+      }
+    },
+    {
+      "agent": "script",
+      "seq": 1,
+      "event_type": "stage_input",
+      "duration_ms": null,
+      "logged_at": "2026-09-03T19:03:41.425527+00:00",
+      "payload": {
+        "scope": {
+          "domains": [
+            "juice-shop"
+          ],
+          "deny_paths": [],
+          "allow_paths": []
+        },
+        "upstream": {
+          "skipped": [],
+          "attempts": []
+        },
+        "target_url": "http://juice-shop:3000/",
+        "upstream_keys": [
+          "attempts",
+          "skipped"
+        ],
+        "from_component": "agent-exploit",
+        "upstream_bytes": 31
+      }
+    },
+    {
+      "agent": "script",
+      "seq": 2,
+      "event_type": "stage_output",
+      "duration_ms": 766,
+      "logged_at": "2026-09-03T19:03:41.896303+00:00",
+      "payload": {
+        "summary": "empty artifact",
+        "artifact": {
+          "scripts": [],
+          "rejected": 0
+        }
+      }
+    },
+    {
+      "agent": "script",
+      "seq": 3,
+      "event_type": "handoff",
+      "duration_ms": null,
+      "logged_at": "2026-09-03T19:03:42.493112+00:00",
+      "payload": {
+        "next_agent": "adviser"
+      }
+    },
+    {
+      "agent": "adviser",
+      "seq": 1,
+      "event_type": "stage_input",
+      "duration_ms": null,
+      "logged_at": "2026-09-03T19:03:42.813567+00:00",
+      "payload": {
+        "scope": {
+          "domains": [
+            "juice-shop"
+          ],
+          "deny_paths": [],
+          "allow_paths": []
+        },
+        "upstream": {
+          "scripts": [],
+          "rejected": 0
+        },
+        "target_url": "http://juice-shop:3000/",
+        "upstream_keys": [
+          "rejected",
+          "scripts"
+        ],
+        "from_component": "agent-script",
+        "upstream_bytes": 30
+      }
+    },
+    {
+      "agent": "adviser",
+      "seq": 2,
+      "event_type": "report_written",
+      "duration_ms": null,
+      "logged_at": "2026-09-03T19:03:44.719204+00:00",
+      "payload": {
+        "paths": [
+          "/var/apts/reports/report-dc565672-0c0e-4723-b3a8-b47218867d2b.json",
+          "/var/apts/reports/report-dc565672-0c0e-4723-b3a8-b47218867d2b.md"
+        ],
+        "findings": 0,
+        "confirmed": 0,
+        "risk_score": 0.0
+      }
+    },
+    {
+      "agent": "adviser",
+      "seq": 3,
+      "event_type": "stage_output",
+      "duration_ms": 3000,
+      "logged_at": "2026-09-03T19:03:45.377480+00:00",
+      "payload": {
+        "summary": "5 executive_summary, 2 playbook, 2 caveats, 2 report_files",
+        "artifact": {
+          "caveats": [
+            "Produced by an autonomous pipeline with no human review. Findings should be validated by a security engineer before remediation is prioritised or the results are shared externally.",
+            "Absence of a finding is not evidence of absence. This engagement covered what the crawler reached within its configured bounds."
+          ],
+          "findings": [],
+          "playbook": {
+            "scripts": [],
+            "rejected": 0
+          },
+          "target_url": "http://juice-shop:3000/",
+          "generated_at": "2026-09-03T19:03:44.595854",
+          "report_files": [
+            "/var/apts/reports/report-dc565672-0c0e-4723-b3a8-b47218867d2b.json",
+            "/var/apts/reports/report-dc565672-0c0e-4723-b3a8-b47218867d2b.md"
+          ],
+          "engagement_id": "dc565672-0c0e-4723-b3a8-b47218867d2b",
+          "attack_coverage": {},
+          "executive_summary": {
+            "narrative": "No weaknesses were identified on the target within the scope and time window of this engagement.",
+            "risk_score": 0.0,
+            "total_findings": 0,
+            "confirmed_count": 0,
+            "counts_by_severity": {}
+          },
+          "exploitation_confirmed": false
+        }
+      }
+    }
+  ]
+}
