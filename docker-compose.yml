@@ -48,6 +48,10 @@ x-llm-env: &llm-env
   # profile. Set to "openai" for the DeepSeek client above, or "hf" for the
   # Hugging Face Space client (shared/llm_hf.py).
   APTS_LLM_PROVIDER:         ${APTS_LLM_PROVIDER:-aws}
+  # 1 = orchestrator drives the pipeline (agents report done, orchestrator
+  # dispatches the next stage with a directive). 0 = original agent self-chaining.
+  # MUST match the orchestrator's own setting below.
+  APTS_ORCHESTRATOR_DRIVEN:  ${APTS_ORCHESTRATOR_DRIVEN:-1}
   APTS_HF_SPACE:             ${APTS_HF_SPACE:-Er33k/HIT}
   # Optional. A public Space needs none; supply one only to lift anonymous rate
   # limits — export APTS_HF_TOKEN in your shell, never commit it. Empty by default.
@@ -114,6 +118,14 @@ services:
     depends_on:
       database: { condition: service_healthy }
     command: python -m orchestrator.main
+    environment:
+      # Must match the agents' APTS_ORCHESTRATOR_DRIVEN (x-llm-env above).
+      APTS_ORCHESTRATOR_DRIVEN: ${APTS_ORCHESTRATOR_DRIVEN:-1}
+      # The Composer (chat) drives the hosted AWS model directly, like the agent
+      # loops; key comes from the llm_api_key secret below.
+      APTS_LOOP_LLM_URL:     ${APTS_LOOP_LLM_URL:-https://bedrock-mantle.eu-north-1.api.aws/v1/chat/completions}
+      APTS_LOOP_LLM_MODEL:   ${APTS_LOOP_LLM_MODEL:-qwen.qwen3-coder-480b-a35b-instruct}
+      APTS_LOOP_LLM_TIMEOUT: ${APTS_LOOP_LLM_TIMEOUT:-150}
     secrets:
       - source: orchestrator_token
         target: token
@@ -121,13 +133,20 @@ services:
         target: tls.key
       - source: db_password
         target: db_password
+      - source: llm_api_key
+        target: llm_api_key
     volumes:
       - ./certs/orchestrator.crt:/etc/apts/tls.crt:ro
       - ./certs/trust-bundle.pem:/etc/apts/trust-bundle.pem:ro
       - ./config:/etc/apts/config:ro
+      # The Adviser writes reports here; the Composer serves them for download,
+      # read-only (only the Adviser may write).
+      - ./reports:/var/apts/reports:ro
     ports:
       - "127.0.0.1:8080:8080"
       - "127.0.0.1:8443:8443"
+      # The Chat UI (Composer) — open http://127.0.0.1:8090 in a browser.
+      - "127.0.0.1:8090:8090"
     deploy:
       resources:
         limits: { memory: 256M, cpus: "0.5" }

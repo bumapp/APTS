@@ -23,6 +23,9 @@ class WorkContext:
     scope: Scope
     upstream: dict[str, Any]
     """The previous stage's artifact. Empty for Recon, the first stage."""
+    directive: str = ""
+    """The orchestrator's natural-language start prompt for this stage. Advisory
+    framing folded into the worker's first message; empty in agent-driven mode."""
 
 
 class Worker(Protocol):

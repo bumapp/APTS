@@ -147,7 +147,8 @@ class AdviserWorker:
                   if attempts.get(w.get("id"), {}).get("confirmed")]
         groups = self._pregroup(proven, attempts, mappings)
 
-        findings, narrative = await self._reason(groups)
+        findings, narrative = await self._reason(
+            groups, agentic.directive_block(ctx.directive))
 
         n_total = len(weaknesses)
         n_tested = len(attempts)
@@ -223,7 +224,8 @@ class AdviserWorker:
 
     # --- the reasoning loop ---------------------------------------------- #
 
-    async def _reason(self, groups: list[dict]) -> tuple[list[Finding], str]:
+    async def _reason(self, groups: list[dict],
+                      directive: str = "") -> tuple[list[Finding], str]:
         """Model assigns severity/impact/fix and orders the groups. Bounded loop
         with a deterministic fallback so a report is always produced."""
         if not groups:
@@ -237,7 +239,8 @@ class AdviserWorker:
             + (f' — {g["reasons"][0][:160]}' if g["reasons"] else '')
             for g in groups)
         messages = [{"role": "system", "content": SYSTEM_PROMPT},
-                    {"role": "user", "content": "## Confirmed, grouped findings\n" + listing}]
+                    {"role": "user", "content": directive
+                     + "## Confirmed, grouped findings\n" + listing}]
 
         by_key = {g["key"]: g for g in groups}
         async with httpx.AsyncClient(timeout=agentic.LLM_TIMEOUT) as llm:

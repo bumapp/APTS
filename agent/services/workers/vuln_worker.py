@@ -235,9 +235,10 @@ async def _reflect(llm, messages: list[dict], hypotheses: list[str]) -> list[str
     return hypotheses
 
 
-async def _run_request(client, llm, openai_tools, menu: str, req: dict) -> list[str]:
+async def _run_request(client, llm, openai_tools, menu: str, req: dict,
+                       directive: str = "") -> list[str]:
     """Drive the model through one request and return its hypotheses."""
-    head = "## Request under test\n" + _render_request(req) \
+    head = directive + "## Request under test\n" + _render_request(req) \
         + "\n\n## HackTricks technique menu (slugs)\n"
     tail = ("\n\nDecide what is worth testing here, fetch examples if useful, then "
             "give your HYPOTHESIS block(s).")
@@ -354,9 +355,10 @@ class VulnWorker:
                 log.info("vuln loop: assessing %d request(s): %s", len(requests),
                          ", ".join(r.get("path", "?") for r in requests))
 
+                pre = agentic.directive_block(ctx.directive)
                 for req in requests:
                     log.info("=== %s %s ===", req.get("method"), req.get("path"))
-                    hyps = await _run_request(client, llm, openai_tools, menu, req)
+                    hyps = await _run_request(client, llm, openai_tools, menu, req, pre)
                     for hypothesis in hyps:
                         weakness = _to_weakness(hypothesis, req, len(weaknesses) + 1)
                         if weakness:

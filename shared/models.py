@@ -53,6 +53,11 @@ class ChainHandoff(BaseModel):
     time_window: TimeWindow | None = None
     results: dict[str, Any] = Field(default_factory=dict,
         description="The producing agent's result payload. Empty for the initial kickoff.")
+    directive: str = Field(default="",
+        description="The orchestrator's natural-language start prompt for this "
+                    "stage, generated from the previous stage's output. Advisory "
+                    "framing only — the structured artifact still flows via "
+                    "`results`. Empty in agent-driven mode.")
 
 
 class HandoffAck(BaseModel):

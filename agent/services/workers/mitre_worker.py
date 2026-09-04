@@ -171,9 +171,9 @@ async def _validate(client, tags: list[dict[str, str]]) -> list[dict[str, str]]:
 
 
 async def _run_weakness(client, llm, openai_tools, menu: str,
-                        weakness: dict[str, Any]) -> list[dict]:
+                        weakness: dict[str, Any], directive: str = "") -> list[dict]:
     """Drive the model through one weakness; return only catalogue-confirmed tags."""
-    user = (f"## Weakness to map\n{_describe_weakness(weakness)}\n\n"
+    user = (f"{directive}## Weakness to map\n{_describe_weakness(weakness)}\n\n"
             f"## ATT&CK technique menu (id  name)\n{menu}\n\n"
             f"Search, validate your pick(s) with attack_technique, then give "
             f"your TECHNIQUE line(s).")
@@ -262,11 +262,12 @@ class MitreWorker:
                     "attack_catalog", {})).structured_content
                 menu = _render_menu((catalog or {}).get("techniques", []))
 
+                pre = agentic.directive_block(ctx.directive)
                 for attempt in range(1, MAX_PASSES + 1):
                     progressed = False
                     for wid in sorted(remaining):
                         tags = await _run_weakness(
-                            client, llm, openai_tools, menu, by_id[wid])
+                            client, llm, openai_tools, menu, by_id[wid], pre)
                         if tags:
                             mapped[wid] = tags
                             remaining.discard(wid)

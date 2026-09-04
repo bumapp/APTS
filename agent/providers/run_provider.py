@@ -34,6 +34,7 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 import time
 import traceback
 
@@ -50,6 +51,12 @@ from agent.services.orchestrator_service import HandoffService, OrchestratorServ
 from agent.services.workers.base import WorkContext, Worker
 
 log = logging.getLogger("agent.providers.run")
+
+# When the orchestrator drives the pipeline, agents no longer hand off to the
+# next stage themselves — they report ``done`` and the orchestrator decides what
+# runs next (and with what directive). Flip this off to restore the original
+# agent-driven self-chaining. Default on.
+ORCHESTRATOR_DRIVEN = os.environ.get("APTS_ORCHESTRATOR_DRIVEN", "1") == "1"
 
 
 def _summarise(artifact: dict) -> str:
@@ -114,6 +121,7 @@ class RunProvider:
                 target_url=handoff.target_url,
                 scope=handoff.scope,
                 upstream=handoff.results,
+                directive=handoff.directive,
             ))
 
             self._results.save(engagement_id, self._agent, result)
@@ -135,8 +143,11 @@ class RunProvider:
                          {"artifact": result, "summary": _summarise(result)},
                          duration_ms=int((time.perf_counter() - started) * 1000))
 
+            # Agent-driven mode: push straight to the next stage. Orchestrator-
+            # driven mode: do nothing here — reporting ``done`` (below) is what
+            # tells the orchestrator to decide and dispatch the next stage.
             successor = next_agent(self._agent)
-            if successor is not None:
+            if successor is not None and not ORCHESTRATOR_DRIVEN:
                 await self._handoff.push(
                     successor, engagement_id, handoff.target_url,
                     handoff.scope, handoff.time_window, result)

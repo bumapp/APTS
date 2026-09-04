@@ -79,7 +79,7 @@ class ReconWorker:
                     "deny_paths": list(ctx.scope.deny_paths),
                 })).structured_content or {}
                 observed = self._observed_requests(crawl)
-                await self._verify(llm, observed)
+                await self._verify(llm, observed, agentic.directive_block(ctx.directive))
                 # Keep only what the model rated worth testing. The rest is
                 # dropped here so the downstream stages only ever see the
                 # high-interest attack surface (a proof run, not a full dump).
@@ -119,8 +119,12 @@ class ReconWorker:
 
     # --- the model verification pass -------------------------------------- #
 
-    async def _verify(self, llm, observed: list[ObservedRequest]) -> None:
-        """Rate each page's requests high/medium/low (in place). Ranks, not drops."""
+    async def _verify(self, llm, observed: list[ObservedRequest],
+                      directive: str = "") -> None:
+        """Rate each page's requests high/medium/low (in place). Ranks, not drops.
+
+        ``directive`` is the orchestrator's start prompt; it cannot invent
+        endpoints (the crawl is authoritative) but it biases the triage."""
         by_page: dict[str, list[int]] = {}
         for idx, req in enumerate(observed):
             by_page.setdefault(req.source_page or "(unknown page)", []).append(idx)
@@ -131,7 +135,7 @@ class ReconWorker:
                 f"  params: {', '.join(_params_of(observed[i])) or '(none)'}"
                 f"{'  [has body]' if observed[i].post_data else ''}"
                 for n, i in enumerate(idxs))
-            user = f"Page: {page}\nRequests:\n{listing}"
+            user = f"{directive}Page: {page}\nRequests:\n{listing}"
             try:
                 msg = await agentic.chat(
                     llm, [{"role": "system", "content": RANK_SYSTEM},

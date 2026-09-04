@@ -62,6 +62,17 @@ def sig(name: str, args: dict) -> str:
     return name + ":" + json.dumps(args, sort_keys=True, default=str)
 
 
+def directive_block(directive: str) -> str:
+    """Format the orchestrator's start prompt for prepending to a worker's first
+    user message. Empty string when there is no directive (agent-driven mode), so
+    every worker can prepend it unconditionally without changing its prompt."""
+    directive = (directive or "").strip()
+    if not directive:
+        return ""
+    return ("ORCHESTRATOR DIRECTIVE (guidance for this stage; the structured data "
+            "below is still authoritative):\n" + directive + "\n\n")
+
+
 def _canonicalise_tool_args(msg: dict) -> dict:
     """Re-dump each tool-call's arguments as valid JSON before it is echoed back.
 

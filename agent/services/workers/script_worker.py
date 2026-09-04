@@ -199,11 +199,12 @@ class ScriptWorker:
             tools = [t for t in (await client.list_tools()).tools
                      if t.name in AGENT_TOOLS]
             openai_tools = agentic.mcp_tools_to_openai(tools)
+            pre = agentic.directive_block(ctx.directive)
 
             for attempt in confirmed[:MAX_SCRIPTS]:
                 wid = attempt.get("weakness_id", "W-?")
                 weakness = by_id.get(wid, {})
-                task = self._task(attempt, weakness)
+                task = pre + self._task(attempt, weakness)
                 try:
                     verdict, language, source, remediation = await _run_weakness(
                         client, llm, openai_tools, task)

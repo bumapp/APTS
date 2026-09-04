@@ -25,6 +25,7 @@ Retry logic.
 from __future__ import annotations
 
 import logging
+import os
 from contextlib import asynccontextmanager
 from typing import Any
 from uuid import UUID, uuid4
@@ -60,6 +61,26 @@ log = logging.getLogger("orchestrator")
 CHAIN = list(pipeline.CHAIN)
 CRITICAL_AGENTS = pipeline.CRITICAL_AGENTS
 MAX_RETRIES = pipeline.MAX_RETRIES
+
+# When on, the orchestrator drives the pipeline: agents report ``done`` and the
+# orchestrator decides the next stage and dispatches it with a generated
+# directive. Must match the agents' APTS_ORCHESTRATOR_DRIVEN, or the chain either
+# stalls (agents wait, orchestrator idle) or double-runs (both advance). Off
+# restores the original agent self-chaining. Default on.
+ORCHESTRATOR_DRIVEN = os.environ.get("APTS_ORCHESTRATOR_DRIVEN", "1") == "1"
+
+# One-line brief for each stage, used to compose the directive handed to it.
+_STAGE_JOB = {
+    "vuln": "Assess each recon request and hypothesise concrete, testable web "
+            "weaknesses — pursue anything imaginable.",
+    "mitre": "Map each weakness to the MITRE ATT&CK technique(s) it corresponds to.",
+    "exploit": "Prove or disprove each weakness against the live target using "
+               "your tools; confirm only on a real tool signal.",
+    "script": "Write and sandbox-test a proof-of-concept script for each "
+              "confirmed weakness.",
+    "adviser": "Produce the client report: group duplicates, keep only proven "
+               "findings, and rank by impact.",
+}
 
 # We hold the orchestrator's own token in memory once, at startup.
 _OWN_TOKEN: str | None = None
@@ -123,6 +144,13 @@ async def progress(update: ProgressUpdate, caller: Caller = Depends(require_auth
     if update.status == "failed":
         await _handle_agent_failure(update)
 
+    # A stage finished cleanly. In orchestrator-driven mode this is our cue to
+    # decide the next stage and dispatch it; in agent-driven mode the agent has
+    # already handed off, so we only note terminal completion.
+    if update.status == "done":
+        if ORCHESTRATOR_DRIVEN and pipeline.next_agent(update.agent) is not None:
+            await _advance_after(update)
+
     # If the Adviser reports done, the engagement is complete.
     if update.agent == "adviser" and update.status == "done":
         _mark_engagement_complete(update.engagement_id)
@@ -179,6 +207,8 @@ async def admin_start(spec: EngagementSpec) -> StartEngagementResponse:
         scope=spec.scope,
         time_window=spec.time_window,
         results={},
+        directive=("Map the attack surface of the target: crawl it, record every "
+                   "in-scope request, and triage which are worth testing."),
     )
 
     await _kickoff_agent("recon", handoff)
@@ -301,6 +331,8 @@ async def _handle_agent_failure(update: ProgressUpdate) -> None:
         scope=payload["scope"],
         time_window=payload.get("time_window"),
         results=payload.get("results", {}),
+        directive=_directive_for(agent, prev_agent or "orchestrator",
+                                 payload.get("results", {})),
     )
     log.info("retry #%d for agent %s (engagement %s)", retry_count, agent, update.engagement_id)
     audit("orchestrator", "retry_launched",
@@ -315,6 +347,69 @@ async def _handle_agent_failure(update: ProgressUpdate) -> None:
 
 def _previous_agent(agent: str) -> str | None:
     return pipeline.previous_agent(agent)
+
+
+# --------------------------------------------------------------------------- #
+# Orchestrator-driven advancement
+# --------------------------------------------------------------------------- #
+
+def _engagement_status(engagement_id: UUID) -> str | None:
+    with get_conn() as conn, conn.cursor() as cur:
+        cur.execute("SELECT status FROM engagements WHERE id = %s",
+                    (str(engagement_id),))
+        row = cur.fetchone()
+    return row[0] if row else None
+
+
+def _summarise_payload(payload: dict[str, Any]) -> str:
+    """A short line about what a stage produced — counts its list/dict members."""
+    if not isinstance(payload, dict):
+        return "a result"
+    parts = [f"{len(v)} {k}" for k, v in payload.items()
+             if isinstance(v, (list, dict)) and v]
+    return ", ".join(parts[:5]) or "a result"
+
+
+def _directive_for(successor: str, prev_agent: str, prev_payload: dict) -> str:
+    """Compose the next stage's start prompt from the finished stage's output.
+
+    Deterministic template today; the Composer will replace this with an
+    LLM-generated directive later, flowing through the same field."""
+    return (f"The {prev_agent} stage produced: {_summarise_payload(prev_payload)}. "
+            f"{_STAGE_JOB.get(successor, 'Continue the pipeline.')}")
+
+
+async def _advance_after(update: ProgressUpdate) -> None:
+    """A stage reported ``done``; dispatch the next stage with a directive."""
+    agent = update.agent
+    successor = pipeline.next_agent(agent)
+    if successor is None:
+        return  # terminal stage; completion is handled by the caller
+
+    # Do not advance an engagement the operator stopped or that already ended.
+    status = _engagement_status(update.engagement_id)
+    if status != "running":
+        log.info("not advancing %s -> %s: engagement %s is %s",
+                 agent, successor, update.engagement_id, status)
+        return
+
+    payload = _load_prev_output(update.engagement_id, agent)
+    results = payload.get("results", {}) or {}
+    directive = _directive_for(successor, agent, results)
+    handoff = ChainHandoff(
+        engagement_id=update.engagement_id,
+        from_component="orchestrator",
+        target_url=payload["target_url"],
+        scope=payload["scope"],
+        time_window=payload.get("time_window"),
+        results=results,
+        directive=directive,
+    )
+    log.info("advancing %s -> %s (engagement %s)", agent, successor,
+             update.engagement_id)
+    trace.record_for(update.engagement_id, "orchestrator", "advance",
+                     {"from": agent, "to": successor, "directive": directive})
+    await _kickoff_agent(successor, handoff)
 
 
 def _load_prev_output(engagement_id: UUID, prev_agent: str | None) -> dict[str, Any]:
@@ -406,8 +501,16 @@ def _run_admin() -> None:
 
 
 if __name__ == "__main__":
-    # Run both servers in the same process using a small threading harness.
+    # Run the servers in the same process using a small threading harness:
+    # the admin API, the native-MCP control server (the Composer's interface),
+    # and the public API on the main thread.
     import threading
-    t = threading.Thread(target=_run_admin, name="admin", daemon=True)
-    t.start()
+    threading.Thread(target=_run_admin, name="admin", daemon=True).start()
+
+    from orchestrator import mcp_control
+    threading.Thread(target=mcp_control.serve, name="control-mcp", daemon=True).start()
+
+    from orchestrator import composer
+    threading.Thread(target=composer.serve, name="composer", daemon=True).start()
+
     _run_public()
