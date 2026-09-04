@@ -106,7 +106,15 @@ class ToolResult(BaseModel):
 
 class SandboxExecRequest(BaseModel):
     engagement_id: UUID
-    command: str                   # single command string (skeleton: no real execution)
+    # Legacy raw-command mode, kept for the mcp-tools SandboxService.
+    command: str = ""
+    # Script mode: the native sandbox tool sends a whole program to run. When
+    # ``language`` is set, ``source`` is written to a file under /tmp and run
+    # with ``args`` as argv; ``command`` is ignored.
+    language: Literal["python", "bash"] | None = None
+    source: str = ""
+    args: list[str] = Field(default_factory=list)
+    timeout_seconds: int = 20
 
 
 class SandboxExecResult(BaseModel):
@@ -114,6 +122,8 @@ class SandboxExecResult(BaseModel):
     exit_code: int
     stdout: str
     stderr: str
+    timed_out: bool = False
+    duration_ms: int = 0
 
 
 # --------------------------------------------------------------------------- #

@@ -30,7 +30,6 @@ from mcp import Client
 from shared.llm import LlmClient
 from shared.models import VulnerabilityRegister, Weakness
 
-from agent.services.mcp_service import McpService
 from agent.services.workers import agentic
 from agent.services.workers.base import WorkContext, WorkFailed
 
@@ -331,11 +330,8 @@ def _to_weakness(hypothesis: str, req: dict, idx: int) -> Weakness | None:
 class VulnWorker:
     """The vulnerability agent: the hypothesis loop, rendered as a register."""
 
-    def __init__(self, llm: LlmClient, mcp: McpService) -> None:
-        # The loop drives the model and the native MCP server itself; llm/mcp are
-        # kept only for constructor compatibility with the composition root.
-        self._llm = llm
-        self._mcp = mcp
+    def __init__(self, llm: LlmClient) -> None:
+        self._llm = llm  # unused: the loop drives the AWS model itself
 
     async def __call__(self, ctx: WorkContext) -> dict[str, Any]:
         weaknesses: list[Weakness] = []

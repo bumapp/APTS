@@ -282,6 +282,12 @@ services:
     environment:
       <<: *llm-env
       AGENT_NAME: script
+      # The script worker runs the native-MCP PoC loop against mcp-native
+      # (sandbox_run), driving the hosted AWS model directly (agentic.chat).
+      APTS_MCP_URL:          ${APTS_MCP_URL:-http://mcp-native:9000/mcp}
+      APTS_LOOP_LLM_URL:     ${APTS_LOOP_LLM_URL:-https://bedrock-mantle.eu-north-1.api.aws/v1/chat/completions}
+      APTS_LOOP_LLM_MODEL:   ${APTS_LOOP_LLM_MODEL:-qwen.qwen3-coder-480b-a35b-instruct}
+      APTS_LOOP_LLM_TIMEOUT: ${APTS_LOOP_LLM_TIMEOUT:-150}
     secrets:
       - source: agent_script_token
         target: token
@@ -457,9 +463,15 @@ services:
       APTS_SQLMAP_PATH: /opt/sqlmap/sqlmap.py
       APTS_HACKTRICKS_DIR: /opt/hacktricks
       APTS_ATTACK_DIR: /opt/attack
+      # The sandbox_run tool calls the sandbox container over TLS.
+      APTS_SANDBOX_URL: ${APTS_SANDBOX_URL:-https://sandbox:8443}
     secrets:
       - source: db_password
         target: db_password
+      # mcp-native's own bearer token, so the sandbox_run tool can authenticate
+      # to the sandbox container (mounted at the load_own_token() default path).
+      - source: mcp_native_token
+        target: token
     volumes:
       - ./certs/trust-bundle.pem:/etc/apts/trust-bundle.pem:ro
       - ./config:/etc/apts/config:ro
@@ -511,6 +523,9 @@ services:
     <<: *service-base
     container_name: apts-sandbox
     hostname: sandbox
+    # apts-net for the audit DB and to receive /exec from mcp-native; apts-target
+    # (internal, no internet) so a PoC script can reach the engagement target.
+    networks: [ apts-net, apts-target ]
     depends_on:
       database: { condition: service_healthy }
     command: python -m sandbox.main
@@ -564,6 +579,7 @@ secrets:
   # and the sandbox executes commands. None of them call a model.
   llm_api_key:            { file: ./tokens/aws_llm.key }
   # Bearer tokens (one per Python service)
+  mcp_native_token:       { file: ./tokens/mcp-native.token }
   orchestrator_token:     { file: ./tokens/orchestrator.token }
   agent_recon_token:      { file: ./tokens/agent-recon.token }
   agent_vuln_token:       { file: ./tokens/agent-vuln.token }

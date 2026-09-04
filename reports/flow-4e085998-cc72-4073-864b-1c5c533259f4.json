@@ -1,0 +1,391 @@
+{
+  "engagement_id": "4e085998-cc72-4073-864b-1c5c533259f4",
+  "event_count": 20,
+  "events": [
+    {
+      "agent": "orchestrator",
+      "seq": 0,
+      "event_type": "engagement_requested",
+      "duration_ms": null,
+      "logged_at": "2026-09-04T10:24:10.266689+00:00",
+      "payload": {
+        "chain": [
+          "recon",
+          "vuln",
+          "mitre",
+          "exploit",
+          "script",
+          "adviser"
+        ],
+        "scope": {
+          "domains": [
+            "*.juice-shop.test"
+          ],
+          "deny_paths": [],
+          "allow_paths": []
+        },
+        "target_url": "https://juice-shop.test",
+        "time_window": {}
+      }
+    },
+    {
+      "agent": "orchestrator",
+      "seq": 0,
+      "event_type": "kickoff",
+      "duration_ms": null,
+      "logged_at": "2026-09-04T10:24:10.336212+00:00",
+      "payload": {
+        "url": "https://agent-recon:8443/run",
+        "agent": "recon"
+      }
+    },
+    {
+      "agent": "recon",
+      "seq": 1,
+      "event_type": "stage_input",
+      "duration_ms": null,
+      "logged_at": "2026-09-04T10:24:10.437426+00:00",
+      "payload": {
+        "scope": {
+          "domains": [
+            "*.juice-shop.test"
+          ],
+          "deny_paths": [],
+          "allow_paths": []
+        },
+        "upstream": {},
+        "target_url": "https://juice-shop.test",
+        "upstream_keys": [],
+        "from_component": "orchestrator",
+        "upstream_bytes": 2
+      }
+    },
+    {
+      "agent": "recon",
+      "seq": 2,
+      "event_type": "stage_output",
+      "duration_ms": 1846,
+      "logged_at": "2026-09-04T10:24:12.194192+00:00",
+      "payload": {
+        "summary": "empty artifact",
+        "artifact": {
+          "forms": [],
+          "api_paths": [],
+          "endpoints": [],
+          "truncated": false,
+          "target_url": "https://juice-shop.test",
+          "third_party": [],
+          "technologies": [],
+          "pages_crawled": 0,
+          "observed_requests": []
+        }
+      }
+    },
+    {
+      "agent": "recon",
+      "seq": 3,
+      "event_type": "handoff",
+      "duration_ms": null,
+      "logged_at": "2026-09-04T10:24:12.263346+00:00",
+      "payload": {
+        "next_agent": "vuln"
+      }
+    },
+    {
+      "agent": "vuln",
+      "seq": 1,
+      "event_type": "stage_input",
+      "duration_ms": null,
+      "logged_at": "2026-09-04T10:24:12.303233+00:00",
+      "payload": {
+        "scope": {
+          "domains": [
+            "*.juice-shop.test"
+          ],
+          "deny_paths": [],
+          "allow_paths": []
+        },
+        "upstream": {
+          "forms": [],
+          "api_paths": [],
+          "endpoints": [],
+          "truncated": false,
+          "target_url": "https://juice-shop.test",
+          "third_party": [],
+          "technologies": [],
+          "pages_crawled": 0,
+          "observed_requests": []
+        },
+        "target_url": "https://juice-shop.test",
+        "upstream_keys": [
+          "api_paths",
+          "endpoints",
+          "forms",
+          "observed_requests",
+          "pages_crawled",
+          "target_url",
+          "technologies",
+          "third_party",
+          "truncated"
+        ],
+        "from_component": "agent-recon",
+        "upstream_bytes": 192
+      }
+    },
+    {
+      "agent": "vuln",
+      "seq": 2,
+      "event_type": "stage_output",
+      "duration_ms": 438,
+      "logged_at": "2026-09-04T10:24:12.678482+00:00",
+      "payload": {
+        "summary": "empty artifact",
+        "artifact": {
+          "weaknesses": [],
+          "candidates_dropped": 0
+        }
+      }
+    },
+    {
+      "agent": "vuln",
+      "seq": 3,
+      "event_type": "handoff",
+      "duration_ms": null,
+      "logged_at": "2026-09-04T10:24:12.741688+00:00",
+      "payload": {
+        "next_agent": "mitre"
+      }
+    },
+    {
+      "agent": "mitre",
+      "seq": 1,
+      "event_type": "stage_input",
+      "duration_ms": null,
+      "logged_at": "2026-09-04T10:24:12.779191+00:00",
+      "payload": {
+        "scope": {
+          "domains": [
+            "*.juice-shop.test"
+          ],
+          "deny_paths": [],
+          "allow_paths": []
+        },
+        "upstream": {
+          "weaknesses": [],
+          "candidates_dropped": 0
+        },
+        "target_url": "https://juice-shop.test",
+        "upstream_keys": [
+          "candidates_dropped",
+          "weaknesses"
+        ],
+        "from_component": "agent-vuln",
+        "upstream_bytes": 43
+      }
+    },
+    {
+      "agent": "mitre",
+      "seq": 2,
+      "event_type": "stage_output",
+      "duration_ms": 102,
+      "logged_at": "2026-09-04T10:24:12.826439+00:00",
+      "payload": {
+        "summary": "empty artifact",
+        "artifact": {
+          "mappings": {}
+        }
+      }
+    },
+    {
+      "agent": "mitre",
+      "seq": 3,
+      "event_type": "handoff",
+      "duration_ms": null,
+      "logged_at": "2026-09-04T10:24:12.890029+00:00",
+      "payload": {
+        "next_agent": "exploit"
+      }
+    },
+    {
+      "agent": "exploit",
+      "seq": 1,
+      "event_type": "stage_input",
+      "duration_ms": null,
+      "logged_at": "2026-09-04T10:24:12.924397+00:00",
+      "payload": {
+        "scope": {
+          "domains": [
+            "*.juice-shop.test"
+          ],
+          "deny_paths": [],
+          "allow_paths": []
+        },
+        "upstream": {
+          "mappings": {}
+        },
+        "target_url": "https://juice-shop.test",
+        "upstream_keys": [
+          "mappings"
+        ],
+        "from_component": "agent-mitre",
+        "upstream_bytes": 16
+      }
+    },
+    {
+      "agent": "exploit",
+      "seq": 2,
+      "event_type": "stage_output",
+      "duration_ms": 113,
+      "logged_at": "2026-09-04T10:24:12.984791+00:00",
+      "payload": {
+        "summary": "empty artifact",
+        "artifact": {
+          "skipped": [],
+          "attempts": []
+        }
+      }
+    },
+    {
+      "agent": "exploit",
+      "seq": 3,
+      "event_type": "handoff",
+      "duration_ms": null,
+      "logged_at": "2026-09-04T10:24:13.048342+00:00",
+      "payload": {
+        "next_agent": "script"
+      }
+    },
+    {
+      "agent": "script",
+      "seq": 1,
+      "event_type": "stage_input",
+      "duration_ms": null,
+      "logged_at": "2026-09-04T10:24:13.082906+00:00",
+      "payload": {
+        "scope": {
+          "domains": [
+            "*.juice-shop.test"
+          ],
+          "deny_paths": [],
+          "allow_paths": []
+        },
+        "upstream": {
+          "skipped": [],
+          "attempts": []
+        },
+        "target_url": "https://juice-shop.test",
+        "upstream_keys": [
+          "attempts",
+          "skipped"
+        ],
+        "from_component": "agent-exploit",
+        "upstream_bytes": 31
+      }
+    },
+    {
+      "agent": "script",
+      "seq": 2,
+      "event_type": "stage_output",
+      "duration_ms": 98,
+      "logged_at": "2026-09-04T10:24:13.128722+00:00",
+      "payload": {
+        "summary": "empty artifact",
+        "artifact": {
+          "scripts": [],
+          "rejected": 0
+        }
+      }
+    },
+    {
+      "agent": "script",
+      "seq": 3,
+      "event_type": "handoff",
+      "duration_ms": null,
+      "logged_at": "2026-09-04T10:24:13.192162+00:00",
+      "payload": {
+        "next_agent": "adviser"
+      }
+    },
+    {
+      "agent": "adviser",
+      "seq": 1,
+      "event_type": "stage_input",
+      "duration_ms": null,
+      "logged_at": "2026-09-04T10:24:13.227427+00:00",
+      "payload": {
+        "scope": {
+          "domains": [
+            "*.juice-shop.test"
+          ],
+          "deny_paths": [],
+          "allow_paths": []
+        },
+        "upstream": {
+          "scripts": [],
+          "rejected": 0
+        },
+        "target_url": "https://juice-shop.test",
+        "upstream_keys": [
+          "rejected",
+          "scripts"
+        ],
+        "from_component": "agent-script",
+        "upstream_bytes": 30
+      }
+    },
+    {
+      "agent": "adviser",
+      "seq": 2,
+      "event_type": "report_written",
+      "duration_ms": null,
+      "logged_at": "2026-09-04T10:24:13.299553+00:00",
+      "payload": {
+        "paths": [
+          "/var/apts/reports/report-4e085998-cc72-4073-864b-1c5c533259f4.json",
+          "/var/apts/reports/report-4e085998-cc72-4073-864b-1c5c533259f4.md"
+        ],
+        "findings": 0,
+        "confirmed": 0,
+        "risk_score": 0.0
+      }
+    },
+    {
+      "agent": "adviser",
+      "seq": 3,
+      "event_type": "stage_output",
+      "duration_ms": 176,
+      "logged_at": "2026-09-04T10:24:13.349992+00:00",
+      "payload": {
+        "summary": "5 executive_summary, 2 playbook, 3 caveats, 2 report_files",
+        "artifact": {
+          "caveats": [
+            "Produced by an autonomous pipeline with no human review. Findings should be validated by a security engineer before remediation is prioritised or the results are shared externally.",
+            "Only proven findings are listed. Of 0 candidate weakness(es), 0 were tested for exploitability and 0 were proven; the remainder are hypotheses and are not reported as findings.",
+            "Absence of a finding is not evidence of absence. This engagement covered what the crawler reached within its configured bounds."
+          ],
+          "findings": [],
+          "playbook": {
+            "scripts": [],
+            "rejected": 0
+          },
+          "target_url": "https://juice-shop.test",
+          "generated_at": "2026-09-04T10:24:13.286511",
+          "report_files": [
+            "/var/apts/reports/report-4e085998-cc72-4073-864b-1c5c533259f4.json",
+            "/var/apts/reports/report-4e085998-cc72-4073-864b-1c5c533259f4.md"
+          ],
+          "engagement_id": "4e085998-cc72-4073-864b-1c5c533259f4",
+          "attack_coverage": {},
+          "executive_summary": {
+            "narrative": "0 hypotheses tested, 0 proven and reported. Unproven candidates are in the raw artifacts, not shown as findings.\n\nNo weaknesses were proven exploitable within the scope and time window of this engagement.",
+            "risk_score": 0.0,
+            "total_findings": 0,
+            "confirmed_count": 0,
+            "counts_by_severity": {}
+          },
+          "exploitation_confirmed": false
+        }
+      }
+    }
+  ]
+}

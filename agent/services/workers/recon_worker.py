@@ -37,7 +37,6 @@ from shared.models import (
     Technology,
 )
 
-from agent.services.mcp_service import McpService
 from agent.services.workers import agentic
 from agent.services.workers.base import WorkContext, WorkFailed
 
@@ -64,11 +63,9 @@ Rate every index you are given, exactly once.
 class ReconWorker:
     """Crawls the target (tool) then triages the observed requests (model)."""
 
-    def __init__(self, mcp: McpService, llm: LlmClient | None = None) -> None:
+    def __init__(self, llm: LlmClient | None = None) -> None:
         # The loop drives the crawl tool and the model itself via the native MCP
-        # client and the shared agentic plumbing; mcp/llm are kept for
-        # constructor compatibility with the composition root.
-        self._mcp = mcp
+        # client and the shared agentic plumbing; llm is unused (kept for parity).
         self._llm = llm
 
     async def __call__(self, ctx: WorkContext) -> dict:

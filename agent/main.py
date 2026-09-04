@@ -60,7 +60,6 @@ from agent.providers.run_provider import RunProvider
 from agent.repositories.agent_result_repository import AgentResultRepository
 from agent.repositories.flow_repository import FlowRepository
 from agent.repositories.trace_repository import TraceRepository
-from agent.services.mcp_service import McpService
 from agent.services.orchestrator_service import HandoffService, OrchestratorService
 from agent.services.workers.base import Worker
 from agent.services.workers.mitre_worker import MitreWorker
@@ -113,17 +112,17 @@ def _make_llm_client(agent_name: str):
     return LlmClient(agent_name)
 
 
-def build_worker(mcp: McpService, results: AgentResultRepository,
-                 exit_stack: list) -> Worker:
+def build_worker(results: AgentResultRepository, exit_stack: list) -> Worker:
     """Pick this agent's worker, opening an LLM client only if it needs one.
 
     Appends any async context manager it opens to ``exit_stack`` so lifespan can
     close it — an agent with no model must not hold an idle client, and an agent
-    with one must not leak it.
+    with one must not leak it. The recon/vuln/mitre/exploit workers drive the
+    native MCP server directly, so none of them take the old REST-facade client.
     """
     if AGENT_NAME in TOOL_BACKED:
         if AGENT_NAME == "recon":
-            return ReconWorker(mcp)
+            return ReconWorker()
         raise RuntimeError(f"{AGENT_NAME!r} is marked tool-backed but has no worker")
 
     if AGENT_NAME not in LLM_BACKED:
@@ -134,16 +133,13 @@ def build_worker(mcp: McpService, results: AgentResultRepository,
     llm = _make_llm_client(AGENT_NAME)
     exit_stack.append(llm)
     if AGENT_NAME == "mitre":
-        # Same shape as vuln/exploit: the worker runs an agentic loop against
-        # mcp-native; mcp is passed for constructor parity and is otherwise unused.
-        return MitreWorker(llm, mcp)
+        return MitreWorker(llm)
     if AGENT_NAME == "vuln":
-        # The only worker needing both: a model to judge, and tools to verify.
-        return VulnWorker(llm, mcp)
+        return VulnWorker(llm)
     if AGENT_NAME == "exploit":
         # Also reads the register from the store — MITRE sits between this
         # stage and the artifact it needs.
-        return ExploitWorker(llm, mcp, results)
+        return ExploitWorker(llm, results)
     if AGENT_NAME == "script":
         return ScriptWorker(llm, results)
     if AGENT_NAME == "adviser":
@@ -161,10 +157,9 @@ async def lifespan(app: FastAPI):
     )
     audit = AuditLog(COMPONENT)
 
-    mcp = McpService(client, token)
     results = AgentResultRepository()
     opened: list = []
-    worker = build_worker(mcp, results, opened)
+    worker = build_worker(results, opened)
     for resource in opened:
         await resource.__aenter__()
 

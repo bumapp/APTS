@@ -36,7 +36,6 @@ from pydantic import ValidationError
 from shared.llm import LlmClient
 from shared.models import AttackMap
 
-from agent.services.mcp_service import McpService
 from agent.services.workers import agentic
 from agent.services.workers.base import WorkContext, WorkFailed
 
@@ -234,11 +233,8 @@ async def _run_weakness(client, llm, openai_tools, menu: str,
 class MitreWorker:
     """The MITRE agent: the ATT&CK-mapping loop, rendered as an AttackMap."""
 
-    def __init__(self, llm: LlmClient, mcp: McpService | None = None) -> None:
-        # The loop drives the model and the native MCP server itself; llm/mcp are
-        # kept only for constructor parity with the composition root.
-        self._llm = llm
-        self._mcp = mcp
+    def __init__(self, llm: LlmClient) -> None:
+        self._llm = llm  # unused: the loop drives the AWS model itself
 
     async def __call__(self, ctx: WorkContext) -> dict[str, Any]:
         weaknesses = ctx.upstream.get("weaknesses") or []

@@ -31,6 +31,7 @@ RUN sed -i 's|http://deb.debian.org|https://deb.debian.org|g' \
  && apt-get install -y --no-install-recommends \
         openssl \
         ca-certificates \
+        curl \
         tini \
  && rm -rf /var/lib/apt/lists/*
 
