@@ -380,6 +380,9 @@ CHAT_HTML = r"""<!doctype html>
   header{padding:12px 18px;border-bottom:1px solid var(--edge);font-weight:600;letter-spacing:.02em}
   header small{color:var(--dim);font-weight:400;margin-left:8px}
   #log{flex:1;min-height:0;overflow-y:auto;padding:18px;display:flex;flex-direction:column;gap:10px}
+  /* Children of the flex-column scrollers must NOT shrink, or they squash to fit
+     the viewport and the container never overflows (so it never scrolls). */
+  #log>*{flex:0 0 auto}
   .msg{max-width:78%;padding:9px 13px;border-radius:12px;white-space:pre-wrap;word-wrap:break-word}
   .user{align-self:flex-end;background:var(--user)}
   .bot{align-self:flex-start;background:var(--panel);border:1px solid var(--edge)}
@@ -393,7 +396,7 @@ CHAT_HTML = r"""<!doctype html>
   #side{width:320px;border-left:1px solid var(--edge);background:var(--panel);display:flex;flex-direction:column;min-height:0}
   #side h3{margin:0;padding:12px 16px;border-bottom:1px solid var(--edge);font-size:13px;color:var(--dim);text-transform:uppercase;letter-spacing:.08em}
   #engs{flex:1;min-height:0;overflow-y:auto;padding:10px;display:flex;flex-direction:column;gap:10px}
-  .card{border:1px solid var(--edge);border-radius:10px;background:#121829;overflow:hidden}
+  .card{border:1px solid var(--edge);border-radius:10px;background:#121829;overflow:hidden;flex:0 0 auto}
   .chead{display:flex;align-items:center;gap:8px;padding:9px 11px;cursor:pointer;user-select:none}
   .chead .caret{color:var(--dim);width:12px;transition:transform .15s}
   .card.collapsed .caret{transform:rotate(-90deg)}

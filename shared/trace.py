@@ -49,7 +49,7 @@ from uuid import UUID
 
 import psycopg
 
-from shared.db import get_conn
+from shared.db import get_conn, strip_nul
 
 log = logging.getLogger("shared.trace")
 
@@ -190,7 +190,7 @@ def record_for(engagement_id: UUID | str, agent: str, event_type: str,
                        (engagement_id, agent, seq, event_type, payload, duration_ms)
                    VALUES (%s, %s, %s, %s, %s::jsonb, %s)""",
                 (str(engagement_id), agent, seq, event_type,
-                 psycopg.types.json.Json(cap(payload or {})), duration_ms),
+                 psycopg.types.json.Json(strip_nul(cap(payload or {}))), duration_ms),
             )
     except Exception as exc:                                     # pragma: no cover
         # Same rule as shared.db.audit: a stage that did its work must not fail

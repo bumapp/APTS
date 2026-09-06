@@ -67,6 +67,24 @@ def _dsn() -> str:
 # Connection + audit helpers (unchanged from prior version)
 # --------------------------------------------------------------------------- #
 
+def strip_nul(value):
+    """Recursively remove NUL (U+0000) bytes from strings in a JSON-able value.
+
+    Postgres text/JSONB cannot store ``\\u0000`` — a write containing one fails
+    the whole statement. Agent artifacts legitimately capture attacker-style
+    payloads (null-byte injection: ``email=x\\x00``) and raw response bytes, so
+    this is a real, recurring case, not a corner one. NULs are replaced with a
+    visible ``<NUL>`` marker rather than dropped, so the evidence that a null byte
+    was present survives. Generic: it does not care what any value means."""
+    if isinstance(value, str):
+        return value.replace("\x00", "<NUL>") if "\x00" in value else value
+    if isinstance(value, dict):
+        return {k: strip_nul(v) for k, v in value.items()}
+    if isinstance(value, (list, tuple)):
+        return [strip_nul(v) for v in value]
+    return value
+
+
 @contextlib.contextmanager
 def get_conn() -> Iterator[psycopg.Connection]:
     """Yield a short-lived DB connection.

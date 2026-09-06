@@ -15,13 +15,17 @@ from uuid import UUID
 
 import psycopg
 
-from shared.db import get_conn
+from shared.db import get_conn, strip_nul
 
 
 class AgentResultRepository:
     """Persists one agent's artifact for one engagement."""
 
     def save(self, engagement_id: UUID, agent: str, payload: dict[str, Any]) -> None:
+        # Strip NULs first: an artifact can carry attacker payloads / raw response
+        # bytes containing , which Postgres JSONB rejects — without this the
+        # whole stage fails to persist and the orchestrator retries it forever.
+        payload = strip_nul(payload)
         with get_conn() as conn, conn.cursor() as cur:
             cur.execute(
                 """INSERT INTO agent_results (engagement_id, agent, payload)
