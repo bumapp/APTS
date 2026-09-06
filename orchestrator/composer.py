@@ -429,7 +429,7 @@ CHAT_HTML = r"""<!doctype html>
 </style></head>
 <body>
   <div id="main">
-    <header>APTS Orchestrator <small>authorised pen-test — talk to me, not the agents</small></header>
+    <header>APTS UI<small>Autonomous pen-test system, lab enviorment</small></header>
     <div id="log"></div>
     <form id="f"><input id="i" autocomplete="off" placeholder="Message the orchestrator…" autofocus>
       <button id="b" type="submit">Send</button></form>
