@@ -7,7 +7,7 @@ supposed to run.
 """
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any, Protocol
 from uuid import UUID
 
@@ -26,6 +26,9 @@ class WorkContext:
     directive: str = ""
     """The orchestrator's natural-language start prompt for this stage. Advisory
     framing folded into the worker's first message; empty in agent-driven mode."""
+    credentials: dict[str, Any] = field(default_factory=dict)
+    """Optional auth for an authenticated crawl (headers/cookies/basic_auth). Only
+    Recon uses it; empty for unauthenticated runs."""
 
 
 class Worker(Protocol):

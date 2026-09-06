@@ -30,7 +30,7 @@ def get_recorded_request(
     """Fetch recorded recon requests for an endpoint.
 
     Args:
-        endpoint: The endpoint to look up, e.g. "/rest/user/login" (a full URL or
+        endpoint: The endpoint to look up, as a path or full URL (a full URL or
             a path with a query string are also accepted).
         engagement_id: Which scan to search; defaults to the latest recon scan.
         method: Optional filter, e.g. "POST" to get only the POST to that path.

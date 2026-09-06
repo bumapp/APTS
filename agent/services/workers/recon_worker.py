@@ -50,8 +50,10 @@ penetration test. For the page below you are given the requests the browser
 fired. Rate EACH request for how worth testing it is — do not drop any, rate all:
 - high:   carries user input into app logic — a login/search/API call with
           params or a body, an ID in the path, anything reaching a backend
-          query, command, or template.
-- medium: an app/API call with little or no obvious input, still worth a look.
+          query, command, or template. If a request lists ANY query or body
+          parameter, rate it high — even a parameter whose observed value is
+          empty still takes user input and is worth testing.
+- medium: an app/API call with NO parameters at all, still worth a look.
 - low:    static assets, analytics, polling/transport, health checks — little to test.
 
 Reply with ONLY JSON, no prose:
@@ -72,21 +74,36 @@ class ReconWorker:
         try:
             async with Client(agentic.MCP_URL) as client, \
                     httpx.AsyncClient(timeout=agentic.LLM_TIMEOUT) as llm:
-                crawl = (await client.call_tool("crawl", {
+                creds = ctx.credentials or {}
+                crawl_args = {
                     "url": ctx.target_url,
                     "allow_domains": list(ctx.scope.domains),
                     "allow_paths": list(ctx.scope.allow_paths),
                     "deny_paths": list(ctx.scope.deny_paths),
-                })).structured_content or {}
+                }
+                # Authenticated crawl (optional) — reach pages behind a login.
+                if creds.get("headers"):
+                    crawl_args["headers"] = creds["headers"]
+                if creds.get("cookies"):
+                    crawl_args["cookies"] = creds["cookies"]
+                if creds.get("basic_auth"):
+                    crawl_args["basic_auth"] = creds["basic_auth"]
+                if creds:
+                    log.info("recon crawling authenticated (headers=%s, cookies=%d)",
+                             sorted(creds.get("headers", {})), len(creds.get("cookies", [])))
+                crawl = (await client.call_tool("crawl", crawl_args)).structured_content or {}
                 observed = self._observed_requests(crawl)
                 await self._verify(llm, observed, agentic.directive_block(ctx.directive))
-                # Keep only what the model rated worth testing. The rest is
-                # dropped here so the downstream stages only ever see the
-                # high-interest attack surface (a proof run, not a full dump).
-                dropped = len(observed)
-                observed = [r for r in observed if r.interest == "high"]
-                log.info("recon triage: kept %d high-interest request(s), "
-                         "dropped %d", len(observed), dropped - len(observed))
+                # Record EVERYTHING — recon's contract is the COMPLETE request
+                # picture, so nothing is dropped here. The model's interest rating
+                # stays on each request as metadata (downstream prioritises with
+                # it), but every observed request is carried forward in full: full
+                # headers, full body, every field. A detail recon discards — an
+                # unusual header, a "low-interest" endpoint — is a detail a later
+                # stage can never test.
+                highs = sum(1 for r in observed if r.interest == "high")
+                log.info("recon triage: %d request(s) ranked, %d high-interest "
+                         "(all kept, none dropped)", len(observed), highs)
         except Exception as exc:  # noqa: BLE001 — retryable stage failure
             raise WorkFailed(f"recon loop failed: {type(exc).__name__}: {exc}") from exc
 
@@ -170,7 +187,8 @@ class ReconWorker:
             endpoints.append(Endpoint(
                 path=path, status=page.get("status"),
                 params=sorted({p.split("=")[0] for p in parsed.query.split("&") if p}),
-                content_type=page.get("content_type", "")))
+                content_type=page.get("content_type", ""),
+                response_headers=page.get("response_headers", {}) or {}))
         return endpoints
 
     @staticmethod
@@ -208,14 +226,16 @@ class ReconWorker:
 
 
 def _params_of(req: ObservedRequest) -> list[str]:
-    params = [k for k, _ in parse_qsl(urlparse(req.url).query)]
+    # keep_blank_values so an empty value (e.g. a param present with no value) still counts —
+    # otherwise an input endpoint observed with an empty query looks input-less and the ranker downgrades it below the high-interest cut.
+    params = [k for k, _ in parse_qsl(urlparse(req.url).query, keep_blank_values=True)]
     if req.post_data and req.post_data.strip():
         try:
             obj = json.loads(req.post_data)
             if isinstance(obj, dict):
                 params += list(obj.keys())
         except json.JSONDecodeError:
-            params += [k for k, _ in parse_qsl(req.post_data)]
+            params += [k for k, _ in parse_qsl(req.post_data, keep_blank_values=True)]
     seen: set[str] = set()
     return [p for p in params if not (p in seen or seen.add(p))]
 

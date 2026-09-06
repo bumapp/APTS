@@ -1,0 +1,489 @@
+{
+  "engagement_id": "ed433e38-d665-4992-914f-357351c0c2a3",
+  "event_count": 25,
+  "events": [
+    {
+      "agent": "orchestrator",
+      "seq": 0,
+      "event_type": "engagement_requested",
+      "duration_ms": null,
+      "logged_at": "2026-09-05T23:53:08.792094+00:00",
+      "payload": {
+        "chain": [
+          "recon",
+          "vuln",
+          "mitre",
+          "exploit",
+          "script",
+          "adviser"
+        ],
+        "scope": {
+          "domains": [
+            "juice-shop"
+          ],
+          "deny_paths": [],
+          "allow_paths": [
+            "/rest/products/search"
+          ]
+        },
+        "categories": [],
+        "target_url": "http://juice-shop:3000/rest/products/search"
+      }
+    },
+    {
+      "agent": "orchestrator",
+      "seq": 0,
+      "event_type": "kickoff",
+      "duration_ms": null,
+      "logged_at": "2026-09-05T23:53:08.906452+00:00",
+      "payload": {
+        "agent": "recon"
+      }
+    },
+    {
+      "agent": "recon",
+      "seq": 1,
+      "event_type": "stage_input",
+      "duration_ms": null,
+      "logged_at": "2026-09-05T23:53:09.039544+00:00",
+      "payload": {
+        "scope": {
+          "domains": [
+            "juice-shop"
+          ],
+          "deny_paths": [],
+          "allow_paths": [
+            "/rest/products/search"
+          ]
+        },
+        "upstream": {},
+        "target_url": "http://juice-shop:3000/rest/products/search",
+        "upstream_keys": [],
+        "from_component": "orchestrator",
+        "upstream_bytes": 2
+      }
+    },
+    {
+      "agent": "recon",
+      "seq": 2,
+      "event_type": "stage_output",
+      "duration_ms": 1366,
+      "logged_at": "2026-09-05T23:53:10.228832+00:00",
+      "payload": {
+        "summary": "1 endpoints",
+        "artifact": {
+          "forms": [],
+          "api_paths": [],
+          "endpoints": [
+            {
+              "path": "/rest/products/search",
+              "method": "GET",
+              "params": [],
+              "status": 200,
+              "content_type": "application/json"
+            }
+          ],
+          "truncated": false,
+          "target_url": "http://juice-shop:3000/rest/products/search",
+          "third_party": [],
+          "technologies": [],
+          "pages_crawled": 1,
+          "observed_requests": []
+        }
+      }
+    },
+    {
+      "agent": "orchestrator",
+      "seq": 0,
+      "event_type": "advance",
+      "duration_ms": null,
+      "logged_at": "2026-09-05T23:53:15.031264+00:00",
+      "payload": {
+        "to": "vuln",
+        "from": "recon",
+        "directive": "Focus on the /rest/products/search endpoint and hypothesize potential injection vulnerabilities, authentication bypasses, and parameter manipulation weaknesses that could be tested through targeted requests."
+      }
+    },
+    {
+      "agent": "orchestrator",
+      "seq": 0,
+      "event_type": "kickoff",
+      "duration_ms": null,
+      "logged_at": "2026-09-05T23:53:15.070616+00:00",
+      "payload": {
+        "url": "https://agent-vuln:8443/run",
+        "agent": "vuln"
+      }
+    },
+    {
+      "agent": "vuln",
+      "seq": 1,
+      "event_type": "stage_input",
+      "duration_ms": null,
+      "logged_at": "2026-09-05T23:53:15.126521+00:00",
+      "payload": {
+        "scope": {
+          "domains": [
+            "juice-shop"
+          ],
+          "deny_paths": [],
+          "allow_paths": [
+            "/rest/products/search"
+          ]
+        },
+        "upstream": {
+          "forms": [],
+          "api_paths": [],
+          "endpoints": [
+            {
+              "path": "/rest/products/search",
+              "method": "GET",
+              "params": [],
+              "status": 200,
+              "content_type": "application/json"
+            }
+          ],
+          "truncated": false,
+          "target_url": "http://juice-shop:3000/rest/products/search",
+          "third_party": [],
+          "technologies": [],
+          "pages_crawled": 1,
+          "observed_requests": []
+        },
+        "target_url": "http://juice-shop:3000/rest/products/search",
+        "upstream_keys": [
+          "api_paths",
+          "endpoints",
+          "forms",
+          "observed_requests",
+          "pages_crawled",
+          "target_url",
+          "technologies",
+          "third_party",
+          "truncated"
+        ],
+        "from_component": "orchestrator",
+        "upstream_bytes": 327
+      }
+    },
+    {
+      "agent": "vuln",
+      "seq": 2,
+      "event_type": "stage_output",
+      "duration_ms": 235,
+      "logged_at": "2026-09-05T23:53:15.304452+00:00",
+      "payload": {
+        "summary": "empty artifact",
+        "artifact": {
+          "weaknesses": [],
+          "candidates_dropped": 0
+        }
+      }
+    },
+    {
+      "agent": "orchestrator",
+      "seq": 0,
+      "event_type": "advance",
+      "duration_ms": null,
+      "logged_at": "2026-09-05T23:53:16.603253+00:00",
+      "payload": {
+        "to": "mitre",
+        "from": "vuln",
+        "directive": "Focus on mapping the identified vulnerabilities to specific MITRE ATT&CK techniques by analyzing the CVE details and attack vectors provided in the vulnerability assessment. Prioritize techniques that directly correspond to the exploit pathways and privilege escalation opportunities listed in the findings. Ensure each vulnerability is linked to at least one relevant ATT&CK ID based on the potential impact and access requirements documented."
+      }
+    },
+    {
+      "agent": "orchestrator",
+      "seq": 0,
+      "event_type": "kickoff",
+      "duration_ms": null,
+      "logged_at": "2026-09-05T23:53:16.639833+00:00",
+      "payload": {
+        "url": "https://agent-mitre:8443/run",
+        "agent": "mitre"
+      }
+    },
+    {
+      "agent": "mitre",
+      "seq": 1,
+      "event_type": "stage_input",
+      "duration_ms": null,
+      "logged_at": "2026-09-05T23:53:16.694318+00:00",
+      "payload": {
+        "scope": {
+          "domains": [
+            "juice-shop"
+          ],
+          "deny_paths": [],
+          "allow_paths": [
+            "/rest/products/search"
+          ]
+        },
+        "upstream": {
+          "weaknesses": [],
+          "candidates_dropped": 0
+        },
+        "target_url": "http://juice-shop:3000/rest/products/search",
+        "upstream_keys": [
+          "candidates_dropped",
+          "weaknesses"
+        ],
+        "from_component": "orchestrator",
+        "upstream_bytes": 43
+      }
+    },
+    {
+      "agent": "mitre",
+      "seq": 2,
+      "event_type": "stage_output",
+      "duration_ms": 94,
+      "logged_at": "2026-09-05T23:53:16.733229+00:00",
+      "payload": {
+        "summary": "empty artifact",
+        "artifact": {
+          "mappings": {}
+        }
+      }
+    },
+    {
+      "agent": "orchestrator",
+      "seq": 0,
+      "event_type": "advance",
+      "duration_ms": null,
+      "logged_at": "2026-09-05T23:53:23.005232+00:00",
+      "payload": {
+        "to": "exploit",
+        "from": "mitre",
+        "directive": "Focus on validating the identified weaknesses from the MITRE analysis against the live target using active exploitation techniques. Prioritize confirming each vulnerability with concrete tool output rather than theoretical assessments, and document only those weaknesses that produce verifiable exploitation results."
+      }
+    },
+    {
+      "agent": "orchestrator",
+      "seq": 0,
+      "event_type": "kickoff",
+      "duration_ms": null,
+      "logged_at": "2026-09-05T23:53:23.037408+00:00",
+      "payload": {
+        "url": "https://agent-exploit:8443/run",
+        "agent": "exploit"
+      }
+    },
+    {
+      "agent": "exploit",
+      "seq": 1,
+      "event_type": "stage_input",
+      "duration_ms": null,
+      "logged_at": "2026-09-05T23:53:23.093542+00:00",
+      "payload": {
+        "scope": {
+          "domains": [
+            "juice-shop"
+          ],
+          "deny_paths": [],
+          "allow_paths": [
+            "/rest/products/search"
+          ]
+        },
+        "upstream": {
+          "mappings": {}
+        },
+        "target_url": "http://juice-shop:3000/rest/products/search",
+        "upstream_keys": [
+          "mappings"
+        ],
+        "from_component": "orchestrator",
+        "upstream_bytes": 16
+      }
+    },
+    {
+      "agent": "exploit",
+      "seq": 2,
+      "event_type": "stage_output",
+      "duration_ms": 108,
+      "logged_at": "2026-09-05T23:53:23.146236+00:00",
+      "payload": {
+        "summary": "empty artifact",
+        "artifact": {
+          "loot": [],
+          "skipped": [],
+          "attempts": []
+        }
+      }
+    },
+    {
+      "agent": "orchestrator",
+      "seq": 0,
+      "event_type": "advance",
+      "duration_ms": null,
+      "logged_at": "2026-09-05T23:53:24.330905+00:00",
+      "payload": {
+        "to": "script",
+        "from": "exploit",
+        "directive": "Focus on creating a targeted proof-of-concept script that validates the confirmed vulnerability through direct exploitation testing. Prioritize scripting the most critical weakness identified and ensure all code execution paths are properly sandboxed to prevent unintended system impact. Test the script against the vulnerable target environment first before attempting any privilege escalation or lateral movement techniques."
+      }
+    },
+    {
+      "agent": "orchestrator",
+      "seq": 0,
+      "event_type": "kickoff",
+      "duration_ms": null,
+      "logged_at": "2026-09-05T23:53:24.364788+00:00",
+      "payload": {
+        "url": "https://agent-script:8443/run",
+        "agent": "script"
+      }
+    },
+    {
+      "agent": "script",
+      "seq": 1,
+      "event_type": "stage_input",
+      "duration_ms": null,
+      "logged_at": "2026-09-05T23:53:24.421141+00:00",
+      "payload": {
+        "scope": {
+          "domains": [
+            "juice-shop"
+          ],
+          "deny_paths": [],
+          "allow_paths": [
+            "/rest/products/search"
+          ]
+        },
+        "upstream": {
+          "loot": [],
+          "skipped": [],
+          "attempts": []
+        },
+        "target_url": "http://juice-shop:3000/rest/products/search",
+        "upstream_keys": [
+          "attempts",
+          "loot",
+          "skipped"
+        ],
+        "from_component": "orchestrator",
+        "upstream_bytes": 43
+      }
+    },
+    {
+      "agent": "script",
+      "seq": 2,
+      "event_type": "stage_output",
+      "duration_ms": 100,
+      "logged_at": "2026-09-05T23:53:24.461731+00:00",
+      "payload": {
+        "summary": "empty artifact",
+        "artifact": {
+          "scripts": [],
+          "rejected": 0
+        }
+      }
+    },
+    {
+      "agent": "orchestrator",
+      "seq": 0,
+      "event_type": "advance",
+      "duration_ms": null,
+      "logged_at": "2026-09-05T23:53:30.710581+00:00",
+      "payload": {
+        "to": "adviser",
+        "from": "script",
+        "directive": "Review the script execution results and compile a prioritized list of confirmed vulnerabilities, removing any duplicates or unverified findings. Focus on grouping similar issues together and ranking them based on potential business impact and exploitability. Present only the validated, high-confidence findings that require immediate attention."
+      }
+    },
+    {
+      "agent": "orchestrator",
+      "seq": 0,
+      "event_type": "kickoff",
+      "duration_ms": null,
+      "logged_at": "2026-09-05T23:53:30.749180+00:00",
+      "payload": {
+        "url": "https://agent-adviser:8443/run",
+        "agent": "adviser"
+      }
+    },
+    {
+      "agent": "adviser",
+      "seq": 1,
+      "event_type": "stage_input",
+      "duration_ms": null,
+      "logged_at": "2026-09-05T23:53:30.807361+00:00",
+      "payload": {
+        "scope": {
+          "domains": [
+            "juice-shop"
+          ],
+          "deny_paths": [],
+          "allow_paths": [
+            "/rest/products/search"
+          ]
+        },
+        "upstream": {
+          "scripts": [],
+          "rejected": 0
+        },
+        "target_url": "http://juice-shop:3000/rest/products/search",
+        "upstream_keys": [
+          "rejected",
+          "scripts"
+        ],
+        "from_component": "orchestrator",
+        "upstream_bytes": 30
+      }
+    },
+    {
+      "agent": "adviser",
+      "seq": 2,
+      "event_type": "report_written",
+      "duration_ms": null,
+      "logged_at": "2026-09-05T23:53:30.868489+00:00",
+      "payload": {
+        "paths": [
+          "/var/apts/reports/report-ed433e38-d665-4992-914f-357351c0c2a3.json",
+          "/var/apts/reports/report-ed433e38-d665-4992-914f-357351c0c2a3.md"
+        ],
+        "findings": 0,
+        "confirmed": 0,
+        "risk_score": 0.0
+      }
+    },
+    {
+      "agent": "adviser",
+      "seq": 3,
+      "event_type": "stage_output",
+      "duration_ms": 160,
+      "logged_at": "2026-09-05T23:53:30.909330+00:00",
+      "payload": {
+        "summary": "5 executive_summary, 2 playbook, 3 caveats, 2 report_files",
+        "artifact": {
+          "loot": [],
+          "caveats": [
+            "Produced by an autonomous pipeline with no human review. Findings should be validated by a security engineer before remediation is prioritised or the results are shared externally.",
+            "Only proven findings are listed. Of 0 candidate weakness(es), 0 were tested for exploitability and 0 were proven; the remainder are hypotheses and are not reported as findings.",
+            "Absence of a finding is not evidence of absence. This engagement covered what the crawler reached within its configured bounds."
+          ],
+          "findings": [],
+          "playbook": {
+            "scripts": [],
+            "rejected": 0
+          },
+          "target_url": "http://juice-shop:3000/rest/products/search",
+          "generated_at": "2026-09-05T23:53:30.858254",
+          "report_files": [
+            "/var/apts/reports/report-ed433e38-d665-4992-914f-357351c0c2a3.json",
+            "/var/apts/reports/report-ed433e38-d665-4992-914f-357351c0c2a3.md"
+          ],
+          "engagement_id": "ed433e38-d665-4992-914f-357351c0c2a3",
+          "attack_coverage": {},
+          "executive_summary": {
+            "narrative": "0 hypotheses tested, 0 proven and reported. Unproven candidates are in the raw artifacts, not shown as findings.\n\nNo weaknesses were proven exploitable within the scope and time window of this engagement.",
+            "risk_score": 0.0,
+            "total_findings": 0,
+            "confirmed_count": 0,
+            "counts_by_severity": {}
+          },
+          "exploitation_confirmed": false
+        }
+      }
+    }
+  ]
+}

@@ -8,7 +8,7 @@ short ``guidance`` line that tells the model what to do next — so a script tha
 errors is a prompt to debug and re-run, not a dead end.
 
 The sandbox is on the internal engagement network, so a PoC can make real
-requests to the target (e.g. http://juice-shop:3000/); it has no route to the
+requests to the target (e.g. http://app.example.com/); it has no route to the
 internet from that side. mcp-native authenticates to the sandbox with its own
 bearer token and verifies the sandbox's TLS cert against the trust bundle.
 """
@@ -77,7 +77,7 @@ async def sandbox_run(
             "bash" (has ``curl``). The script runs from /tmp.
         source: The complete script to run. Read the target base URL from
             argv[1] if you pass one in ``args``; otherwise hardcode the in-scope
-            target (e.g. http://juice-shop:3000).
+            target (e.g. http://app.example.com).
         args: Optional command-line arguments passed to the script as argv[1:].
         timeout_seconds: Wall-clock limit (1-60). The run is killed past it.
     """
@@ -126,7 +126,7 @@ def register(mcp) -> list[str]:
         "proof-of-concept: send the whole script, read the result, and if it "
         "errors or does not clearly prove the weakness, fix the source and call "
         "again. The sandbox can reach the in-scope target (e.g. "
-        "http://juice-shop:3000) but not the internet. Python has requests and "
+        "http://app.example.com) but not the internet. Python has requests and "
         "httpx; Bash has curl."
     ))(sandbox_run)
     return ["sandbox_run"]

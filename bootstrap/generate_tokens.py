@@ -41,9 +41,8 @@ COMPONENTS = [
     "agent-script",
     "agent-adviser",
     "database",
-    "mcp-tools",
     # mcp-native drives the sandbox tool, so it authenticates to the sandbox
-    # container with its own bearer token like mcp-tools does.
+    # container with its own bearer token.
     "mcp-native",
     "sandbox",
 ]

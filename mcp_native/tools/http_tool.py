@@ -23,7 +23,7 @@ async def http_request(
     """Perform a single HTTP request.
 
     Args:
-        url: The full URL to request, e.g. "http://juice-shop:3000/rest/user/login".
+        url: The full URL to request (scheme, host, path, and any query string).
         method: GET, POST, PUT, PATCH, DELETE, HEAD, or OPTIONS.
         headers: Optional request headers as a flat string->string map.
         body: Optional request body. A string is sent as-is; a dict/list is sent

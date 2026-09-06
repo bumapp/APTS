@@ -90,8 +90,18 @@ _SEVERITY_RANK = {"critical": 0, "high": 1, "medium": 2, "low": 3, "informationa
 
 SYSTEM_PROMPT = """\
 You are writing the FINDINGS section of a penetration-test report. You are given
-CONFIRMED, pre-grouped findings — each is already one vulnerability class on one
-asset, with how many times it was proven. For every group:
+CONFIRMED, pre-grouped items — each is what was PROVEN on one asset, with the
+hypotheses it came from and what the exploit actually demonstrated.
+
+MERGE DUPLICATES — this is important. Different items are often the SAME
+underlying vulnerability, reached from different hypotheses or with overlapping
+evidence (e.g. 'Account Takeover', 'LDAP Injection' and 'SQL Injection' that all
+prove the same SQL injection on the same login endpoint). When two or more items
+are the same real issue — same proof, same injection point, same evidence — MERGE
+them into ONE finding and list ALL their keys in "keys". Judge sameness by the
+"proved"/"evidence" text, not by the hypothesis names.
+
+For each finding:
 - assign a severity: critical | high | medium | low, by real-world impact;
 - write ONE sentence of concrete business impact;
 - write a specific, actionable remediation for that asset and class (never
@@ -100,13 +110,13 @@ asset, with how many times it was proven. For every group:
 Then ORDER the findings most-impactful first.
 
 Reply with ONLY JSON, no prose:
-{"findings":[{"key":"<the exact group key given>","title":"<short finding title>",
+{"findings":[{"keys":["<exact group key>", ...],"title":"<short finding title>",
   "severity":"critical|high|medium|low","impact":"<one sentence>",
   "recommendation":"<two or three sentences>","effort":"low|medium|high"}],
  "narrative":"<3-5 sentences for a CISO: risk posture, what to fix first, and how
               much confidence these proven results warrant>"}
-Use only the group keys given; every group must appear exactly once. Do not invent
-findings.
+Every group key given must appear in exactly one finding's "keys". Do not invent
+findings or keys.
 """
 
 
@@ -167,6 +177,7 @@ class AdviserWorker:
             exploitation_confirmed=n_proven > 0,
             caveats=self._caveats(asset_map, register, exploitation,
                                   n_total, n_tested, n_proven),
+            loot=self._dedup_loot(exploitation.get("loot", [])),
         )
 
         paths = self._reports.save(report)
@@ -180,15 +191,52 @@ class AdviserWorker:
         payload["report_files"] = paths
         return payload
 
+    _LOOT_JUNK = ("request failed", "error", "all connection attempts",
+                  "connection refused", "timed out", "none")
+
+    @classmethod
+    def _dedup_loot(cls, loot: list[dict]) -> list[dict]:
+        """Drop junk (empty/None/error values) and near-duplicates (same value seen
+        on many weaknesses), keeping the first source. So the report's collected-data
+        table is signal, not noise. Capped."""
+        seen: set[str] = set()
+        out: list[dict] = []
+        for item in loot:
+            if not isinstance(item, dict):
+                continue
+            val = str(item.get("value", "")).strip()
+            low = val.lower()
+            if not val or low in ("none", "null", "n/a", "-", "(none)", "(empty)",
+                                  "(no data)", "unknown", "true", "false"):
+                continue
+            if any(low.startswith(j) for j in cls._LOOT_JUNK):
+                continue
+            vkey = low[:60]
+            if vkey in seen:
+                continue
+            seen.add(vkey)
+            out.append({"type": (str(item.get("type", "")).strip() or "data")[:40],
+                        "value": val[:200], "source": item.get("source", "")})
+            if len(out) >= 30:
+                break
+        return out
+
     # --- grouping (deterministic) ---------------------------------------- #
 
     @staticmethod
     def _pregroup(proven: list[dict], attempts: dict, mappings: dict) -> list[dict]:
-        """Collapse proven weaknesses by (class, asset), merging evidence + tags."""
+        """Collapse proven weaknesses by (PROVEN class, asset), merging evidence.
+
+        Keyed by what Exploitation actually PROVED (``proven_vuln``), NOT the
+        hypothesis title — so 'Account Takeover', 'LDAP Injection' and 'SQL
+        Injection' that all proved the same SQLi on the same login endpoint
+        collapse into one group instead of three. The model can merge further."""
         groups: dict[tuple[str, str], dict] = {}
         for w in proven:
             wid = w.get("id")
-            label, default_sev = _class_of(w.get("title", ""))
+            att = attempts.get(wid, {})
+            # What was PROVEN drives the group; fall back to the hypothesis title.
+            label, default_sev = _class_of(att.get("proven_vuln") or w.get("title", ""))
             asset = w.get("asset", "")
             key = (label, asset)
             g = groups.get(key)
@@ -196,13 +244,19 @@ class AdviserWorker:
                 g = groups[key] = {
                     "key": f"{label} @ {asset}", "label": label, "asset": asset,
                     "default_severity": default_sev, "wids": [], "count": 0,
-                    "evidence": [], "techniques": set(), "reasons": []}
+                    "evidence": [], "techniques": set(), "reasons": [],
+                    "hypotheses": [], "writeups": [], "bases": set()}
             g["wids"].append(wid)
             g["count"] += 1
+            if w.get("title"):
+                g["hypotheses"].append(str(w["title"])[:80])
+            if att.get("writeup"):
+                g["writeups"].append(str(att["writeup"])[:200])
+            if att.get("signal_basis"):
+                g["bases"].add(str(att["signal_basis"]).split(" ")[0])
             # Merge evidence: the weakness's own + the exploit attempt's.
             for e in w.get("evidence", []):
                 g["evidence"].append(e)
-            att = attempts.get(wid, {})
             if att.get("evidence"):
                 g["evidence"].append(att["evidence"])
             if att.get("reason"):
@@ -220,6 +274,8 @@ class AdviserWorker:
                     deduped.append(e)
             g["evidence"] = deduped[:5]
             g["techniques"] = sorted(t for t in g["techniques"] if t)
+            g["hypotheses"] = list(dict.fromkeys(g["hypotheses"]))  # dedup, keep order
+            g["bases"] = sorted(g["bases"])
         return list(groups.values())
 
     # --- the reasoning loop ---------------------------------------------- #
@@ -232,12 +288,22 @@ class AdviserWorker:
             return [], ("No weaknesses were proven exploitable within the scope "
                         "and time window of this engagement.")
 
-        listing = "\n".join(
-            f'- key="{g["key"]}": {g["label"]} on {g["asset"]}, proven '
-            f'{g["count"]}x' + (f', ATT&CK {", ".join(g["techniques"])}'
-                                if g["techniques"] else '')
-            + (f' — {g["reasons"][0][:160]}' if g["reasons"] else '')
-            for g in groups)
+        def _line(g: dict) -> str:
+            out = (f'- key="{g["key"]}": proved {g["label"]} on {g["asset"]} '
+                   f'({g["count"]}x')
+            if g.get("bases"):
+                out += f', via {", ".join(g["bases"])}'
+            out += ")"
+            if g.get("hypotheses"):
+                out += f'\n    from hypotheses: {"; ".join(g["hypotheses"])[:160]}'
+            if g.get("writeups"):
+                out += f'\n    proved: {g["writeups"][0]}'
+            if g.get("evidence"):
+                out += f'\n    evidence: {str(g["evidence"][0].get("request", ""))[:120]}'
+            if g.get("techniques"):
+                out += f'\n    ATT&CK: {", ".join(g["techniques"])}'
+            return out
+        listing = "\n".join(_line(g) for g in groups)
         messages = [{"role": "system", "content": SYSTEM_PROMPT},
                     {"role": "user", "content": directive
                      + "## Confirmed, grouped findings\n" + listing}]
@@ -269,14 +335,47 @@ class AdviserWorker:
         return self._fallback(groups), ("Automated summary: the findings below "
                                         "were proven exploitable during the test.")
 
+    @staticmethod
+    def _merge_groups(gs: list[dict]) -> dict:
+        """Combine several groups the model merged into one, unioning evidence,
+        techniques, wids, hypotheses. Severity default = the most severe."""
+        if len(gs) == 1:
+            return gs[0]
+        m = {"key": gs[0]["key"], "label": gs[0]["label"], "asset": gs[0]["asset"],
+             "wids": [], "count": 0, "evidence": [], "techniques": set(),
+             "reasons": [], "hypotheses": [], "writeups": [], "bases": set()}
+        for g in gs:
+            m["wids"] += g["wids"]
+            m["count"] += g["count"]
+            m["evidence"] += g["evidence"]
+            m["techniques"] |= set(g.get("techniques", []))
+            m["reasons"] += g.get("reasons", [])
+            m["hypotheses"] += g.get("hypotheses", [])
+            m["writeups"] += g.get("writeups", [])
+            m["bases"] |= set(g.get("bases", []))
+        m["techniques"] = sorted(t for t in m["techniques"] if t)
+        m["hypotheses"] = list(dict.fromkeys(m["hypotheses"]))
+        m["bases"] = sorted(m["bases"])
+        m["evidence"] = m["evidence"][:5]
+        m["default_severity"] = sorted(
+            (g["default_severity"] for g in gs),
+            key=lambda s: _SEVERITY_RANK.get(s, 9))[0]
+        return m
+
     def _to_findings(self, items: list[dict], by_key: dict) -> list[Finding]:
         findings: list[Finding] = []
         used: set[str] = set()
         for it in items:
-            g = by_key.get(str(it.get("key", "")))
-            if g is None or g["key"] in used:
+            # Accept a merged finding ("keys": [...]) or a single "key".
+            keys = it.get("keys") if isinstance(it.get("keys"), list) else None
+            if not keys and it.get("key"):
+                keys = [it["key"]]
+            gs = [by_key[k] for k in (keys or []) if k in by_key and k not in used]
+            if not gs:
                 continue
-            used.add(g["key"])
+            for g in gs:
+                used.add(g["key"])
+            g = self._merge_groups(gs)
             sev = str(it.get("severity", "")).lower().strip()
             if sev not in _SEVERITY_SCORE:
                 sev = g["default_severity"]
@@ -302,11 +401,14 @@ class AdviserWorker:
                  rec: str = "", effort: str = "medium") -> Finding:
         note = f"Confirmed via {g['count']} attempt(s)."
         recommendation = " ".join(p for p in (impact, rec) if p).strip() or note
+        n_hyp = len(g.get("hypotheses", []) or g.get("wids", []))
+        status = (f"confirmed exploitable ({g['count']} proof(s)"
+                  + (f"; merged from {n_hyp} hypotheses" if n_hyp > 1 else "") + ")")
         return Finding(
             id=g["wids"][0], title=title or g["label"], asset=g["asset"],
             severity=severity, cvss_score=_SEVERITY_SCORE.get(severity, 5.0),
             cvss_vector="", confirmed=True,
-            status=f"confirmed exploitable ({g['count']} proof(s))",
+            status=status,
             technique_ids=list(g["techniques"]), owasp_category="",
             recommendation=recommendation,
             effort=effort if effort in ("low", "medium", "high") else "medium",

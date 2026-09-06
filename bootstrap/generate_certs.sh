@@ -28,7 +28,6 @@ COMPONENTS=(
     agent-script
     agent-adviser
     database
-    mcp-tools
     sandbox
 )
 

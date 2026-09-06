@@ -83,6 +83,31 @@ weakness, reply WITHOUT calling a tool, on one line:
 """
 
 
+def _auth_note(credentials: dict | None) -> str:
+    """Surface the engagement session to the PoC author so a reproduction can
+    authenticate exactly as the confirmed request did. Generic: it lists whatever
+    headers/cookies the run carries, with full values, and nothing here knows what
+    any value is. Empty when the run is unauthenticated."""
+    creds = credentials or {}
+    headers = creds.get("headers") or {}
+    cookies = creds.get("cookies") or []
+    basic = creds.get("basic_auth") or {}
+    if not headers and not cookies and not basic:
+        return ""
+    lines = ["\n\nAUTHENTICATED RUN — the engagement has a live session. If (and "
+             "only if) reproducing this weakness needs authentication, send it in "
+             "the PoC using these values VERBATIM (do not shorten or alter them):"]
+    for k, v in headers.items():
+        lines.append(f"- request header  {k}: {v}")
+    for c in cookies:
+        if isinstance(c, dict) and c.get("name"):
+            lines.append(f"- cookie  {c['name']}={c.get('value', '')}")
+    if basic.get("username"):
+        lines.append(f"- HTTP basic auth  user={basic.get('username')} "
+                     f"password={basic.get('password', '')}")
+    return "\n".join(lines)
+
+
 def safety_check(source: str) -> tuple[bool, str]:
     """Return ``(passed, notes)`` for one script."""
     hits = [label for pattern, label in _UNSAFE if pattern.search(source)]
@@ -200,11 +225,14 @@ class ScriptWorker:
                      if t.name in AGENT_TOOLS]
             openai_tools = agentic.mcp_tools_to_openai(tools)
             pre = agentic.directive_block(ctx.directive)
+            auth_note = _auth_note(ctx.credentials)
+            if auth_note:
+                log.info("script builder has a session available for PoCs")
 
             for attempt in confirmed[:MAX_SCRIPTS]:
                 wid = attempt.get("weakness_id", "W-?")
                 weakness = by_id.get(wid, {})
-                task = pre + self._task(attempt, weakness)
+                task = pre + self._task(attempt, weakness) + auth_note
                 try:
                     verdict, language, source, remediation = await _run_weakness(
                         client, llm, openai_tools, task)

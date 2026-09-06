@@ -16,11 +16,12 @@ from mcp_native.tools import (
     recon_tool,
     sandbox_tool,
     sqlmap_tool,
+    xss_prove,
 )
 
 # The modules server.py will register, in order. Add new tool modules here.
-ALL = (http_tool, recon_tool, sqlmap_tool, hacktricks_tool, crawl_tool,
-       attack_tool, sandbox_tool)
+ALL = (http_tool, xss_prove, recon_tool, sqlmap_tool, hacktricks_tool,
+       crawl_tool, attack_tool, sandbox_tool)
 
 
 def register_all(mcp) -> list[str]:

@@ -3,7 +3,7 @@
 Runs inside the orchestrator container.  Example::
 
     docker exec -it apts-orchestrator python -m orchestrator.cli start \\
-        --target=https://juice-shop.test/ --domain='*.juice-shop.test'
+        --target=https://app.example.com/ --domain='*.example.com'
 
     docker exec -it apts-orchestrator python -m orchestrator.cli status <id>
 
@@ -29,6 +29,27 @@ ADMIN = "http://127.0.0.1:8080"
 # --------------------------------------------------------------------------- #
 
 def cmd_start(args: argparse.Namespace) -> int:
+    credentials: dict[str, Any] = {}
+    headers: dict[str, str] = {}
+    for h in (args.header or []):
+        if ":" in h:
+            k, v = h.split(":", 1)
+            headers[k.strip()] = v.strip()
+    cookies = []
+    for c in (args.cookie or []):
+        if "=" in c:
+            k, v = c.split("=", 1)
+            cookies.append({"name": k.strip(), "value": v.strip()})
+    # --token is a convenience: many apps accept the same bearer as a header and a
+    # cookie named 'token'. Sends both so an authenticated crawl works either way.
+    if args.token:
+        headers.setdefault("Authorization", f"Bearer {args.token}")
+        cookies.append({"name": "token", "value": args.token})
+    if headers:
+        credentials["headers"] = headers
+    if cookies:
+        credentials["cookies"] = cookies
+
     spec: dict[str, Any] = {
         "target_url": args.target,
         "scope": {
@@ -37,6 +58,10 @@ def cmd_start(args: argparse.Namespace) -> int:
             "deny_paths": args.deny_path or [],
         },
     }
+    if args.objective:
+        spec["objective"] = args.objective
+    if credentials:
+        spec["credentials"] = credentials
     r = httpx.post(f"{ADMIN}/engagements/start", json=spec, timeout=30.0)
     if r.status_code != 200:
         print(f"error: {r.status_code} {r.text}", file=sys.stderr)
@@ -94,6 +119,17 @@ def main(argv: list[str] | None = None) -> int:
                          help="Allowed path prefix (repeatable)")
     p_start.add_argument("--deny-path", action="append", default=[],
                          help="Denied path prefix (repeatable)")
+    p_start.add_argument("--objective", default=None,
+                         help="Free-text engagement brief that steers every stage "
+                              "(what to concentrate on, ignore, or do differently). "
+                              "Advisory — it re-prioritises, it does not narrow scope.")
+    p_start.add_argument("--token", default=None,
+                         help="Bearer/access token for an authenticated crawl "
+                              "(sent as an Authorization header and a 'token' cookie).")
+    p_start.add_argument("--header", action="append", default=[],
+                         help="Extra request header 'Name: value' (repeatable).")
+    p_start.add_argument("--cookie", action="append", default=[],
+                         help="Session cookie 'name=value' (repeatable).")
     p_start.set_defaults(func=cmd_start)
 
     p_status = sub.add_parser("status", help="Print engagement status once")

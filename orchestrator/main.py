@@ -52,6 +52,10 @@ from orchestrator.guardrails_entry import (
     GuardrailsEntryBlocked,
     check_engagement_spec,
 )
+# The orchestrator authors each next-stage directive with the model, reusing the
+# agents' loop plumbing (the orchestrator image ships the agent code and has the
+# same APTS_LOOP_LLM_* env + llm_api_key secret).
+from agent.services.workers import agentic
 
 logging_config.configure("orchestrator")
 log = logging.getLogger("orchestrator")
@@ -68,6 +72,20 @@ MAX_RETRIES = pipeline.MAX_RETRIES
 # stalls (agents wait, orchestrator idle) or double-runs (both advance). Off
 # restores the original agent self-chaining. Default on.
 ORCHESTRATOR_DRIVEN = os.environ.get("APTS_ORCHESTRATOR_DRIVEN", "1") == "1"
+
+def _recon_directive(objective: str = "") -> str:
+    """The first-stage directive for the CLI path, optionally shaped by the
+    operator's brief. Mirrors ``orchestrator.mcp_control._recon_directive`` (see
+    that module's note on the deliberate mirroring); generic by construction — the
+    objective is injected verbatim, never interpreted, and only biases triage."""
+    directive = ("Map the attack surface of the target: crawl it, record every "
+                 "in-scope request, and triage which are worth testing.")
+    objective = (objective or "").strip()
+    if objective:
+        directive += (f" Operator objective for this engagement: {objective} "
+                      "Let it steer what you prioritise; rank surface outside it lower.")
+    return directive
+
 
 # One-line brief for each stage, used to compose the directive handed to it.
 _STAGE_JOB = {
@@ -102,6 +120,9 @@ async def lifespan(app: FastAPI):
         verify=client_ssl_context(),
         timeout=httpx.Timeout(30.0, connect=5.0),
     )
+    # Bring an older DB up to the current schema (idempotent) before serving.
+    from orchestrator import mcp_control
+    mcp_control._ensure_schema()
     log.info("orchestrator ready (chain=%s)", CHAIN)
     audit("orchestrator", "startup")
     try:
@@ -196,6 +217,7 @@ async def admin_start(spec: EngagementSpec) -> StartEngagementResponse:
     trace.record_for(engagement_id, "orchestrator", "engagement_requested", {
         "target_url": spec.target_url,
         "scope": spec.scope.model_dump(mode="json"),
+        "objective": spec.objective,
         "time_window": spec.time_window.model_dump(mode="json") if spec.time_window else {},
         "chain": CHAIN,
     })
@@ -207,8 +229,8 @@ async def admin_start(spec: EngagementSpec) -> StartEngagementResponse:
         scope=spec.scope,
         time_window=spec.time_window,
         results={},
-        directive=("Map the attack surface of the target: crawl it, record every "
-                   "in-scope request, and triage which are worth testing."),
+        directive=_recon_directive(spec.objective),
+        credentials=spec.credentials,
     )
 
     await _kickoff_agent("recon", handoff)
@@ -227,11 +249,13 @@ def admin_read(engagement_id: UUID) -> EngagementStatus:
 def _create_engagement_row(engagement_id: UUID, spec: EngagementSpec) -> None:
     with get_conn() as conn, conn.cursor() as cur:
         cur.execute(
-            """INSERT INTO engagements (id, target_url, scope, time_window, status)
-               VALUES (%s, %s, %s::jsonb, %s::jsonb, 'running')""",
+            """INSERT INTO engagements
+                   (id, target_url, scope, time_window, objective, credentials, status)
+               VALUES (%s, %s, %s::jsonb, %s::jsonb, %s, %s::jsonb, 'running')""",
             (str(engagement_id), spec.target_url,
              psycopg.types.json.Json(spec.scope.model_dump()),
-             psycopg.types.json.Json(spec.time_window.model_dump() if spec.time_window else {})),
+             psycopg.types.json.Json(spec.time_window.model_dump() if spec.time_window else {}),
+             spec.objective, psycopg.types.json.Json(spec.credentials or {})),
         )
         # Seed the per-agent state rows so retries have something to increment
         for agent in CHAIN:
@@ -320,9 +344,18 @@ async def _handle_agent_failure(update: ProgressUpdate) -> None:
             _mark_engagement_failed(update.engagement_id, reason=f"{agent} failed 3 times")
         return
 
-    # Re-launch this agent with the *previous* stage's stored output
+    # Re-launch this agent with the *previous* stage's stored output, and tell it
+    # WHY the last attempt failed so it can try a different approach rather than
+    # replaying the same prompt into the same failure.
     prev_agent = _previous_agent(agent)
     payload = _load_prev_output(update.engagement_id, prev_agent)
+    results = payload.get("results", {})
+    feedback = (f"your previous attempt failed: "
+                f"{(update.message or 'no error message').strip()[:200]} — "
+                f"try a different approach, do not repeat what failed")
+    directive = await _compose_directive(agent, prev_agent or "orchestrator",
+                                         results, note=feedback,
+                                         objective=payload.get("objective", ""))
 
     handoff = ChainHandoff(
         engagement_id=update.engagement_id,
@@ -330,9 +363,9 @@ async def _handle_agent_failure(update: ProgressUpdate) -> None:
         target_url=payload["target_url"],
         scope=payload["scope"],
         time_window=payload.get("time_window"),
-        results=payload.get("results", {}),
-        directive=_directive_for(agent, prev_agent or "orchestrator",
-                                 payload.get("results", {})),
+        results=results,
+        directive=directive,
+        credentials=payload.get("credentials", {}),
     )
     log.info("retry #%d for agent %s (engagement %s)", retry_count, agent, update.engagement_id)
     audit("orchestrator", "retry_launched",
@@ -371,12 +404,89 @@ def _summarise_payload(payload: dict[str, Any]) -> str:
 
 
 def _directive_for(successor: str, prev_agent: str, prev_payload: dict) -> str:
-    """Compose the next stage's start prompt from the finished stage's output.
-
-    Deterministic template today; the Composer will replace this with an
-    LLM-generated directive later, flowing through the same field."""
+    """Deterministic template directive — the fallback when the model is
+    unreachable, and the base the failure-feedback path builds on."""
     return (f"The {prev_agent} stage produced: {_summarise_payload(prev_payload)}. "
             f"{_STAGE_JOB.get(successor, 'Continue the pipeline.')}")
+
+
+DIRECTIVE_SYSTEM = """\
+You are the APTS orchestrator directing a pipeline of autonomous security agents
+(recon -> vuln -> mitre -> exploit -> script -> adviser). Write a SHORT directive
+(1-3 sentences, plain text, no preamble, no lists) telling the NEXT stage what to
+focus on, grounded in what the PREVIOUS stage actually produced. The structured
+artifact the agent receives is authoritative; your directive only steers
+emphasis and priorities. If an OPERATOR OBJECTIVE is given, it governs: carry it
+into this stage — translate it into what THIS stage should prioritise (and rank
+down what falls outside it) — while still doing the stage's core job. Be specific
+to this run. Output ONLY the directive text."""
+
+
+def _artifact_excerpt(payload: dict, limit: int = 1200) -> str:
+    """A compact highlights view of an artifact for the directive prompt."""
+    if not isinstance(payload, dict):
+        return ""
+    lines: list[str] = []
+    for k, v in payload.items():
+        if isinstance(v, list) and v:
+            parts = []
+            for it in v[:6]:
+                if isinstance(it, dict):
+                    label = (it.get("title") or it.get("id") or it.get("path")
+                             or it.get("url") or it.get("weakness_id")
+                             or next((str(x) for x in it.values()), ""))
+                    parts.append(str(label)[:70])
+                else:
+                    parts.append(str(it)[:70])
+            lines.append(f"- {k}: " + "; ".join(parts))
+    return "\n".join(lines)[:limit]
+
+
+async def _compose_directive(successor: str, prev_agent: str,
+                             prev_payload: dict, note: str = "",
+                             objective: str = "") -> str:
+    """Have the model author the next stage's directive from the previous output.
+
+    Falls back to the deterministic template if the model is unreachable, so an
+    advance never stalls on a directive. ``note`` (e.g. a failure reason) is
+    always surfaced to the agent, whichever path is taken. ``objective`` is the
+    operator's engagement-wide brief; it is injected verbatim (never interpreted
+    here) so every stage's directive is shaped by the same user intent."""
+    job = _STAGE_JOB.get(successor, "Continue the pipeline.")
+    objective = (objective or "").strip()
+    objective_line = (f"OPERATOR OBJECTIVE (governs this whole engagement — carry it "
+                      f"into this stage): {objective}\n" if objective else "")
+    loot = prev_payload.get("loot") if isinstance(prev_payload, dict) else None
+    loot_line = ""
+    if loot:
+        items = "; ".join(f"{l.get('type')}={str(l.get('value'))[:40]}"
+                          for l in loot[:6] if isinstance(l, dict))
+        loot_line = f"Interesting data already collected: {items}\n"
+    user = (objective_line +
+            f"Previous stage: {prev_agent} -> produced {_summarise_payload(prev_payload)}.\n"
+            f"Highlights:\n{_artifact_excerpt(prev_payload) or '(none)'}\n"
+            + loot_line +
+            f"\nNext stage: {successor}. Its job: {job}\n"
+            + (f"Also address this: {note}\n" if note else "")
+            + "Write the directive for the next stage.")
+    directive = ""
+    try:
+        async with httpx.AsyncClient(timeout=agentic.LLM_TIMEOUT) as llm:
+            msg = await agentic.chat(
+                llm, [{"role": "system", "content": DIRECTIVE_SYSTEM},
+                      {"role": "user", "content": user}], max_tokens=200)
+        directive = (msg.get("content") or "").strip()
+    except Exception as exc:  # noqa: BLE001 — never let a directive call stall the chain
+        log.warning("directive model call failed (%s); using template", exc)
+    if not directive:
+        directive = _directive_for(successor, prev_agent, prev_payload)
+        # The template can't fold in the objective, so append it verbatim.
+        if objective:
+            directive = f"{directive} Operator objective: {objective}"
+    # Guarantee the note reaches the agent even if the model dropped it.
+    if note and note.lower()[:20] not in directive.lower():
+        directive = f"{directive} (Note: {note})"
+    return directive
 
 
 async def _advance_after(update: ProgressUpdate) -> None:
@@ -395,7 +505,8 @@ async def _advance_after(update: ProgressUpdate) -> None:
 
     payload = _load_prev_output(update.engagement_id, agent)
     results = payload.get("results", {}) or {}
-    directive = _directive_for(successor, agent, results)
+    directive = await _compose_directive(successor, agent, results,
+                                         objective=payload.get("objective", ""))
     handoff = ChainHandoff(
         engagement_id=update.engagement_id,
         from_component="orchestrator",
@@ -404,6 +515,7 @@ async def _advance_after(update: ProgressUpdate) -> None:
         time_window=payload.get("time_window"),
         results=results,
         directive=directive,
+        credentials=payload.get("credentials", {}),
     )
     log.info("advancing %s -> %s (engagement %s)", agent, successor,
              update.engagement_id)
@@ -415,14 +527,17 @@ async def _advance_after(update: ProgressUpdate) -> None:
 def _load_prev_output(engagement_id: UUID, prev_agent: str | None) -> dict[str, Any]:
     with get_conn() as conn, conn.cursor() as cur:
         cur.execute(
-            "SELECT target_url, scope, time_window FROM engagements WHERE id = %s",
+            "SELECT target_url, scope, time_window, objective, credentials "
+            "FROM engagements WHERE id = %s",
             (str(engagement_id),),
         )
-        target_url, scope, time_window = cur.fetchone()
+        target_url, scope, time_window, objective, credentials = cur.fetchone()
         payload: dict[str, Any] = {
             "target_url": target_url,
             "scope": scope,
             "time_window": time_window,
+            "objective": objective or "",
+            "credentials": credentials or {},
             "results": {},
         }
         if prev_agent is not None:
@@ -466,7 +581,7 @@ async def _kickoff_agent(agent: str, handoff: ChainHandoff) -> None:
         )
         resp.raise_for_status()
         trace.record_for(handoff.engagement_id, "orchestrator", "kickoff",
-                         {"agent": agent, "url": url})
+                         {"agent": agent, "url": url, "directive": handoff.directive})
     except Exception as exc:
         log.error("failed to kick off %s: %s", agent, exc)
         audit("orchestrator", "kickoff_failed",

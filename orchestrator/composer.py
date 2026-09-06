@@ -64,12 +64,37 @@ How to work:
 - To START an engagement you need a target_url AND at least one in-scope domain
   that covers the target host. allow_paths, deny_paths, time_window, and test
   categories are optional. If anything required is missing, ask for it.
-- Before calling create_engagement, echo the parameters back and confirm. Call
-  create_engagement only when you have target_url and domains.
+- OBJECTIVE: if the user says anything about what the run should concentrate on,
+  ignore, or do differently (e.g. "only look at X", "focus on Y", "be aggressive",
+  "skip Z"), pass it verbatim as the `objective` argument to create_engagement.
+  It is folded into the directive every stage receives, so it steers the whole
+  pipeline. Do NOT invent an objective, and do NOT turn it into allow_paths/
+  deny_paths unless the user asks for a hard scope boundary — objective steers and
+  re-prioritises, scope fences. If the user gives no such intent, omit it.
+- Before calling create_engagement, echo the parameters back (including the
+  objective, if any) and confirm. Call create_engagement only when you have
+  target_url and domains.
 - After it starts, tell the user it is running; they will see live progress.
-- Use engagement_status when the user asks how it is going, stop_engagement to
-  cancel, and list_artifacts / get_artifact to retrieve outputs. Remember the
-  engagement_id from create_engagement so the user need not repeat it.
+- TOKEN / authenticated run: if the user gives an access token or bearer for the
+  target, pass it as the `token` argument to create_engagement so the run is
+  authenticated. Do not put a token in the objective or anywhere else.
+- Use engagement_status for progress, stop_engagement to cancel, and
+  list_artifacts / get_artifact to retrieve outputs.
+- If the user asks how the objective steered the run, what directive a stage got,
+  or wants to compare steering, call get_directives — it returns the objective and
+  the directive each stage was actually dispatched with.
+- READING EXACT VALUES (tokens, secrets, response bodies): the artifacts and the
+  side panel are summaries and shorten long values. To get an EXACT value, do NOT
+  ask for a whole artifact — call get_loot for the collected loot with full values,
+  or search_run(query=<a distinctive fragment you have>) to pull the surrounding
+  raw bytes from the full transcript/trace. Prefer a narrow query over dumping data.
+- Resolving WHICH engagement: remember the id from create_engagement. If the user
+  says "the latest", "my last run", or refers to one without an id, call
+  list_engagements to get recent ids and their status (it returns "latest"); never
+  ask the user for an id you can look up. You may state ids to the user.
+- Reading big results: a stage artifact can be large and come back truncated —
+  call get_artifact with query=<text> to search it (e.g. query="SQL" or a URL)
+  instead of asking for the whole thing.
 - Never invent findings or progress — read them with your tools. Keep replies
   concise and plain.
 """
@@ -93,6 +118,74 @@ def _recent_engagements(limit: int) -> list[tuple[str, str, str]]:
         cur.execute("SELECT id, target_url, status FROM engagements "
                     "ORDER BY created_at DESC LIMIT %s", (limit,))
         return [(str(i), t, s) for i, t, s in cur.fetchall()]
+
+
+_LOOT_JUNK_PREFIX = ("request failed", "error", "all connection attempts",
+                     "connection refused", "timed out", "none")
+
+
+def clean_loot(loot: list[dict]) -> list[dict]:
+    """Drop junk (empty/None/error values) and near-duplicates (same value), so the
+    'interesting findings' list is signal, not noise. Deduped by value prefix; the
+    type is normalised and the source kept."""
+    out: list[dict] = []
+    seen: set[str] = set()
+    for it in loot or []:
+        if not isinstance(it, dict):
+            continue
+        val = str(it.get("value", "")).strip()
+        low = val.lower()
+        if not val or low in ("none", "null", "n/a", "-", "(none)", "(empty)",
+                              "(no data)", "unknown", "true", "false"):
+            continue
+        if any(low.startswith(j) for j in _LOOT_JUNK_PREFIX):
+            continue
+        vkey = low[:60]
+        if vkey in seen:
+            continue
+        seen.add(vkey)
+        out.append({"type": (str(it.get("type", "")).strip() or "data")[:40],
+                    "value": val[:200], "source": it.get("source", "")})
+        if len(out) >= 20:
+            break
+    return out
+
+
+_LOOT_SUMMARY_SYSTEM = """\
+You are the APTS orchestrator. The exploit stage collected the data items below
+(already deduped, but noisy). Summarise, for the user, ONLY what is genuinely
+interesting: credentials, tokens/session material, database type/version, PII,
+exposed configuration, internal identifiers. Group similar items, drop filler,
+and never invent anything not present. Reply with 2-5 short plain-text bullet
+lines (each starting with "- "), no preamble. If nothing is interesting, reply
+exactly "Nothing notable."."""
+
+
+async def _summarise_loot(llm: httpx.AsyncClient, loot: list[dict]) -> str:
+    """Have the model turn the deduped loot list into a short interesting summary."""
+    if not loot:
+        return ""
+    listing = "\n".join(f"- {i.get('type')}: {str(i.get('value'))[:140]} "
+                        f"(from {i.get('source', '?')})" for i in loot)
+    try:
+        msg = await agentic.chat(
+            llm, [{"role": "system", "content": _LOOT_SUMMARY_SYSTEM},
+                  {"role": "user", "content": listing}], max_tokens=300)
+        return (msg.get("content") or "").strip()
+    except Exception as exc:  # noqa: BLE001 — summary is best-effort
+        log.warning("loot summary failed: %s", exc)
+        return ""
+
+
+def _exploit_loot(eid: str) -> list[dict]:
+    """The interesting data the exploit stage collected, cleaned for the UI."""
+    with get_conn() as conn, conn.cursor() as cur:
+        cur.execute("SELECT payload FROM agent_results WHERE engagement_id=%s "
+                    "AND agent='exploit'", (eid,))
+        row = cur.fetchone()
+    if not row or not isinstance(row[0], dict):
+        return []
+    return clean_loot(row[0].get("loot", []) or [])
 
 
 # --------------------------------------------------------------------------- #
@@ -159,6 +252,7 @@ async def ws(websocket: WebSocket) -> None:
         """Stream each stage transition for one engagement to the browser."""
         u = _as_uuid(eid)
         prev: dict[str, str] = {}
+        loot_sent = False
         while True:
             st = await asyncio.to_thread(_status, u)
             if not st:
@@ -171,6 +265,14 @@ async def ws(websocket: WebSocket) -> None:
                     await send({"type": "progress", "engagement_id": eid,
                                 "agent": agent, "label": STAGE_LABEL.get(agent, agent),
                                 "status": s})
+                    # When exploitation finishes, surface any loot it collected.
+                    if agent == "exploit" and s in ("done", "completed") and not loot_sent:
+                        loot_sent = True
+                        loot = await asyncio.to_thread(_exploit_loot, eid)
+                        if loot:
+                            summary = await _summarise_loot(llm, loot)
+                            await send({"type": "loot", "engagement_id": eid,
+                                        "summary": summary, "items": loot[:40]})
             if st["status"] in ("complete", "failed", "cancelled"):
                 await send({"type": "engagement", "engagement_id": eid,
                             "status": st["status"]})
@@ -274,10 +376,10 @@ CHAT_HTML = r"""<!doctype html>
         --run:#e0a53a;--ok:#48c78e;--fail:#f14668;--cancel:#7a879e;--pend:#3a445e;}
   *{box-sizing:border-box}
   body{margin:0;font:14px/1.5 system-ui,Segoe UI,Roboto,sans-serif;background:var(--bg);color:var(--fg);height:100vh;display:flex}
-  #main{flex:1;display:flex;flex-direction:column;min-width:0}
+  #main{flex:1;display:flex;flex-direction:column;min-width:0;min-height:0}
   header{padding:12px 18px;border-bottom:1px solid var(--edge);font-weight:600;letter-spacing:.02em}
   header small{color:var(--dim);font-weight:400;margin-left:8px}
-  #log{flex:1;overflow-y:auto;padding:18px;display:flex;flex-direction:column;gap:10px}
+  #log{flex:1;min-height:0;overflow-y:auto;padding:18px;display:flex;flex-direction:column;gap:10px}
   .msg{max-width:78%;padding:9px 13px;border-radius:12px;white-space:pre-wrap;word-wrap:break-word}
   .user{align-self:flex-end;background:var(--user)}
   .bot{align-self:flex-start;background:var(--panel);border:1px solid var(--edge)}
@@ -288,9 +390,9 @@ CHAT_HTML = r"""<!doctype html>
   button{border:0;border-radius:8px;background:var(--accent);color:#fff;font:inherit;font-weight:600;cursor:pointer}
   #f button{padding:0 18px}
   button:disabled{opacity:.45;cursor:default}
-  #side{width:320px;border-left:1px solid var(--edge);background:var(--panel);display:flex;flex-direction:column}
+  #side{width:320px;border-left:1px solid var(--edge);background:var(--panel);display:flex;flex-direction:column;min-height:0}
   #side h3{margin:0;padding:12px 16px;border-bottom:1px solid var(--edge);font-size:13px;color:var(--dim);text-transform:uppercase;letter-spacing:.08em}
-  #engs{flex:1;overflow-y:auto;padding:10px;display:flex;flex-direction:column;gap:10px}
+  #engs{flex:1;min-height:0;overflow-y:auto;padding:10px;display:flex;flex-direction:column;gap:10px}
   .card{border:1px solid var(--edge);border-radius:10px;background:#121829;overflow:hidden}
   .chead{display:flex;align-items:center;gap:8px;padding:9px 11px;cursor:pointer;user-select:none}
   .chead .caret{color:var(--dim);width:12px;transition:transform .15s}
@@ -309,7 +411,14 @@ CHAT_HTML = r"""<!doctype html>
   .stage.failed .dot{background:var(--fail)}
   .stage.cancelled .dot{background:var(--cancel)}
   .stage .nm{font-size:12px}.stage .st{margin-left:auto;font-size:11px;color:var(--dim)}
-  .plog{margin-top:8px;max-height:110px;overflow-y:auto;font:11px ui-monospace,monospace;color:var(--dim);display:flex;flex-direction:column;gap:2px}
+  .plog{margin-top:8px;font:11px ui-monospace,monospace;color:var(--dim);display:flex;flex-direction:column;gap:2px;max-height:120px;overflow-y:auto;overscroll-behavior:contain}
+  .cloot{margin-top:8px}
+  .looth{font-size:11px;color:var(--run);text-transform:uppercase;letter-spacing:.06em;margin-bottom:4px}
+  .lootsum{font-size:12.5px;line-height:1.5;color:var(--fg);margin-bottom:6px}
+  .lootitems{margin-top:4px}
+  .lootitems>summary{font-size:11px;color:var(--dim);cursor:pointer}
+  .lootrow{font:11px ui-monospace,monospace;color:var(--fg);background:#0b0f18;border:1px solid var(--edge);border-radius:6px;padding:4px 7px;margin:3px 0;word-break:break-all}
+  .loott{color:var(--run);margin-right:6px}
   .cacts{display:flex;gap:8px;margin-top:10px}
   .cacts button{flex:1;padding:7px 0;font-size:12px}
   .dl{background:#274a8a}.del{background:#3a2030;color:#ffb3c1}
@@ -337,6 +446,7 @@ const log=document.getElementById("log"),engs=document.getElementById("engs"),
       empty=document.getElementById("empty"),f=document.getElementById("f"),
       i=document.getElementById("i"),b=document.getElementById("b");
 const cards={};
+function esc(s){return String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));}
 // Chat transcript persists per-browser across refreshes (engagements persist
 // server-side; the visible chat persists here). The model's working memory still
 // resets on a new connection — only the transcript is restored.
@@ -358,6 +468,7 @@ function ensureCard(eid,target,status,fresh){
       <span class="ctitle">${target||"?"} <span class="cid">${short}</span></span>
       <span class="badge">…</span></div>
     <div class="cbody"><div class="stages"></div><div class="plog"></div>
+      <div class="cloot"></div>
       <div class="cacts"><button class="dl" disabled title="available when Reporting finishes">Download report</button>
       <button class="del">Delete</button></div></div>`;
   const stagesEl=card.querySelector(".stages"),rows={};
@@ -365,7 +476,7 @@ function ensureCard(eid,target,status,fresh){
     d.innerHTML=`<span class="dot"></span><span class="nm">${label}</span><span class="st">pending</span>`;
     stagesEl.appendChild(d);rows[id]=d;}
   const c={el:card,rows,plog:card.querySelector(".plog"),badge:card.querySelector(".badge"),
-           dl:card.querySelector(".dl")};
+           dl:card.querySelector(".dl"),loot:card.querySelector(".cloot")};
   cards[eid]=c;
   card.querySelector(".chead").onclick=()=>card.classList.toggle("collapsed");
   c.dl.onclick=e=>{e.stopPropagation();window.open(`/api/report/${eid}?fmt=md`,"_blank");};
@@ -394,6 +505,13 @@ sock.onmessage=e=>{const m=JSON.parse(e.data);
       r.querySelector(".st").textContent=WORD[m.status]||m.status;}
     plog(c,`${m.label} ${WORD[m.status]||m.status}`);
     if(m.agent==="adviser"&&(m.status==="done"||m.status==="completed")){c.dl.disabled=false;c.dl.title="";}}
+  else if(m.type==="loot"){const c=cards[m.engagement_id]||ensureCard(m.engagement_id);
+    if(!c.loot)return;
+    let html='<div class="looth">🔎 Interesting findings</div>';
+    if(m.summary)html+='<div class="lootsum">'+esc(m.summary).replace(/\n/g,"<br>")+'</div>';
+    if(m.items&&m.items.length)html+='<details class="lootitems"><summary>raw items ('+m.items.length+')</summary>'+
+      m.items.map(it=>`<div class="lootrow"><span class="loott">${esc(it.type||'?')}</span>${esc(String(it.value||'').slice(0,120))}</div>`).join('')+'</details>';
+    c.loot.innerHTML=html;}
   else if(m.type==="engagement"){const c=cards[m.engagement_id];if(c){setBadge(c,m.status);plog(c,`— ${m.status} —`);}}
   else if(m.type==="gone"){const c=cards[m.engagement_id];if(c){c.el.remove();delete cards[m.engagement_id];}}
 };

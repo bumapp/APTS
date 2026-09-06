@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import json
 import os
+from urllib.parse import urlparse
 
 import httpx
 
@@ -60,6 +61,46 @@ def mcp_tools_to_openai(tools) -> list[dict]:
 def sig(name: str, args: dict) -> str:
     """Stable signature for a tool call, to detect exact repeats."""
     return name + ":" + json.dumps(args, sort_keys=True, default=str)
+
+
+# --------------------------------------------------------------------------- #
+# Authenticated runs — carry the engagement's credentials onto tool requests.
+# Generic: credentials are {headers, cookies, basic_auth}; nothing here knows or
+# cares what any value *is* (a token is just a header/cookie value).
+# --------------------------------------------------------------------------- #
+
+def auth_headers(credentials: dict | None) -> dict[str, str]:
+    """Turn engagement credentials into request headers (incl. a Cookie header).
+
+    ``headers`` pass through as-is; ``cookies`` ([{name,value},...]) become one
+    ``Cookie`` header. ``basic_auth`` is left to the caller. Empty dict when there
+    are no credentials, so callers can merge unconditionally."""
+    creds = credentials or {}
+    out: dict[str, str] = dict(creds.get("headers") or {})
+    cookies = creds.get("cookies") or []
+    pairs = [f"{c.get('name')}={c.get('value')}" for c in cookies
+             if isinstance(c, dict) and c.get("name")]
+    if pairs:
+        out["Cookie"] = "; ".join(pairs)
+    return out
+
+
+def host_in_scope(url: str, domains, target_url: str = "") -> bool:
+    """True if ``url``'s host is the target host or matches an in-scope domain.
+
+    So credentials are only ever attached to hosts the engagement is allowed to
+    touch — a token is never sent off-target. Supports a leading-wildcard domain
+    (``*.example.com``) and a bare host (``juice-shop``)."""
+    host = (urlparse(url).hostname or "").lower()
+    if not host:
+        return False
+    if target_url and host == (urlparse(target_url).hostname or "").lower():
+        return True
+    for d in (domains or []):
+        d = str(d).lstrip("*.").lower()
+        if d and (host == d or host.endswith("." + d)):
+            return True
+    return False
 
 
 def directive_block(directive: str) -> str:

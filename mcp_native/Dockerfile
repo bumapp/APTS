@@ -18,11 +18,10 @@ RUN pip install --no-cache-dir -r /app/mcp_native/requirements.txt
 ENV PLAYWRIGHT_BROWSERS_PATH=/ms-playwright
 RUN playwright install --with-deps chromium
 
-# shared.db (recon lookup), the mcp_native package, and mcp_tools — the crawl
-# tool reuses the tested browser crawler that lives under mcp_tools.
+# shared.db (recon lookup) and the mcp_native package (which now carries its own
+# browser crawler under mcp_native/crawler/ — no longer the retired mcp_tools).
 COPY shared/     /app/shared/
 COPY mcp_native/ /app/mcp_native/
-COPY mcp_tools/  /app/mcp_tools/
 
 RUN mkdir -p /etc/apts && chown -R apts:apts /app /etc/apts /ms-playwright
 USER apts

@@ -51,43 +51,79 @@ def _extract_hints(output: str, injectable: bool) -> tuple[list[str], str]:
     o = output.lower()
     hints: list[str] = []
 
+    # Every hint below names a real argument of THIS tool (param, level, risk,
+    # technique, enumerate, extra_flags) — not a raw sqlmap CLI flag — so the model
+    # can act on it directly with its next call.
     if injectable:
-        return (["CONFIRMED injectable. Stop testing this parameter and report "
-                 "VERDICT: PROVEN. To gather proof detail you may re-run with the "
-                 "'enumerate' argument (e.g. 'current-db', 'banner')."],
+        return (["CONFIRMED injectable — report VERDICT: PROVEN. For extra proof "
+                 "detail you may call again with the `enumerate` argument set to "
+                 "e.g. \"banner\" or \"current-db\"."],
                 "Injection confirmed — conclude PROVEN.")
 
+    # First thing to reconsider on a miss: was the right input tested?
+    hints.append("Not injectable clears only the parameter(s) you tested — not the "
+                 "endpoint. To test the others, either OMIT the `param` argument "
+                 "(sqlmap then tests every parameter it finds) or set `param` to one "
+                 "you have not tried yet. Also raise the `level` and `risk` arguments.")
+
     if "ignore-code" in o or "not authorized" in o or "forbidden" in o:
-        hints.append("The target answered with an auth/deny code (e.g. 401/403) "
-                     "and sqlmap refused to continue. Re-run with "
+        hints.append("The target replied with an auth/deny code (e.g. 401/403) and "
+                     "sqlmap stopped. Call again with "
                      "extra_flags=[\"--ignore-code=401\"] (use the code you saw).")
     if "increase values for '--level'" in o or "--risk" in o:
-        hints.append("sqlmap asked for more thoroughness. Re-run with a higher "
-                     "level (e.g. level=3) and risk (e.g. risk=2).")
+        hints.append("sqlmap wants more thoroughness — raise the `level` argument "
+                     "(e.g. 3) and the `risk` argument (e.g. 2).")
     if ("without flag 't'" in o or "hasn't recovered" in o
             or "connection refused" in o or "continuous problem with connection" in o):
-        hints.append("Time-based payloads destabilised the target. Re-run with "
-                     "technique=\"BE\" (boolean+error only, no time-based).")
+        hints.append("Time-based payloads destabilised the target. Set the "
+                     "`technique` argument to \"BE\" (boolean + error only).")
     if "protection mechanism" in o or "tamper" in o or "waf" in o:
-        hints.append("A WAF/protection may be filtering payloads. Try "
-                     "extra_flags=[\"--random-agent\"] or a --tamper script.")
+        hints.append("A WAF/filter may be blocking payloads. Try "
+                     "extra_flags=[\"--random-agent\"], or a tamper script via "
+                     "extra_flags=[\"--tamper=<name>\"].")
 
     m = re.search(r"500 \(internal server error\) - (\d+) times", o)
     if m and int(m.group(1)) > 0:
-        hints.append(f"{m.group(1)}x HTTP 500 seen — the parameter probably "
-                     f"reaches the SQL parser (promising). Adjust flags per the "
-                     f"hints above and retry; do NOT conclude DISPROVEN yet.")
+        hints.append(f"{m.group(1)}x HTTP 500 seen — the parameter likely reaches "
+                     f"the SQL parser (promising). Adjust the arguments above and "
+                     f"retry; do NOT conclude DISPROVEN yet.")
 
-    if not hints:
-        hints.append("No injection and no specific sqlmap hint. Consider a higher "
-                     "level/risk, a different technique, or another parameter; "
-                     "otherwise conclude DISPROVEN.")
-
-    guidance = ("sqlmap did NOT confirm injection. Read the hints, change your "
-                "arguments accordingly (flags/level/risk/technique), and call "
-                "sqlmap again — do not repeat the same arguments, and do not give "
-                "up while a hint suggests something untried.")
+    guidance = ("sqlmap did NOT confirm injection. Change your ARGUMENTS per the "
+                "hints (param / level / risk / technique / extra_flags) and call "
+                "sqlmap again — never repeat the same arguments, and do not give up "
+                "while a hint suggests something untried.")
     return hints, guidance
+
+def _parse_proof(out: str) -> dict[str, Any]:
+    """Pull the concrete proof out of a confirmed sqlmap run.
+
+    On a hit sqlmap prints the injection point(s) with, per technique, the
+    Type/Title and the exact winning Payload, plus the back-end DBMS and a short
+    fingerprint. That is the real evidence — far more than 'injectable: true' —
+    so we parse it into structured fields the loop can store."""
+    points: list[dict] = []
+    for m in re.finditer(
+            r"Type:\s*(?P<type>[^\n]+)\n\s*Title:\s*(?P<title>[^\n]+)\n\s*"
+            r"Payload:\s*(?P<payload>[^\n]+)", out):
+        points.append({"type": m.group("type").strip(),
+                       "title": m.group("title").strip(),
+                       "payload": m.group("payload").strip()[:400]})
+    pm = re.search(r"Parameter:\s*([^\n(]+)\(([^)]+)\)", out)
+    dm = re.search(r"back-end DBMS:\s*([^\n]+)", out)
+    fingerprint: dict[str, str] = {}
+    for label, key in (("web server operating system", "os"),
+                       ("web application technology", "tech")):
+        fm = re.search(re.escape(label) + r":\s*([^\n]+)", out)
+        if fm:
+            fingerprint[key] = fm.group(1).strip()[:200]
+    return {
+        "parameter": pm.group(1).strip() if pm else None,
+        "place": pm.group(2).strip() if pm else None,
+        "dbms": dm.group(1).strip() if dm else None,
+        "injection_points": points,
+        "fingerprint": fingerprint,
+    }
+
 
 # enumerate keyword -> sqlmap flag(s). A small curated set; anything else goes
 # through extra_flags.
@@ -126,12 +162,13 @@ async def sqlmap(
         url: Target URL. For GET, put params in the query string; for POST, pass
             them in ``data``.
         method: HTTP method (GET or POST typically).
-        data: POST body / parameters, e.g. '{"email":"x","password":"y"}' or
-            'email=x&password=y'. sqlmap tests the params found here.
+        data: POST body / parameters, as a form string 'a=1&b=2' or a JSON
+            body '{"a":"1","b":"2"}'. sqlmap tests the params found here.
         cookie: Cookie header value, if the endpoint needs a session.
         headers: Extra request headers as a string->string map.
-        param: Restrict testing to this parameter name (sqlmap -p). Strongly
-            recommended when you already suspect one param.
+        param: Restrict testing to this one parameter name. OMIT it to let sqlmap
+            test every parameter it finds (do this if you are unsure which is
+            vulnerable); set it only when you already suspect one.
         level: 1-5, how thorough (more places tested). Default 1.
         risk: 1-3, how risky the payloads may be. Default 1.
         technique: Restrict techniques, a subset of letters "BEUSTQ"
@@ -195,17 +232,30 @@ async def sqlmap(
     out = stdout.decode(errors="replace")
     injectable = bool(_INJECTABLE.search(out)) and not _NOT_INJECTABLE.search(out)
     hints, guidance = _extract_hints(out, injectable)
+    proof = _parse_proof(out) if injectable else {}
+    if injectable and proof.get("injection_points"):
+        guidance = (f"Injection confirmed on parameter {proof.get('parameter')!r} "
+                    f"({len(proof['injection_points'])} technique(s), DBMS "
+                    f"{proof.get('dbms') or 'unknown'}) — conclude PROVEN and cite the "
+                    f"payload(s). For more proof you may re-run enumerate='banner' or "
+                    f"'current-db'.")
 
     return {
         "command": " ".join(argv),
         "exit_code": proc.returncode,
         "injectable": injectable,
+        # Structured proof first, so it survives evidence truncation downstream:
+        # the confirmed parameter, the winning payload(s)/technique(s), DBMS, and
+        # sqlmap's fingerprint of the stack.
+        "parameter": proof.get("parameter"),
+        "dbms": proof.get("dbms"),
+        "injection_points": proof.get("injection_points", []),
+        "fingerprint": proof.get("fingerprint", {}),
         # A mini-prompt + parsed hints so the model adapts its NEXT call instead
         # of accepting the first "not injectable" as final.
         "guidance": guidance,
         "hints": hints,
-        # The model reads the tail: sqlmap prints its verdict, the injection
-        # points, the payloads, and the DBMS near the end.
+        # The model can still read the tail for anything not parsed above.
         "output_tail": out[-_OUTPUT_TAIL:],
         "output_truncated": len(out) > _OUTPUT_TAIL,
     }
@@ -214,11 +264,14 @@ async def sqlmap(
 def register(mcp) -> list[str]:
     mcp.tool(description=(
         "Run sqlmap to PROVE or DISPROVE SQL injection on a specific request. "
-        "You pick the URL, method, POST data, the parameter to test (-p), and how "
-        "hard to try (level/risk/technique). Returns sqlmap's verdict "
-        "('injectable': true/false) plus the tail of its output showing the "
-        "injection point, payloads, and backend DBMS. Start with just the "
-        "suspected parameter at level 1; only raise level/risk or enumerate "
-        "(dbs/tables/dump) after a parameter is confirmed injectable."
+        "Arguments: url, method, data (POST body), param (one parameter to test, or "
+        "omit to test all), level/risk/technique (how hard to try), extra_flags (any "
+        "other sqlmap flag), enumerate (after a hit). Returns 'injectable' plus STRUCTURED "
+        "PROOF on a hit: the confirmed parameter, the winning payload(s) and "
+        "technique(s) (injection_points), the back-end DBMS, and a stack "
+        "fingerprint — cite these as evidence. This is the correct tool for SQLi. "
+        "Start at level 1 (omit param to test all inputs, or set it if you suspect "
+        "one); raise level/risk, switch technique, or enumerate (banner/dbs/dump) "
+        "only after a hit or when a returned hint tells you to."
     ))(sqlmap)
     return ["sqlmap"]

@@ -1,0 +1,25 @@
+{
+  "engagement_id": "900732d5-a074-4d3d-9436-55c8b8382994",
+  "target_url": "http://juice-shop:3000/rest/products/search",
+  "generated_at": "2026-09-05T23:42:22.734555",
+  "executive_summary": {
+    "risk_score": 0.0,
+    "narrative": "0 hypotheses tested, 0 proven and reported. Unproven candidates are in the raw artifacts, not shown as findings.\n\nNo weaknesses were proven exploitable within the scope and time window of this engagement.",
+    "counts_by_severity": {},
+    "confirmed_count": 0,
+    "total_findings": 0
+  },
+  "findings": [],
+  "playbook": {
+    "scripts": [],
+    "rejected": 0
+  },
+  "attack_coverage": {},
+  "exploitation_confirmed": false,
+  "caveats": [
+    "Produced by an autonomous pipeline with no human review. Findings should be validated by a security engineer before remediation is prioritised or the results are shared externally.",
+    "Only proven findings are listed. Of 0 candidate weakness(es), 0 were tested for exploitability and 0 were proven; the remainder are hypotheses and are not reported as findings.",
+    "Absence of a finding is not evidence of absence. This engagement covered what the crawler reached within its configured bounds."
+  ],
+  "loot": []
+}

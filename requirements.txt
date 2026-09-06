@@ -11,16 +11,9 @@ psycopg[binary]==3.2.3
 # Native MCP client — the vuln/exploit agentic loops drive the mcp-native server.
 # Requires pydantic>=2.12 (hence the bump above); schemas verified under 2.13.
 mcp==2.1.0
-# Only mcp-tools' crawl tool uses this — every service shares one image
-# (see Dockerfile), so it ships in all of them, but only mcp-tools launches a
-# browser with it.
-playwright==1.49.0
-# Technology fingerprinting for the crawl tool. Ships a bundled fingerprint DB,
-# so it works fully offline (no runtime fetch). 0.3.1 still imports the
-# deprecated pkg_resources, so setuptools must stay below the release that
-# removed it — pinned here rather than left to the base image's default.
-python-Wappalyzer==0.3.1
-setuptools<81
+# NOTE: the browser crawler (Playwright + python-Wappalyzer) now lives only in
+# the mcp-native image (mcp_native/crawler/, mcp_native/requirements.txt). No
+# service in this shared image drives a browser, so those deps are not here.
 # Alternative LLM backend (shared/llm_hf.py) — talks to a Hugging Face Space.
 # Only pulled in; only used when APTS_LLM_PROVIDER=hf. The default DeepSeek path
 # never imports it.

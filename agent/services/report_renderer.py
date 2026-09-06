@@ -137,6 +137,21 @@ def render_markdown(report: EngagementReport) -> str:
         out.append("_No techniques mapped._")
     out.append("")
 
+    # ---- Collected data (loot) ---------------------------------------- #
+    if report.loot:
+        out.append("## Interesting data collected")
+        out.append("")
+        out.append("Data the exploitation stage extracted while proving the findings "
+                   "above. Treat as sensitive.")
+        out.append("")
+        out.append("| Type | Value | Source |")
+        out.append("|---|---|---|")
+        for item in report.loot:
+            val = str(item.get("value", "")).replace("|", "\\|").replace("\n", " ")
+            out.append(f"| {item.get('type', '?')} | `{val[:160]}` | "
+                       f"{item.get('source', '')} |")
+        out.append("")
+
     # ---- Caveats ------------------------------------------------------ #
     out.append("## Caveats and limitations")
     out.append("")

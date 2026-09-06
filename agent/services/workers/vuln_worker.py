@@ -10,10 +10,10 @@ context-compaction guard, and a progress guard (no repeat fetches); after the
 model concludes, an optional reflection round asks whether more are worth adding.
 
 Each hypothesis becomes a ``Weakness`` so the rest of the pipeline consumes the
-same ``VulnerabilityRegister`` from the DB. Severity is a *scoring* step, not a
-ranking one: the model names the class, a per-class CVSS reference maps it to a
-vector, and ``shared.cvss`` computes the number. Nothing is ranked or reordered,
-and nothing is ``confirmed`` here — that is Exploitation's word.
+same ``VulnerabilityRegister`` from the DB. No scoring or ranking happens here —
+CVSS was removed from this stage — and nothing is ``confirmed``: that is
+Exploitation's word. The Adviser assigns severity/impact later, over the
+weaknesses Exploitation actually proved.
 """
 from __future__ import annotations
 
@@ -98,9 +98,13 @@ them later.
 # --------------------------------------------------------------------------- #
 
 def _params_of(req: dict) -> list[str]:
-    """Best-effort list of the parameter names a request carries."""
+    """Best-effort list of the parameter names a request carries.
+
+    keep_blank_values so an empty value (e.g. a param present with no value) still counts —
+    an input endpoint observed with an empty query must not look input-less."""
     params: list[str] = []
-    params += [k for k, _ in parse_qsl(urlparse(req.get("url") or "").query)]
+    params += [k for k, _ in parse_qsl(urlparse(req.get("url") or "").query,
+                                       keep_blank_values=True)]
     body = req.get("post_data")
     if isinstance(body, str) and body.strip():
         try:
@@ -108,7 +112,7 @@ def _params_of(req: dict) -> list[str]:
             if isinstance(obj, dict):
                 params += list(obj.keys())
         except json.JSONDecodeError:
-            params += [k for k, _ in parse_qsl(body)]
+            params += [k for k, _ in parse_qsl(body, keep_blank_values=True)]
     seen: set[str] = set()
     return [p for p in params if not (p in seen or seen.add(p))]
 
@@ -318,11 +322,16 @@ def _to_weakness(hypothesis: str, req: dict, idx: int) -> Weakness | None:
     for line in lines[1:]:
         if line.strip().lower().startswith("hypothesis:"):
             rationale = line.split(":", 1)[1].strip()[:500]
+    # Carry the exact request forward so Exploitation needs no lookup tool.
+    origin = {k: req.get(k) for k in ("method", "path", "url", "content_type",
+                                      "post_data") if req.get(k)}
+    origin["params"] = _params_of(req)
     try:
         return Weakness(
             id=f"W-{idx:03d}", title=title, asset=req.get("path") or "/",
             confidence="possible",
-            rationale=rationale or hypothesis[:500], evidence=[])
+            rationale=rationale or hypothesis[:500], evidence=[],
+            origin_request=origin)
     except Exception:  # noqa: BLE001 — a malformed item must not kill the stage
         log.warning("dropping unmappable hypothesis: %s", title)
         return None

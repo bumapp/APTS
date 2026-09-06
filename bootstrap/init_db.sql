@@ -12,6 +12,13 @@ CREATE TABLE IF NOT EXISTS engagements (
     target_url   TEXT        NOT NULL,
     scope        JSONB       NOT NULL,
     time_window  JSONB       NOT NULL DEFAULT '{}',
+    objective    TEXT        NOT NULL DEFAULT '',
+        -- operator's free-text engagement brief; the orchestrator folds it into
+        -- every stage's composed directive. Advisory, does not narrow scope.
+    credentials  JSONB       NOT NULL DEFAULT '{}',
+        -- optional auth for the run (headers/cookies/basic_auth), carried to
+        -- every stage so any tool that needs it can authenticate to in-scope
+        -- hosts. Sensitive — same store already holds captured tokens as loot.
     status       VARCHAR(32) NOT NULL DEFAULT 'created',
         -- created | running | complete | failed
     created_at   TIMESTAMPTZ NOT NULL DEFAULT NOW(),

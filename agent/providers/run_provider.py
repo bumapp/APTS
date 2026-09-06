@@ -122,6 +122,7 @@ class RunProvider:
                 scope=handoff.scope,
                 upstream=handoff.results,
                 directive=handoff.directive,
+                credentials=handoff.credentials,
             ))
 
             self._results.save(engagement_id, self._agent, result)
@@ -134,9 +135,18 @@ class RunProvider:
             # requests are already safe inside the saved AssetMap.
             if self._recon_index is not None:
                 try:
-                    n = self._recon_index.index(
-                        engagement_id, result.get("observed_requests", []))
-                    log.info("indexed %d observed requests for lookup", n)
+                    observed = result.get("observed_requests", [])
+                    # The recon ARTIFACT keeps every observed request in full (the
+                    # complete picture, queryable and available to any stage). The
+                    # vuln-facing INDEX stays the high-interest working set so the
+                    # assessment loop is not flooded with static/low-value calls;
+                    # fall back to everything if nothing was rated high.
+                    to_index = [r for r in observed
+                                if r.get("interest") == "high"] or observed
+                    n = self._recon_index.index(engagement_id, to_index)
+                    log.info("indexed %d of %d observed requests for lookup "
+                             "(high-interest working set; full set in the artifact)",
+                             n, len(observed))
                 except Exception as exc:
                     log.error("recon request indexing failed: %s", exc)
             trace.record("stage_output",

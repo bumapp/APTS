@@ -170,14 +170,14 @@ services:
       APTS_LOOP_LLM_URL:     ${APTS_LOOP_LLM_URL:-https://bedrock-mantle.eu-north-1.api.aws/v1/chat/completions}
       APTS_LOOP_LLM_MODEL:   ${APTS_LOOP_LLM_MODEL:-qwen.qwen3-coder-480b-a35b-instruct}
       APTS_LOOP_LLM_TIMEOUT: ${APTS_LOOP_LLM_TIMEOUT:-150}
-      # The default 30s client timeout (agent/config.py) is well under
-      # mcp-tools' own CRAWL_MAX_SECONDS=120 budget for the crawl tool call —
-      # harmless with the old httpx-based crawler, which rarely ran that
-      # long, but the browser-driven one legitimately can, and the two
-      # timeouts disagreeing turns a still-working crawl into an aborted
-      # engagement. Recon is the only agent that makes a call this long-lived,
-      # so this is set here rather than raising the shared default.
-      APTS_HTTP_TIMEOUT: "150"
+      # Recon's client timeout for the crawl tool call MUST exceed the crawler's
+      # own CRAWL_MAX_SECONDS budget (mcp_native/crawler/config.py, now 240s) —
+      # the browser-driven crawl with route mining/menu expansion legitimately
+      # runs that long, and if the client gives up first a still-working crawl
+      # becomes an aborted engagement. Kept comfortably above the 240s budget.
+      # Recon is the only agent that makes a call this long-lived, so this is set
+      # here rather than raising the shared default.
+      APTS_HTTP_TIMEOUT: "300"
     secrets:
       - source: agent_recon_token
         target: token
@@ -275,7 +275,7 @@ services:
       APTS_LOOP_LLM_URL:     ${APTS_LOOP_LLM_URL:-https://bedrock-mantle.eu-north-1.api.aws/v1/chat/completions}
       APTS_LOOP_LLM_MODEL:   ${APTS_LOOP_LLM_MODEL:-qwen.qwen3-coder-480b-a35b-instruct}
       APTS_LOOP_LLM_TIMEOUT: ${APTS_LOOP_LLM_TIMEOUT:-300}
-      APTS_LOOP_MAX_STEPS:   ${APTS_LOOP_MAX_STEPS:-6}
+      APTS_LOOP_MAX_STEPS:   ${APTS_LOOP_MAX_STEPS:-25}
       APTS_EXPLOIT_MAX_WEAKNESSES: ${APTS_EXPLOIT_MAX_WEAKNESSES:-8}
     secrets:
       - source: agent_exploit_token
@@ -352,46 +352,6 @@ services:
       # The deliverable lands on the host. Adviser is the only writer, so it is
       # the only container that gets this mounted read-write.
       - ./reports:/var/apts/reports
-
-  # ---------------------------------------------------------------------
-  #  MCP tools (bundled)
-  # ---------------------------------------------------------------------
-  mcp-tools:
-    <<: *service-base
-    container_name: apts-mcp-tools
-    hostname: mcp-tools
-    # The only component on both networks: it takes tool calls from agents on
-    # apts-net and issues the resulting requests to the target on apts-target.
-    networks: [ apts-net, apts-target ]
-    depends_on:
-      database: { condition: service_healthy }
-    command: python -m mcp_tools.main
-    environment:
-      # Development crawl cache, OFF by default (crawl_tool.py / config.py).
-      # Flip it on for a run to replay the last crawl instead of driving the
-      # browser again:  APTS_CRAWL_CACHE=1 docker compose up -d mcp-tools
-      # Never leave it on for a real engagement — it reports stale target state.
-      APTS_CRAWL_CACHE: ${APTS_CRAWL_CACHE:-0}
-    secrets:
-      - source: mcp_tools_token
-        target: token
-      - source: mcp_tools_key
-        target: tls.key
-      - source: db_password
-        target: db_password
-    volumes:
-      - ./certs/mcp-tools.crt:/etc/apts/tls.crt:ro
-      - ./certs/trust-bundle.pem:/etc/apts/trust-bundle.pem:ro
-      - ./config:/etc/apts/config:ro
-      # Host-side crawl cache so replays survive container rebuilds/recreation.
-      # Only written when APTS_CRAWL_CACHE=1; harmless (empty) otherwise.
-      - ./.crawl-cache:/var/apts/crawl-cache
-    # Bumped from 256M/0.5 — the crawl tool now launches headless Chromium
-    # per call (crawl_tool.py), which needs meaningfully more than the old
-    # httpx-only crawler did.
-    deploy:
-      resources:
-        limits: { memory: 1024M, cpus: "1.0" }
 
   # ---------------------------------------------------------------------
   #  Local LLM server (optional — profile "localllm")
@@ -606,7 +566,6 @@ secrets:
   agent_exploit_token:    { file: ./tokens/agent-exploit.token }
   agent_script_token:     { file: ./tokens/agent-script.token }
   agent_adviser_token:    { file: ./tokens/agent-adviser.token }
-  mcp_tools_token:        { file: ./tokens/mcp-tools.token }
   sandbox_token:          { file: ./tokens/sandbox.token }
   # TLS private keys (one per Python service)
   orchestrator_key:       { file: ./certs/orchestrator.key }
@@ -616,5 +575,4 @@ secrets:
   agent_exploit_key:      { file: ./certs/agent-exploit.key }
   agent_script_key:       { file: ./certs/agent-script.key }
   agent_adviser_key:      { file: ./certs/agent-adviser.key }
-  mcp_tools_key:          { file: ./certs/mcp-tools.key }
   sandbox_key:            { file: ./certs/sandbox.key }

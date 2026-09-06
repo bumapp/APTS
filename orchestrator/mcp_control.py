@@ -68,6 +68,41 @@ def _uuid(value: str) -> UUID | None:
         return None
 
 
+def _ensure_schema() -> None:
+    """Idempotently add columns introduced after the initial schema.
+
+    A DB created before ``engagements.objective`` existed keeps working without a
+    manual reinit. Runs at import and again from the orchestrator's lifespan; both
+    are guarded by ``IF NOT EXISTS`` so repeating is a no-op. Never blocks startup —
+    a migration failure is logged and the run proceeds (objective stays empty)."""
+    try:
+        with get_conn() as conn, conn.cursor() as cur:
+            cur.execute("ALTER TABLE engagements "
+                        "ADD COLUMN IF NOT EXISTS objective TEXT NOT NULL DEFAULT ''")
+            cur.execute("ALTER TABLE engagements ADD COLUMN IF NOT EXISTS "
+                        "credentials JSONB NOT NULL DEFAULT '{}'")
+    except Exception as exc:  # noqa: BLE001 — never block startup on a migration
+        log.warning("schema migration (engagements columns) skipped: %s", exc)
+
+
+def _recon_directive(objective: str = "", categories: list[str] | None = None) -> str:
+    """The first-stage directive, optionally shaped by the operator's brief.
+
+    Generic by construction: the operator's ``objective`` is injected verbatim as
+    steering, never interpreted here — no assumption about what it says. It biases
+    triage, it does not narrow scope (the Scope still bounds what is touched).
+    Mirrored in ``orchestrator.main`` for the CLI path."""
+    directive = ("Map the attack surface of the target: crawl it, record every "
+                 "in-scope request, and triage which are worth testing.")
+    objective = (objective or "").strip()
+    if objective:
+        directive += (f" Operator objective for this engagement: {objective} "
+                      "Let it steer what you prioritise; rank surface outside it lower.")
+    if categories:
+        directive += " Emphasise these test categories: " + ", ".join(categories) + "."
+    return directive
+
+
 def _create_engagement_row(engagement_id: UUID, spec: EngagementSpec) -> None:
     """Insert the engagement and seed one pending row per stage.
 
@@ -75,12 +110,14 @@ def _create_engagement_row(engagement_id: UUID, spec: EngagementSpec) -> None:
     docstring); kept in lockstep by both using ``shared.pipeline.CHAIN``."""
     with get_conn() as conn, conn.cursor() as cur:
         cur.execute(
-            """INSERT INTO engagements (id, target_url, scope, time_window, status)
-               VALUES (%s, %s, %s::jsonb, %s::jsonb, 'running')""",
+            """INSERT INTO engagements
+                   (id, target_url, scope, time_window, objective, credentials, status)
+               VALUES (%s, %s, %s::jsonb, %s::jsonb, %s, %s::jsonb, 'running')""",
             (str(engagement_id), spec.target_url,
              psycopg.types.json.Json(spec.scope.model_dump()),
              psycopg.types.json.Json(spec.time_window.model_dump()
-                                     if spec.time_window else {})),
+                                     if spec.time_window else {}),
+             spec.objective, psycopg.types.json.Json(spec.credentials or {})),
         )
         for agent in CHAIN:
             cur.execute(
@@ -136,17 +173,23 @@ async def apts_capabilities() -> dict[str, Any]:
             {"stage": "adviser", "does": "produce the grouped, impact-ranked client report"},
         ],
         "required_to_start": {
-            "target_url": "the target's base URL, e.g. http://juice-shop:3000/",
+            "target_url": "the target's base URL, e.g. http://app.example.com/",
             "domains": "in-scope host(s); must cover the target host",
         },
         "optional": {
+            "objective": "free-text brief steering the whole run (what to "
+                         "concentrate on, ignore, or do differently); advisory, "
+                         "does not narrow scope",
+            "token": "access/bearer token for an authenticated run (sent to "
+                     "in-scope hosts as a header and a cookie)",
             "allow_paths": "path prefixes to include",
             "deny_paths": "path prefixes to exclude",
             "time_window": "starts_at / ends_at ISO timestamps",
             "categories": "test categories to emphasise (advisory)",
         },
-        "actions": ["create_engagement", "engagement_status", "stop_engagement",
-                    "list_artifacts", "get_artifact"],
+        "actions": ["create_engagement", "list_engagements", "engagement_status",
+                    "stop_engagement", "list_artifacts", "get_artifact",
+                    "get_directives", "get_loot", "search_run"],
     }
 
 
@@ -157,7 +200,10 @@ async def create_engagement(
     deny_paths: list[str] | None = None,
     starts_at: str | None = None,
     ends_at: str | None = None,
+    objective: str | None = None,
     categories: list[str] | None = None,
+    token: str | None = None,
+    credentials: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Validate the parameters, create the engagement, and start the pipeline.
 
@@ -167,13 +213,27 @@ async def create_engagement(
     it.
 
     Args:
-        target_url: Target base URL, e.g. "http://juice-shop:3000/".
+        target_url: Target base URL, e.g. "http://app.example.com/".
         domains: In-scope hosts; must cover the target host.
         allow_paths: Optional path-prefix allowlist.
         deny_paths: Optional path-prefix denylist.
         starts_at: Optional ISO-8601 start of the permitted window.
         ends_at: Optional ISO-8601 end of the permitted window.
+        objective: Optional free-text engagement brief from the user — whatever they
+            want the run to concentrate on, ignore, or do differently. It is folded
+            into the directive composed for EVERY stage, so it steers the whole
+            pipeline. Advisory: it re-prioritises, it does not narrow scope (use
+            allow_paths/deny_paths for a hard boundary). Pass the user's intent as
+            they phrased it; do not invent one.
         categories: Optional test categories to emphasise (advisory only).
+        token: Optional access/bearer token for an authenticated run — pass the
+            token the user gives you and it is sent, to in-scope hosts only, both as
+            an "Authorization: Bearer <token>" header and a "token" cookie (so the
+            crawl authenticates whichever way the app expects). A convenience over
+            building `credentials` by hand; if you need finer control (custom header
+            name, several cookies, basic auth) use `credentials` instead.
+        credentials: Optional auth for an authenticated crawl — {"headers": {...},
+            "cookies": [...], "basic_auth": {...}}. Sent only to in-scope hosts.
     """
     time_window = None
     if starts_at or ends_at:
@@ -181,11 +241,25 @@ async def create_engagement(
             time_window = TimeWindow(starts_at=starts_at, ends_at=ends_at)
         except Exception as exc:  # noqa: BLE001 — bad timestamp from the model
             return {"error": f"invalid time_window: {exc}"}
+    creds: dict[str, Any] = dict(credentials or {})
+    if token:
+        token = token.strip()
+        # Mirror the CLI --token convenience: send it as a header AND a cookie so an
+        # authenticated crawl works whichever the app reads. Merge, don't clobber
+        # anything the caller already put in `credentials`.
+        headers = dict(creds.get("headers") or {})
+        headers.setdefault("Authorization", f"Bearer {token}")
+        cookies = list(creds.get("cookies") or [])
+        if not any((c or {}).get("name") == "token" for c in cookies):
+            cookies.append({"name": "token", "value": token})
+        creds["headers"] = headers
+        creds["cookies"] = cookies
     spec = EngagementSpec(
         target_url=target_url,
         scope=Scope(domains=domains or [], allow_paths=allow_paths or [],
                     deny_paths=deny_paths or []),
-        time_window=time_window)
+        time_window=time_window, objective=(objective or "").strip(),
+        credentials=creds)
 
     try:
         spec = check_engagement_spec(spec)
@@ -200,16 +274,15 @@ async def create_engagement(
     trace.record_for(engagement_id, "orchestrator", "engagement_requested", {
         "target_url": spec.target_url,
         "scope": spec.scope.model_dump(mode="json"),
+        "objective": spec.objective,
         "chain": CHAIN, "categories": categories or []})
 
-    directive = ("Map the attack surface of the target: crawl it, record every "
-                 "in-scope request, and triage which are worth testing.")
-    if categories:
-        directive += " Emphasise these test categories: " + ", ".join(categories) + "."
+    directive = _recon_directive(spec.objective, categories)
     handoff = ChainHandoff(
         engagement_id=engagement_id, from_component="orchestrator",
         target_url=spec.target_url, scope=spec.scope,
-        time_window=spec.time_window, results={}, directive=directive)
+        time_window=spec.time_window, results={}, directive=directive,
+        credentials=spec.credentials)
 
     try:
         token = load_own_token()
@@ -227,7 +300,8 @@ async def create_engagement(
         return {"engagement_id": str(engagement_id), "status": "created",
                 "error": f"engagement created but recon kickoff failed: {exc}"}
 
-    trace.record_for(engagement_id, "orchestrator", "kickoff", {"agent": "recon"})
+    trace.record_for(engagement_id, "orchestrator", "kickoff",
+                     {"agent": "recon", "directive": directive})
     return {"engagement_id": str(engagement_id), "status": "running",
             "message": "Engagement started; recon is running."}
 
@@ -271,6 +345,42 @@ async def stop_engagement(engagement_id: str) -> dict[str, Any]:
             "message": "Engagement cancelled; no further stages will run."}
 
 
+async def list_engagements(limit: int = 10, status: str | None = None) -> dict[str, Any]:
+    """List recent engagements, newest first — so you can find the latest one and
+    its id without the user repeating it.
+
+    Returns each engagement's id, target, status, current stage, and created_at,
+    plus ``latest`` (the newest engagement's id). Call this whenever the user says
+    "the latest", "my last run", "which engagements", or refers to one without an id.
+
+    Args:
+        limit: How many recent engagements to return (default 10).
+        status: Optional filter — e.g. "running", "complete", "failed", "cancelled".
+    """
+    limit = max(1, min(int(limit or 10), 50))
+    with get_conn() as conn, conn.cursor() as cur:
+        if status:
+            cur.execute("SELECT id, target_url, status, created_at FROM engagements "
+                        "WHERE status=%s ORDER BY created_at DESC LIMIT %s",
+                        (status, limit))
+        else:
+            cur.execute("SELECT id, target_url, status, created_at FROM engagements "
+                        "ORDER BY created_at DESC LIMIT %s", (limit,))
+        rows = cur.fetchall()
+    items = []
+    for eid, target, st, created in rows:
+        cur_agent = None
+        if st == "running":
+            s = _status(eid)
+            cur_agent = s.get("current_agent") if s else None
+        items.append({"engagement_id": str(eid), "target_url": target,
+                      "status": st, "current_agent": cur_agent,
+                      "created_at": str(created)})
+    return {"engagements": items,
+            "latest": items[0]["engagement_id"] if items else None,
+            "count": len(items)}
+
+
 async def list_artifacts(engagement_id: str) -> dict[str, Any]:
     """List which stages have produced an artifact, newest first, with sizes."""
     eid = _uuid(engagement_id)
@@ -287,16 +397,37 @@ async def list_artifacts(engagement_id: str) -> dict[str, Any]:
                           for a, n, w in rows]}
 
 
-async def get_artifact(engagement_id: str, agent: str) -> dict[str, Any]:
-    """Fetch one stage's artifact for an engagement.
+def _search_artifact(payload: dict, query: str, limit: int = 25) -> list[dict]:
+    """Return items from the artifact's list-valued sections that match ``query``
+    (case-insensitive substring over each item's JSON), tagged with their section."""
+    q = query.lower()
+    matches: list[dict] = []
+    for key, value in payload.items():
+        if isinstance(value, list):
+            for item in value:
+                if q in json.dumps(item, default=str).lower():
+                    matches.append({"section": key, "item": item})
+                    if len(matches) >= limit:
+                        return matches
+        elif isinstance(value, (str, int, float)) and q in str(value).lower():
+            matches.append({"section": key, "item": value})
+    return matches[:limit]
 
-    Returns a short ``summary`` (member counts) plus the artifact itself, capped
-    so a large result (e.g. exploit evidence) does not flood the conversation;
-    ``truncated`` says whether the cap was hit.
+
+async def get_artifact(engagement_id: str, agent: str,
+                       query: str | None = None) -> dict[str, Any]:
+    """Fetch one stage's artifact — whole, or searched.
+
+    Without ``query``: a short ``summary`` (member counts) plus the artifact,
+    capped so a large result does not flood the conversation (``truncated`` flags it).
+    With ``query``: only the items matching that text (across the artifact's list
+    sections), so you can search a big artifact instead of paging the whole thing —
+    e.g. get_artifact(id, "exploit", query="SQL") returns just the SQL findings.
 
     Args:
         engagement_id: The engagement's id.
         agent: The stage to read — one of recon, vuln, mitre, exploit, script, adviser.
+        query: Optional case-insensitive text to search for within the artifact.
     """
     eid = _uuid(engagement_id)
     if eid is None:
@@ -313,13 +444,160 @@ async def get_artifact(engagement_id: str, agent: str) -> dict[str, Any]:
     payload = row[0]
     summary = ", ".join(f"{len(v)} {k}" for k, v in payload.items()
                         if isinstance(v, (list, dict)) and v) or "empty artifact"
+    if query:
+        matches = _search_artifact(payload, query)
+        return {"engagement_id": str(eid), "agent": agent, "summary": summary,
+                "query": query, "match_count": len(matches), "matches": matches}
     text = json.dumps(payload, default=str)
     truncated = len(text) > ARTIFACT_CHARS
-    # Full JSON object when it fits; otherwise a capped JSON string (the caller
-    # gets the head of the artifact plus truncated=True rather than a huge blob).
+    # Full JSON object when it fits; otherwise a capped JSON string (the caller gets
+    # the head of the artifact plus truncated=True — then use query= to search it).
     artifact: Any = payload if not truncated else text[:ARTIFACT_CHARS]
     return {"engagement_id": str(eid), "agent": agent, "summary": summary,
-            "truncated": truncated, "artifact": artifact}
+            "truncated": truncated,
+            "hint": "artifact truncated — call again with query=<text> to search it"
+                    if truncated else None,
+            "artifact": artifact}
+
+
+async def get_directives(engagement_id: str) -> dict[str, Any]:
+    """Show the directive each stage was actually dispatched with, in order.
+
+    This is how you audit steering: the operator gives ONE objective, and the
+    orchestrator composes a directive per stage from it plus the previous stage's
+    output. This returns the engagement's objective and each stage's composed
+    directive (recon's from kickoff, the rest from each advance, plus any retry),
+    so you can see how the objective shaped the run and compare it to what each
+    agent did. Empty ``directives`` means the run has not advanced past that stage
+    yet.
+
+    Args:
+        engagement_id: The engagement's id.
+    """
+    eid = _uuid(engagement_id)
+    if eid is None:
+        return {"error": f"not a valid engagement id: {engagement_id!r}"}
+    with get_conn() as conn, conn.cursor() as cur:
+        cur.execute("SELECT objective FROM engagements WHERE id=%s", (str(eid),))
+        row = cur.fetchone()
+        if row is None:
+            return {"error": f"no such engagement: {engagement_id}"}
+        objective = row[0] or ""
+        cur.execute(
+            "SELECT event_type, payload FROM agent_trace WHERE engagement_id=%s "
+            "AND event_type IN ('kickoff','advance','retry_launched') ORDER BY id",
+            (str(eid),))
+        rows = cur.fetchall()
+    directives: list[dict[str, Any]] = []
+    for event_type, payload in rows:
+        payload = payload or {}
+        directive = payload.get("directive")
+        if not directive:
+            continue
+        # kickoff carries the recon directive; advance/retry name the target stage.
+        stage = (payload.get("to") or payload.get("agent")
+                 or ("recon" if event_type == "kickoff" else "?"))
+        # A non-recon kickoff repeats the directive its 'advance' row already has,
+        # so keep kickoff only for recon (the one stage with no advance row).
+        if event_type == "kickoff" and stage != "recon":
+            continue
+        directives.append({"stage": stage, "event": event_type,
+                           "directive": directive})
+    return {"engagement_id": str(eid), "objective": objective,
+            "directives": directives, "count": len(directives)}
+
+
+async def get_loot(engagement_id: str) -> dict[str, Any]:
+    """Return the interesting data the exploit stage collected, with FULL values.
+
+    Loot is the model's labelled shortlist (credentials, tokens, DB type, user
+    info, etc.); values are stored whole, so this is where you read a specific
+    captured value in full. If a value still looks abbreviated (the model wrote it
+    with an ellipsis), use search_run to pull the exact bytes from the raw
+    transcript instead.
+
+    Args:
+        engagement_id: The engagement's id.
+    """
+    eid = _uuid(engagement_id)
+    if eid is None:
+        return {"error": f"not a valid engagement id: {engagement_id!r}"}
+    with get_conn() as conn, conn.cursor() as cur:
+        cur.execute("SELECT payload->'loot' FROM agent_results "
+                    "WHERE engagement_id=%s AND agent='exploit'", (str(eid),))
+        row = cur.fetchone()
+    if row is None:
+        return {"error": "exploit has produced no artifact yet for this engagement"}
+    loot = row[0] or []
+    return {"engagement_id": str(eid), "count": len(loot), "loot": loot}
+
+
+async def search_run(engagement_id: str, query: str,
+                     agent: str | None = None, limit: int = 20) -> dict[str, Any]:
+    """Search the FULL raw data of a run for a substring and return matching windows.
+
+    This is how you read exact values without loading a whole run into the chat:
+    it searches every stage's stored artifact AND the execution trace (which holds
+    the raw tool requests/responses — full response bodies, headers, tool output),
+    and returns a window of text around each match so a complete value (a full
+    token, a response body) comes back intact. Generic: it matches raw text, it
+    does not care what the value is.
+
+    Use it to recover any exact value the human-facing summaries shortened — search
+    a distinctive fragment you already have (the start of a token, an endpoint, a
+    field name) and read the surrounding bytes.
+
+    Args:
+        engagement_id: The engagement's id.
+        query: Case-insensitive substring to find in the raw run data.
+        agent: Optional stage to restrict the search to (recon, vuln, mitre,
+            exploit, script, adviser).
+        limit: Max windows to return (default 20).
+    """
+    eid = _uuid(engagement_id)
+    if eid is None:
+        return {"error": f"not a valid engagement id: {engagement_id!r}"}
+    q = (query or "").strip()
+    if not q:
+        return {"error": "query is required"}
+    if agent is not None and agent not in CHAIN:
+        return {"error": f"unknown stage {agent!r}; expected one of {CHAIN}"}
+    limit = max(1, min(int(limit or 20), 50))
+    like = f"%{q}%"
+    win_before, win_len = 200, 4000   # window: a little before the hit, plenty after
+    matches: list[dict[str, Any]] = []
+    with get_conn() as conn, conn.cursor() as cur:
+        # Stored artifacts.
+        sql = ("SELECT agent, substring(payload::text FROM "
+               "greatest(1, position(%s in lower(payload::text)) - %s) FOR %s) "
+               "FROM agent_results WHERE engagement_id=%s AND payload::text ILIKE %s")
+        params: list[Any] = [q.lower(), win_before, win_len, str(eid), like]
+        if agent:
+            sql += " AND agent=%s"
+            params.append(agent)
+        sql += " ORDER BY agent"
+        cur.execute(sql, params)
+        for a, window in cur.fetchall():
+            matches.append({"source": "artifact", "agent": a, "window": window})
+        # Execution trace — the raw tool I/O lives here.
+        sql2 = ("SELECT agent, event_type, substring(payload::text FROM "
+                "greatest(1, position(%s in lower(payload::text)) - %s) FOR %s) "
+                "FROM agent_trace WHERE engagement_id=%s AND payload::text ILIKE %s")
+        params2: list[Any] = [q.lower(), win_before, win_len, str(eid), like]
+        if agent:
+            sql2 += " AND agent=%s"
+            params2.append(agent)
+        sql2 += " ORDER BY id LIMIT %s"
+        params2.append(limit)
+        cur.execute(sql2, params2)
+        for a, ev, window in cur.fetchall():
+            matches.append({"source": "trace", "agent": a, "event": ev,
+                            "window": window})
+    return {"engagement_id": str(eid), "query": q,
+            "match_count": len(matches), "matches": matches[:limit],
+            "hint": "each window is raw text around a hit; widen your query "
+                    "fragment if a value looks cut off" if matches else
+                    "no matches — try a shorter/different fragment"}
 
 
 # --------------------------------------------------------------------------- #
@@ -334,20 +612,37 @@ def _register() -> list[str]:
                               "start the recon stage."),
         "engagement_status": "Report overall + per-stage status of an engagement.",
         "stop_engagement": "Cancel an engagement (cooperative stop).",
+        "list_engagements": ("List recent engagements (newest first) with their ids "
+                             "and status; use it to find the latest or resolve which "
+                             "engagement the user means."),
         "list_artifacts": "List which stages have produced an artifact.",
-        "get_artifact": "Fetch one stage's artifact (summary + capped body).",
+        "get_artifact": ("Fetch one stage's artifact — whole, or pass query=<text> "
+                         "to return only matching items from a large artifact."),
+        "get_directives": ("Show the directive each stage was dispatched with, in "
+                           "order, plus the engagement objective — audit how the "
+                           "objective steered the run."),
+        "get_loot": ("Return the exploit stage's collected loot (credentials, "
+                     "tokens, DB info, ...) with full values."),
+        "search_run": ("Search the full raw run data (artifacts + execution trace, "
+                       "incl. raw tool responses) for a substring and return the "
+                       "surrounding text — recover exact values summaries shortened."),
     }
     fns = {"apts_capabilities": apts_capabilities,
            "create_engagement": create_engagement,
            "engagement_status": engagement_status,
            "stop_engagement": stop_engagement,
+           "list_engagements": list_engagements,
            "list_artifacts": list_artifacts,
-           "get_artifact": get_artifact}
+           "get_artifact": get_artifact,
+           "get_directives": get_directives,
+           "get_loot": get_loot,
+           "search_run": search_run}
     for name, desc in tools.items():
         control.tool(description=desc)(fns[name])
     return list(tools)
 
 
+_ensure_schema()   # add engagements.objective on an older DB before first use
 _registered = _register()
 
 

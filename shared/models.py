@@ -34,6 +34,17 @@ class EngagementSpec(BaseModel):
     target_url: str
     scope: Scope
     time_window: TimeWindow | None = None
+    objective: str = Field(default="",
+        description="Free-text engagement brief from the operator — any intent at all "
+                    "(what to concentrate on or ignore, how aggressive to be, a stage "
+                    "to skip). Advisory: the orchestrator folds it into the directive "
+                    "it composes for EVERY stage, so it steers the whole run. Never "
+                    "narrows scope by itself — the Scope still bounds what may be "
+                    "touched. Empty means test broadly.")
+    credentials: dict[str, Any] = Field(default_factory=dict,
+        description="Optional auth for crawling behind a login: {headers: {...}, "
+                    "cookies: [...], basic_auth: {...}}. Used by Recon's crawl; "
+                    "sent only to in-scope hosts.")
 
 
 # --------------------------------------------------------------------------- #
@@ -58,6 +69,9 @@ class ChainHandoff(BaseModel):
                     "stage, generated from the previous stage's output. Advisory "
                     "framing only — the structured artifact still flows via "
                     "`results`. Empty in agent-driven mode.")
+    credentials: dict[str, Any] = Field(default_factory=dict,
+        description="Optional auth carried to Recon for an authenticated crawl "
+                    "(headers/cookies/basic_auth). Empty for unauthenticated runs.")
 
 
 class HandoffAck(BaseModel):
@@ -182,6 +196,11 @@ class Endpoint(BaseModel):
     status: int | None = None
     params: list[str] = Field(default_factory=list)
     content_type: str = ""
+    response_headers: dict[str, str] = Field(default_factory=dict,
+        description="The page's full response headers, verbatim. Part of the "
+                    "target's technological basis (Server, X-Powered-By, Set-Cookie, "
+                    "CSP/security headers, custom X-* headers) that later stages read "
+                    "— recon records them in full rather than distilling to a couple.")
 
 
 class Technology(BaseModel):
@@ -265,11 +284,9 @@ class Evidence(BaseModel):
 class Weakness(BaseModel):
     """One candidate weakness on a real asset.
 
-    ``cvss_score`` and ``severity`` are computed from ``cvss_vector`` by
-    ``shared.cvss`` — never taken from a model. A model judging that an issue is
-    network-reachable and needs no privileges is the vector; converting that to
-    8.8 is arithmetic, and a plausible wrong number would flow into the
-    remediation priority matrix and out to the client.
+    The Vulnerability stage no longer scores these (CVSS was removed there); the
+    fields below stay optional so a weakness is just a typed hypothesis until the
+    Adviser assigns severity/impact over what Exploitation proved.
 
     ``confidence`` is deliberately conservative. Nothing reaches ``confirmed``
     without the Exploitation stage proving it; a weakness whose asset merely
@@ -287,6 +304,10 @@ class Weakness(BaseModel):
     confidence: Confidence = "possible"
     rationale: str = ""
     evidence: list[Evidence] = Field(default_factory=list)
+    origin_request: dict[str, Any] = Field(default_factory=dict,
+        description="The recorded request this hypothesis was raised on (method, "
+                    "path, url, content_type, params, body). Carried so the "
+                    "Exploitation stage has the exact request without a lookup.")
 
 
 class VulnerabilityRegister(BaseModel):
@@ -321,6 +342,17 @@ class ExploitAttempt(BaseModel):
     reason: str = Field(default="",
         description="Why an attempt did not confirm — blocked, no signal, "
                     "refused by guardrails.")
+    hypothesis: str = Field(default="",
+        description="The weakness the model was asked to prove — the input claim.")
+    proven_vuln: str = Field(default="",
+        description="What the model ACTUALLY proved, which is often a different "
+                    "class than the hypothesis (e.g. hypothesised LDAP, proved SQLi).")
+    signal_basis: str = Field(default="",
+        description="How confirmation was reached: a deterministic tool signal "
+                    "(sqlmap injectable, http_prove signal_found) or model_judgment. "
+                    "Lets the Adviser weight a finding by how hard the proof was.")
+    writeup: str = Field(default="",
+        description="One or two sentences describing the exploit actually found.")
 
 
 class ExploitationEvidence(BaseModel):
@@ -333,6 +365,19 @@ class ExploitationEvidence(BaseModel):
     attempts: list[ExploitAttempt] = Field(default_factory=list)
     skipped: list[str] = Field(default_factory=list,
         description="Weakness IDs never attempted, with no claim made about them.")
+    loot: list[dict[str, Any]] = Field(default_factory=list,
+        description="Interesting data the stage extracted along the way — session "
+                    "cookies, credentials, user info, DB type, tokens — each "
+                    "{type, value, source} — surfaced to the orchestrator/report. "
+                    "Values are stored in FULL: items the model names are kept as "
+                    "written, and secrets are also harvested deterministically from "
+                    "raw tool output (so a long token is never abbreviated away).")
+    transcript: list[dict[str, Any]] = Field(default_factory=list,
+        description="The full raw tool I/O of the run — one entry per tool call "
+                    "{weakness_id, step, tool, request, response}. This is the "
+                    "un-summarised record the chat model queries for exact values "
+                    "(full tokens, response bodies) that the human-facing summaries "
+                    "necessarily shorten. Per-response text is bounded, not dropped.")
 
     @property
     def confirmed_ids(self) -> set[str]:
@@ -422,6 +467,10 @@ class EngagementReport(BaseModel):
         description="Everything limiting how far these results can be trusted. "
                     "Present in every report; an empty list would itself be a "
                     "misleading claim.")
+    loot: list[dict[str, Any]] = Field(default_factory=list,
+        description="Interesting data collected during exploitation — session "
+                    "cookies, credentials, user info, DB type, tokens — each "
+                    "{type, value, source}. Deduped from ExploitationEvidence.loot.")
 
 
 # MITRE ATT&CK technique IDs: T1190, or a sub-technique like T1059.007.
