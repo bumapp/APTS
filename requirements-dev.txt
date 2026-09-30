@@ -8,8 +8,3 @@
 
 pytest==8.3.4
 pytest-asyncio==0.25.0
-
-# LangGraph POC re-build of the exploit agent lives under tests/exploit_loop/.
-# Test-only: the runtime image drives the loop by hand (exploit_worker.py) and
-# does not depend on LangGraph.
-langgraph==0.2.60

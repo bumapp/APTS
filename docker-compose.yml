@@ -275,7 +275,7 @@ services:
       APTS_LOOP_LLM_URL:     ${APTS_LOOP_LLM_URL:-https://bedrock-mantle.eu-north-1.api.aws/v1/chat/completions}
       APTS_LOOP_LLM_MODEL:   ${APTS_LOOP_LLM_MODEL:-qwen.qwen3-coder-480b-a35b-instruct}
       APTS_LOOP_LLM_TIMEOUT: ${APTS_LOOP_LLM_TIMEOUT:-300}
-      APTS_LOOP_MAX_STEPS:   ${APTS_LOOP_MAX_STEPS:-25}
+      APTS_LOOP_MAX_STEPS:   ${APTS_LOOP_MAX_STEPS:-50}
       APTS_EXPLOIT_MAX_WEAKNESSES: ${APTS_EXPLOIT_MAX_WEAKNESSES:-8}
       # Bounded thread pool for the exploit stage (hypotheses run
       # concurrently). Scale with mcp-native resources; 1 = serial.
