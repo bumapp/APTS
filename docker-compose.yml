@@ -277,6 +277,9 @@ services:
       APTS_LOOP_LLM_TIMEOUT: ${APTS_LOOP_LLM_TIMEOUT:-300}
       APTS_LOOP_MAX_STEPS:   ${APTS_LOOP_MAX_STEPS:-25}
       APTS_EXPLOIT_MAX_WEAKNESSES: ${APTS_EXPLOIT_MAX_WEAKNESSES:-8}
+      # Bounded thread pool for the exploit stage (hypotheses run
+      # concurrently). Scale with mcp-native resources; 1 = serial.
+      APTS_EXPLOIT_CONCURRENCY: ${APTS_EXPLOIT_CONCURRENCY:-4}
     secrets:
       - source: agent_exploit_token
         target: token
@@ -465,7 +468,9 @@ services:
       - "127.0.0.1:9000:9000"
     deploy:
       resources:
-        limits: { memory: 1536M, cpus: "1.5" }
+        limits:
+          memory: "${MCP_NATIVE_MEM:-1536M}"
+          cpus: "${MCP_NATIVE_CPUS:-1.5}"
 
 
   # ---------------------------------------------------------------------
