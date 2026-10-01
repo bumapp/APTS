@@ -23,6 +23,8 @@ async def crawl(
     deny_paths: list[str] | None = None,
     max_pages: int = 40,
     max_depth: int = 3,
+    skip_urls: list[str] | None = None,
+    mine: bool = True,
     headers: dict[str, str] | None = None,
     cookies: list[dict] | None = None,
     basic_auth: dict | None = None,
@@ -39,6 +41,9 @@ async def crawl(
         deny_paths: Optional path denylist.
         max_pages: Crawl page ceiling.
         max_depth: Link-follow depth ceiling.
+        skip_urls: URLs already crawled in a previous call — they are skipped so
+            the same page is never crawled twice across calls (the recon dedup
+            guard). The seed itself is always crawled even if listed here.
         headers: Extra HTTP headers sent on every in-scope request — use for a
             bearer/access token or API key, e.g. {"Authorization": "Bearer <token>"}
             or {"X-API-Key": "<key>"}.
@@ -58,6 +63,7 @@ async def crawl(
     ctx = ToolContext(engagement_id=uuid4(), caller="mcp-native", scope=scope)
     return await CrawlTool()(
         {"url": url, "max_pages": max_pages, "max_depth": max_depth,
+         "skip_urls": skip_urls or [], "mine": mine,
          "headers": headers, "cookies": cookies, "basic_auth": basic_auth}, ctx)
 
 

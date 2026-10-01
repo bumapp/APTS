@@ -11,6 +11,10 @@ from __future__ import annotations
 from mcp_native.tools import (
     attack_tool,
     crawl_tool,
+    crawl_v2_tool,
+    katana_tool,
+    ffuf_tool,
+    arjun_tool,
     hacktricks_tool,
     http_tool,
     recon_tool,
@@ -21,7 +25,8 @@ from mcp_native.tools import (
 
 # The modules server.py will register, in order. Add new tool modules here.
 ALL = (http_tool, xss_prove, recon_tool, sqlmap_tool, hacktricks_tool,
-       crawl_tool, attack_tool, sandbox_tool)
+       crawl_tool, crawl_v2_tool, katana_tool, ffuf_tool, arjun_tool,
+       attack_tool, sandbox_tool)
 
 
 def register_all(mcp) -> list[str]:

@@ -259,6 +259,23 @@ class AssetMap(BaseModel):
         description="True when a crawl limit stopped the sweep early. The map is "
                     "then a lower bound, and any coverage figure derived from it "
                     "must say so rather than reading as complete.")
+    mode: str = Field(default="",
+        description="Recon mode the agent ran in: broad | focused. Advisory metadata.")
+    summary: str = Field(default="",
+        description="The recon agent's summary of the security-relevant surface. "
+                    "ADDITIVE narrative — it never replaces the structured data "
+                    "above, which stays authoritative and byte-intact.")
+    findings: list[dict[str, Any]] = Field(default_factory=list,
+        description="Graded recon findings the agent flagged — each is "
+                    "{finding, where, grade, reason}. Additive metadata on top of "
+                    "the raw surface; downstream still reads endpoints/observed_"
+                    "requests directly, so a dropped finding never drops a request.")
+    request_tree: dict[str, Any] = Field(default_factory=dict,
+        description="A human/UI-friendly summary of the recorded surface as a tree: "
+                    "{summary, technologies, pages:[{page, requests:[{method, path, "
+                    "params, interest, reason}]}]} — the recon summary and tech, then "
+                    "each page with its notable (non-static) requests. Derived view for "
+                    "the chat UI/report; the authoritative data stays in observed_requests.")
 
 
 # --------------------------------------------------------------------------- #

@@ -1,0 +1,58 @@
+{
+  "url": "http://neuralnotes:5000/",
+  "secs": 42,
+  "pages": 7,
+  "observed": 8,
+  "api_paths": [],
+  "pages_list": [
+    "http://neuralnotes:5000/",
+    "http://neuralnotes:5000/search?q=test",
+    "http://neuralnotes:5000/login",
+    "http://neuralnotes:5000/search",
+    "http://neuralnotes:5000/summarize",
+    "http://neuralnotes:5000/summarize?url=test",
+    "http://neuralnotes:5000/summarize?url="
+  ],
+  "requests": [
+    {
+      "m": "GET",
+      "u": "http://neuralnotes:5000/",
+      "body": false
+    },
+    {
+      "m": "GET",
+      "u": "http://neuralnotes:5000/search?q=test",
+      "body": false
+    },
+    {
+      "m": "GET",
+      "u": "http://neuralnotes:5000/login",
+      "body": false
+    },
+    {
+      "m": "GET",
+      "u": "http://neuralnotes:5000/search",
+      "body": false
+    },
+    {
+      "m": "GET",
+      "u": "http://neuralnotes:5000/summarize",
+      "body": false
+    },
+    {
+      "m": "POST",
+      "u": "http://neuralnotes:5000/login",
+      "body": true
+    },
+    {
+      "m": "GET",
+      "u": "http://neuralnotes:5000/summarize?url=test",
+      "body": false
+    },
+    {
+      "m": "GET",
+      "u": "http://neuralnotes:5000/summarize?url=",
+      "body": false
+    }
+  ]
+}

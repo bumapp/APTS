@@ -1,0 +1,39 @@
+# Vulnerable target lab. Each site sits on TWO networks:
+#   - apts-target (external, internal:true) so mcp-native/recon reach it by hostname
+#     inside the isolated sandbox (no host/internet route from there), and
+#   - default (this project's normal bridge) so the host can publish :8000 for you
+#     to browse — publishing a port from the internal network alone is impossible.
+# Profiles + select.sh = exactly one site up at a time on http://localhost:8000.
+name: apts-targets
+
+networks:
+  apts-target:
+    external: true
+    name: ai-security-agent_apts-target
+  default: {}
+
+services:
+  neuralnotes:
+    profiles: ["neuralnotes"]
+    build: ./neuralnotes
+    container_name: apts-target-neuralnotes
+    hostname: neuralnotes
+    networks: [apts-target, default]
+    ports: ["127.0.0.1:8000:5000"]
+    restart: unless-stopped
+  chatforge:
+    profiles: ["chatforge"]
+    build: ./chatforge
+    container_name: apts-target-chatforge
+    hostname: chatforge
+    networks: [apts-target, default]
+    ports: ["127.0.0.1:8000:3100"]
+    restart: unless-stopped
+  promptvault:
+    profiles: ["promptvault"]
+    build: ./promptvault
+    container_name: apts-target-promptvault
+    hostname: promptvault
+    networks: [apts-target, default]
+    ports: ["127.0.0.1:8000:8080"]
+    restart: unless-stopped

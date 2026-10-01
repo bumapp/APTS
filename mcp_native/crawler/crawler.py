@@ -328,6 +328,11 @@ class CrawlTool:
         seed = str(args.get("url") or "")
         max_pages = min(int(args.get("max_pages", CRAWL_MAX_PAGES)), CRAWL_MAX_PAGES)
         max_depth = min(int(args.get("max_depth", CRAWL_MAX_DEPTH)), CRAWL_MAX_DEPTH)
+        # Route mining (fetching + regexing the JS bundle) is the expensive part of
+        # a crawl. It defaults on, but a caller that already has the route table
+        # (e.g. the recon agent's targeted per-route crawls, after a mining seed)
+        # passes mine=False to skip it — form/link discovery still runs.
+        mine = bool(args.get("mine", True))
 
         # Development cache (off by default — see mcp_tools.config). On a hit we
         # never launch the browser at all; the result is whatever the last real
@@ -342,8 +347,17 @@ class CrawlTool:
                             "live crawl", seed, cache_key[:12])
                 return cached
 
+        # Pages the caller already crawled in prior calls — the recon agent's
+        # simple de-dup guard. Pre-marked seen so they are never re-queued; the
+        # seed itself is still crawled even if listed, since it was asked for.
+        skip_urls = args.get("skip_urls") or []
         queue: deque[tuple[str, int]] = deque([(seed, 0)])
         seen: set[str] = {seed}
+        for _u in skip_urls:
+            try:
+                seen.add(_canonical(str(_u)))
+            except Exception:  # noqa: BLE001
+                pass
         pages: list[dict] = []
         forms: list[dict] = []
         scripts: set[str] = set()
@@ -352,6 +366,7 @@ class CrawlTool:
         technologies: dict[str, dict[str, str]] = {}
         tech_detected = False
         api_paths: set[str] = set()
+        mined_routes: set[str] = set()   # SPA route table mined from JS (candidates)
         observed: list[dict] = []
         observed_seen: set[tuple[str, str, str | None]] = set()
         current_page_url = seed  # page being loaded; tags each observed request
@@ -595,12 +610,13 @@ class CrawlTool:
                             # of its JS bundle and seed those routes, so pages only
                             # reachable through menus/guards are still crawled. Once
                             # per crawl, after the first page's scripts are known.
-                            if not routes_mined and scripts:
+                            if mine and not routes_mined and scripts:
                                 routes_mined = True
                                 landing = await self._collect_links(page)
                                 hash_router = any("#/" in h for h in landing)
                                 route_urls = await self._mine_routes(
                                     context, scripts, seed, hash_router, ctx)
+                                mined_routes.update(route_urls)
                                 if route_urls:
                                     log.info("route mining: seeding %d client "
                                              "route(s) from JS bundle", len(route_urls))
@@ -658,6 +674,7 @@ class CrawlTool:
             "forms": forms,
             "scripts": sorted(scripts),
             "js_api_paths": sorted(api_paths),
+            "mined_routes": sorted(mined_routes),
             "observed_requests": observed,
             "third_party_hosts": sorted(third_party),
             "technologies": [

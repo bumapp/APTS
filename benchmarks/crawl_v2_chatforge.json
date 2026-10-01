@@ -1,0 +1,39 @@
+{
+  "url": "http://chatforge:3100/",
+  "secs": 10,
+  "pages": 3,
+  "observed": 5,
+  "api_paths": [],
+  "pages_list": [
+    "http://chatforge:3100/",
+    "http://chatforge:3100/chat",
+    "http://chatforge:3100/summarize"
+  ],
+  "requests": [
+    {
+      "m": "GET",
+      "u": "http://chatforge:3100/",
+      "body": false
+    },
+    {
+      "m": "GET",
+      "u": "http://chatforge:3100/chat",
+      "body": false
+    },
+    {
+      "m": "GET",
+      "u": "http://chatforge:3100/summarize",
+      "body": false
+    },
+    {
+      "m": "POST",
+      "u": "http://chatforge:3100/chat",
+      "body": true
+    },
+    {
+      "m": "POST",
+      "u": "http://chatforge:3100/summarize",
+      "body": true
+    }
+  ]
+}

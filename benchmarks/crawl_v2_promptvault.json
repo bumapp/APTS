@@ -1,0 +1,59 @@
+{
+  "url": "http://promptvault:8080/",
+  "secs": 83,
+  "pages": 8,
+  "observed": 8,
+  "api_paths": [],
+  "pages_list": [
+    "http://promptvault:8080/",
+    "http://promptvault:8080/?page=search",
+    "http://promptvault:8080/?page=download",
+    "http://promptvault:8080/?page=ping",
+    "http://promptvault:8080/?page=search&q=test",
+    "http://promptvault:8080/?page=download&file=test",
+    "http://promptvault:8080/?page=ping&host=test",
+    "http://promptvault:8080/?page=ping&host="
+  ],
+  "requests": [
+    {
+      "m": "GET",
+      "u": "http://promptvault:8080/",
+      "body": false
+    },
+    {
+      "m": "GET",
+      "u": "http://promptvault:8080/?page=search",
+      "body": false
+    },
+    {
+      "m": "GET",
+      "u": "http://promptvault:8080/?page=download",
+      "body": false
+    },
+    {
+      "m": "GET",
+      "u": "http://promptvault:8080/?page=ping",
+      "body": false
+    },
+    {
+      "m": "GET",
+      "u": "http://promptvault:8080/?page=search&q=test",
+      "body": false
+    },
+    {
+      "m": "GET",
+      "u": "http://promptvault:8080/?page=download&file=test",
+      "body": false
+    },
+    {
+      "m": "GET",
+      "u": "http://promptvault:8080/?page=ping&host=test",
+      "body": false
+    },
+    {
+      "m": "GET",
+      "u": "http://promptvault:8080/?page=ping&host=",
+      "body": false
+    }
+  ]
+}

@@ -1,0 +1,5 @@
+http://neuralnotes:5000/
+http://neuralnotes:5000/
+http://neuralnotes:5000/summarize
+http://neuralnotes:5000/search
+http://neuralnotes:5000/login
