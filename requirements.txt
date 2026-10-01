@@ -14,10 +14,20 @@ mcp==2.1.0
 # NOTE: the browser crawler (Playwright + python-Wappalyzer) now lives only in
 # the mcp-native image (mcp_native/crawler/, mcp_native/requirements.txt). No
 # service in this shared image drives a browser, so those deps are not here.
-# Alternative LLM backend (shared/llm_hf.py) — talks to a Hugging Face Space.
-# Only pulled in; only used when APTS_LLM_PROVIDER=hf. The default DeepSeek path
-# never imports it.
-gradio_client==2.6.0
+# LangChain / LangGraph engine for the agentic loops + Langfuse observability.
+# Every agentic stage runs on this (create_react_agent + a shared ChatOpenAI;
+# see shared/llm.py, agent/services/workers/agentic.py). Every runtime backend is
+# OpenAI-compatible, so langchain-openai's ChatOpenAI covers Bedrock/local/DeepSeek
+# — no per-provider LangChain package needed. NOTE: langchain-mcp-adapters is
+# deliberately NOT here — it targets the MCP v1 SDK and this stack pins mcp v2
+# (shared workers use `mcp.Client`); the MCP tools are wrapped by hand instead
+# (agent/services/workers/agentic.py). langfuse needs the umbrella `langchain`
+# package for its callback handler (langfuse.langchain.CallbackHandler).
+langchain==0.3.30
+langchain-core==0.3.86
+langchain-openai==0.3.35
+langgraph==0.3.34
+langfuse==4.15.6
 # NOTE: the native MCP server (mcp_native/) is deliberately NOT built from this
 # shared image. Its SDK needs pydantic>=2.12 (this stack pins 2.9.2) and drags
 # in starlette/uvicorn/httpx2, so it gets its own isolated image —

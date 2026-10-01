@@ -53,9 +53,11 @@ from orchestrator.guardrails_entry import (
     check_engagement_spec,
 )
 # The orchestrator authors each next-stage directive with the model, reusing the
-# agents' loop plumbing (the orchestrator image ships the agent code and has the
-# same APTS_LOOP_LLM_* env + llm_api_key secret).
-from agent.services.workers import agentic
+# shared LangChain chat-model factory + the agents' message helpers (the
+# orchestrator image ships the agent code and has the same APTS_LOOP_LLM_* env +
+# llm_api_key secret).
+from agent.services.workers.common import common_agentic as agentic
+from shared.llm import build_chat_model, run_config
 
 logging_config.configure("orchestrator")
 log = logging.getLogger("orchestrator")
@@ -471,11 +473,11 @@ async def _compose_directive(successor: str, prev_agent: str,
             + "Write the directive for the next stage.")
     directive = ""
     try:
-        async with httpx.AsyncClient(timeout=agentic.LLM_TIMEOUT) as llm:
-            msg = await agentic.chat(
-                llm, [{"role": "system", "content": DIRECTIVE_SYSTEM},
-                      {"role": "user", "content": user}], max_tokens=200)
-        directive = (msg.get("content") or "").strip()
+        model = build_chat_model("orchestrator", max_tokens=200)
+        msg = await model.ainvoke(
+            agentic.to_lc_messages(DIRECTIVE_SYSTEM, user),
+            config=run_config(agent="orchestrator"))
+        directive = agentic.message_text(msg)
     except Exception as exc:  # noqa: BLE001 — never let a directive call stall the chain
         log.warning("directive model call failed (%s); using template", exc)
     if not directive:

@@ -1,6 +1,9 @@
 # secrets — never commit these
 certs/
 tokens/
+# stray key/secret files at any path (e.g. aws_llm.key dropped in the repo root)
+*.key
+aws_llm.key
 
 # python cache
 __pycache__/
@@ -8,6 +11,8 @@ __pycache__/
 
 # local env
 .venv/
+.venv-lc/
+.env
 
 # development crawl cache (APTS_CRAWL_CACHE=1)
 .crawl-cache/
@@ -15,3 +20,13 @@ __pycache__/
 # local LLM model weights — large, fetched via bootstrap/fetch_model.sh, never committed
 models/
 
+# engagement run artifacts (reports + flow files) — generated per run, never
+# committed; keep the directory placeholder so the dir exists in a fresh checkout.
+reports/*
+!reports/.gitkeep
+report-*.md
+report-*.json
+flow-*.md
+flow-*.json
+
+.sqlmap-dev/

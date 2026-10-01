@@ -36,26 +36,29 @@ x-config-mount: &config-mount
 # file-mounted Docker secret like the DB password, so it never lands in an
 # environment variable and never shows up in `docker inspect`.
 x-llm-env: &llm-env
-  APTS_LLM_BASE_URL:         ${APTS_LLM_BASE_URL:-https://bedrock-mantle.eu-north-1.api.aws/v1}
-  APTS_LLM_MODEL:            ${APTS_LLM_MODEL:-qwen.qwen3-coder-480b-a35b-instruct}
-  APTS_LLM_REASONING_EFFORT: ${APTS_LLM_REASONING_EFFORT:-none}
-  APTS_LLM_MAX_TOKENS:       ${APTS_LLM_MAX_TOKENS:-4000}
-  APTS_LLM_TIMEOUT:          ${APTS_LLM_TIMEOUT:-120}
-  # Set to 1 to run the whole pipeline with no model and no API key at all.
-  APTS_DISABLE_LLM:          ${APTS_DISABLE_LLM:-0}
-  # LLM backend selector. Default "local" uses the in-project llama.cpp service
-  # (shared/llm_local.py, http://llama:8080) — run it with the "localllm"
-  # profile. Set to "openai" for the DeepSeek client above, or "hf" for the
-  # Hugging Face Space client (shared/llm_hf.py).
-  APTS_LLM_PROVIDER:         ${APTS_LLM_PROVIDER:-aws}
+  # The agentic loops (recon/vuln/mitre/exploit/script/adviser) all run on the
+  # LangGraph engine (create_react_agent + a shared ChatOpenAI). The model
+  # endpoint itself is set per service below via APTS_LOOP_LLM_URL / _MODEL /
+  # _TIMEOUT; the bearer key is a file-mounted Docker secret, never an env var.
+  #
   # 1 = orchestrator drives the pipeline (agents report done, orchestrator
   # dispatches the next stage with a directive). 0 = original agent self-chaining.
   # MUST match the orchestrator's own setting below.
   APTS_ORCHESTRATOR_DRIVEN:  ${APTS_ORCHESTRATOR_DRIVEN:-1}
-  APTS_HF_SPACE:             ${APTS_HF_SPACE:-Er33k/HIT}
-  # Optional. A public Space needs none; supply one only to lift anonymous rate
-  # limits — export APTS_HF_TOKEN in your shell, never commit it. Empty by default.
-  APTS_HF_TOKEN:             ${APTS_HF_TOKEN:-}
+  # Opt back in to provider-side retention (send no store=false). Leave empty to
+  # keep store=false on keyed endpoints; set to 1 for a provider that rejects the
+  # `store` field (e.g. DeepSeek's OpenAI-compatible API).
+  APTS_LLM_STORE:            ${APTS_LLM_STORE:-}
+  # Vuln reflection rounds — 0 disables the "propose more hypotheses" pass that
+  # can massively over-generate on some models. Passthrough so it is tunable.
+  APTS_VULN_REFLECT_ROUNDS:  ${APTS_VULN_REFLECT_ROUNDS:-}
+  # Langfuse observability. Traces are sent only when both keys are present; leave
+  # empty to disable (the loop still runs, and the Postgres agent_trace is
+  # unaffected). APTS_LANGFUSE_DISABLED=1 forces off.
+  LANGFUSE_PUBLIC_KEY:       ${LANGFUSE_PUBLIC_KEY:-}
+  LANGFUSE_SECRET_KEY:       ${LANGFUSE_SECRET_KEY:-}
+  LANGFUSE_HOST:             ${LANGFUSE_HOST:-https://cloud.langfuse.com}
+  APTS_LANGFUSE_DISABLED:    ${APTS_LANGFUSE_DISABLED:-0}
 
 # Shared resource limits for the six working agents.
 x-agent-limits: &agent-limits
@@ -357,9 +360,10 @@ services:
   #  Local LLM server (optional — profile "localllm")
   #
   #  A self-hosted llama.cpp server so the six agents can run entirely offline,
-  #  with no external API key and no per-call quota. Selected at the agent side
-  #  with APTS_LLM_PROVIDER=local (shared/llm_local.py), which reaches this
-  #  service on apts-net as http://llama:8080/v1.
+  #  with no external API key and no per-call quota. Select it at the agent side
+  #  by pointing APTS_LOOP_LLM_URL at this service on apts-net
+  #  (http://llama:8080/v1/chat/completions). With no key mounted, build_chat_model
+  #  treats it as a local llama (keyless, enable_thinking=false). See shared/llm.py.
   #
   #  Gated behind a compose profile so a plain `docker compose up` never starts
   #  it — bring it up explicitly only when you want the local backend:

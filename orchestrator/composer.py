@@ -29,14 +29,14 @@ import logging
 import os
 from uuid import UUID
 
-import httpx
 import uvicorn
 from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect
 from fastapi.responses import FileResponse, HTMLResponse
 
 from mcp import Client
 
-from agent.services.workers import agentic
+from agent.services.workers.common import common_agentic as agentic
+from shared.llm import build_chat_model, run_config
 from orchestrator.mcp_control import _status
 from shared.db import get_conn
 
@@ -161,17 +161,18 @@ lines (each starting with "- "), no preamble. If nothing is interesting, reply
 exactly "Nothing notable."."""
 
 
-async def _summarise_loot(llm: httpx.AsyncClient, loot: list[dict]) -> str:
+async def _summarise_loot(loot: list[dict]) -> str:
     """Have the model turn the deduped loot list into a short interesting summary."""
     if not loot:
         return ""
     listing = "\n".join(f"- {i.get('type')}: {str(i.get('value'))[:140]} "
                         f"(from {i.get('source', '?')})" for i in loot)
     try:
-        msg = await agentic.chat(
-            llm, [{"role": "system", "content": _LOOT_SUMMARY_SYSTEM},
-                  {"role": "user", "content": listing}], max_tokens=300)
-        return (msg.get("content") or "").strip()
+        model = build_chat_model("orchestrator", max_tokens=300)
+        msg = await model.ainvoke(
+            agentic.to_lc_messages(_LOOT_SUMMARY_SYSTEM, listing),
+            config=run_config(agent="orchestrator"))
+        return agentic.message_text(msg)
     except Exception as exc:  # noqa: BLE001 — summary is best-effort
         log.warning("loot summary failed: %s", exc)
         return ""
@@ -244,9 +245,8 @@ async def ws(websocket: WebSocket) -> None:
         async with send_lock:
             await websocket.send_json(obj)
 
-    messages: list[dict] = [{"role": "system", "content": SYSTEM_PROMPT}]
+    messages: list = [agentic.SystemMessage(content=SYSTEM_PROMPT)]
     pollers: dict[str, asyncio.Task] = {}
-    llm = httpx.AsyncClient(timeout=agentic.LLM_TIMEOUT)
 
     async def poll_progress(eid: str) -> None:
         """Stream each stage transition for one engagement to the browser."""
@@ -270,7 +270,7 @@ async def ws(websocket: WebSocket) -> None:
                         loot_sent = True
                         loot = await asyncio.to_thread(_exploit_loot, eid)
                         if loot:
-                            summary = await _summarise_loot(llm, loot)
+                            summary = await _summarise_loot(loot)
                             await send({"type": "loot", "engagement_id": eid,
                                         "summary": summary, "items": loot[:40]})
             if st["status"] in ("complete", "failed", "cancelled"):
@@ -297,27 +297,23 @@ async def ws(websocket: WebSocket) -> None:
                     "fresh": fresh})
         pollers[eid] = asyncio.create_task(poll_progress(eid))
 
-    async def run_turn(text: str, mcp_client: Client, openai_tools: list[dict]) -> None:
-        messages.append({"role": "user", "content": text})
+    async def run_turn(text: str, mcp_client: Client, model) -> None:
+        messages.append(agentic.HumanMessage(content=text))
         for _ in range(MAX_STEPS):
             try:
-                msg = await agentic.chat(llm, messages, tools=openai_tools)
-            except httpx.HTTPError as exc:
-                await send({"type": "error",
-                            "text": f"model call failed: {agentic.err_body(exc)[:200] or exc}"})
+                ai = await model.ainvoke(messages, config=run_config(agent="orchestrator"))
+            except Exception as exc:  # noqa: BLE001 — surface a model failure to the UI
+                await send({"type": "error", "text": f"model call failed: {str(exc)[:200]}"})
                 return
-            messages.append(msg)
-            calls = msg.get("tool_calls")
+            messages.append(ai)
+            calls = ai.tool_calls or []
             if not calls:
                 await send({"type": "assistant",
-                            "text": (msg.get("content") or "").strip() or "(no reply)"})
+                            "text": agentic.message_text(ai) or "(no reply)"})
                 return
             for call in calls:
-                name = call["function"]["name"]
-                try:
-                    args = json.loads(call["function"].get("arguments") or "{}")
-                except json.JSONDecodeError:
-                    args = {}
+                name = call["name"]
+                args = call.get("args") or {}
                 await send({"type": "tool", "text": _arg_summary(name, args)})
                 out = await mcp_client.call_tool(name, args)
                 payload = out.structured_content or {
@@ -327,13 +323,18 @@ async def ws(websocket: WebSocket) -> None:
                     await ensure_engagement(payload["engagement_id"],
                                             args.get("target_url"), "running",
                                             fresh=True)
-                messages.append({"role": "tool", "tool_call_id": call["id"],
-                                 "content": json.dumps(payload, default=str)[:4000]})
+                messages.append(agentic.ToolMessage(
+                    content=json.dumps(payload, default=str)[:4000],
+                    tool_call_id=call["id"]))
 
     try:
         async with Client(CONTROL_URL) as mcp_client:
             tools = (await mcp_client.list_tools()).tools
-            openai_tools = agentic.mcp_tools_to_openai(tools)
+            # The model only needs the tool SCHEMAS (bind_tools); the Composer
+            # dispatches each call itself below so it can emit UI events and run
+            # the create_engagement side effect.
+            lc_tools = agentic.as_langchain_tools(mcp_client, tools)
+            model = build_chat_model("orchestrator").bind_tools(lc_tools)
             await send({"type": "assistant", "text": GREETING, "greeting": True})
             # Populate the side panel with recent engagements (finished pollers
             # do a single pass and exit; running ones stay live).
@@ -345,7 +346,7 @@ async def ws(websocket: WebSocket) -> None:
                 text = (raw.get("text") or "").strip()
                 if not text:
                     continue
-                await run_turn(text, mcp_client, openai_tools)
+                await run_turn(text, mcp_client, model)
     except WebSocketDisconnect:
         pass
     except Exception as exc:  # noqa: BLE001 — keep one bad socket from taking the server
@@ -353,7 +354,6 @@ async def ws(websocket: WebSocket) -> None:
     finally:
         for task in pollers.values():
             task.cancel()
-        await llm.aclose()
 
 
 def serve(port: int | None = None) -> None:

@@ -1,282 +1,351 @@
-"""LLM access for the agents.
+"""LangChain chat-model factory + Langfuse wiring for the agentic loops.
 
-One client, shared by every agent, deliberately written against the
-OpenAI-compatible chat-completions shape rather than any vendor SDK. DeepSeek,
-Hugging Face TGI, vLLM, and OpenAI itself all speak it, so switching provider is
-a base-URL and model-name change in ``config/`` — no agent code moves. The PRD
-names Hugging Face Inference Endpoints as the target stack; DeepSeek is what
-this is pointed at today, and the abstraction is what keeps that a deployment
-detail instead of a rewrite.
+This is the single LLM access module for the stack. Every agentic loop
+(recon/vuln/mitre/exploit/script/adviser) drives its model through the
+``BaseChatModel`` this builds, so the loop can run on LangGraph and every model +
+tool call is observable in Langfuse.
 
-Plain ``httpx`` rather than the ``openai`` package: the request is one JSON POST,
-httpx is already pinned for every service, and a vendor SDK would pull a
-dependency tree into a container that needs none of it.
+Why one class covers every backend
+-----------------------------------
+Every runtime backend this stack targets — AWS Bedrock's OpenAI surface, a local
+llama.cpp server, DeepSeek, OpenAI itself — speaks the OpenAI
+``/v1/chat/completions`` protocol. A single :class:`~langchain_openai.ChatOpenAI`
+configured from the same environment variables therefore covers all of them;
+there is no per-provider subclass. (A non-OpenAI backend such as a Hugging Face
+Space would need its own ``BaseChatModel`` — there is none wired in today.)
 
-Secret handling follows the same rule as the database password (see
-``shared/db.py``) — the key is read from a mounted file, never from an
-environment variable, so it stays out of ``docker inspect`` and out of any crash
-dump that prints the environment.
+Provider quirks preserved from the old hand-rolled loop
+-------------------------------------------------------
+* **enable_thinking=false for a keyless local llama.** llama.cpp honours
+  ``chat_template_kwargs`` to disable the reasoning pass; a hosted endpoint 400s
+  on the unknown field. So it is sent via ``extra_body`` only when there is no
+  bearer token.
+* **The bearer token comes from a file, not a baked-in env var.** Read from
+  ``APTS_LOOP_LLM_KEY`` or the mounted secret, never from the image — same rule
+  as the DB password (see ``shared/db.py``).
 
-Three behaviours worth knowing about, all verified against the live API:
-
-* **Thinking is on by default.** ``deepseek-v4-flash`` spends completion tokens
-  on hidden reasoning before it writes anything. With a small ``max_tokens`` the
-  budget is consumed entirely by reasoning and ``content`` comes back *empty*
-  with ``finish_reason="length"`` — a silent empty result, not an error.
-  :data:`REASONING_EFFORT` defaults to ``"none"`` for that reason.
-* **JSON mode is honoured** via ``response_format``, but the model still has to
-  be told the schema in the prompt; the flag only constrains syntax.
-* **Reasoning tokens are billed as output.** They are reported separately in
-  ``usage`` and logged below, because otherwise a thinking model's true cost is
-  invisible.
+Langfuse is optional and fails open
+-----------------------------------
+:func:`langfuse_callbacks` returns an empty list unless Langfuse is both installed
+and configured (``LANGFUSE_PUBLIC_KEY`` / ``LANGFUSE_SECRET_KEY`` present). A
+missing package or missing keys must never break a stage that did its work — the
+same rule the Postgres trace (``shared/trace.py``) already follows.
 """
 from __future__ import annotations
 
-import json
+import contextlib
 import logging
 import os
-import time
-from dataclasses import dataclass
-from typing import Any
+import re
+from functools import lru_cache
+from urllib.parse import urlsplit, urlunsplit
 
-import httpx
-
-from shared import trace
+from shared import settings
 
 log = logging.getLogger("shared.llm")
 
 
-class LlmError(Exception):
-    """Raised when the model cannot be reached or will not answer usefully."""
-
-
 # --------------------------------------------------------------------------- #
-# Configuration
+# Configuration — validated once at boot (shared/settings.py), not scattered env.
+# Secrets (the API key) are the exception: they stay read from env/secret file at
+# point of use, never through the settings object.
 # --------------------------------------------------------------------------- #
 
-BASE_URL = os.environ.get("APTS_LLM_BASE_URL", "https://api.deepseek.com")
-MODEL = os.environ.get("APTS_LLM_MODEL", "deepseek-v4-flash")
-KEY_FILE = os.environ.get("APTS_LLM_KEY_FILE", "/run/secrets/llm_api_key")
+def _base_url(chat_url: str | None = None) -> str:
+    """Strip a trailing ``/chat/completions`` so ChatOpenAI can append its own.
 
-# "none" disables the model's hidden reasoning pass. Agents ask for structured
-# JSON against a fixed schema, which is not work that benefits from chain of
-# thought — and leaving it on makes token spend, latency, and the empty-content
-# failure above all unpredictable. Set to "low"/"medium"/"high" for an agent
-# that genuinely needs deliberation (Exploitation is the plausible candidate).
-REASONING_EFFORT = os.environ.get("APTS_LLM_REASONING_EFFORT", "none")
-
-REQUEST_TIMEOUT = float(os.environ.get("APTS_LLM_TIMEOUT", "120"))
-MAX_TOKENS = int(os.environ.get("APTS_LLM_MAX_TOKENS", "4000"))
-
-
-def load_api_key(path: str | None = None) -> str:
-    """Read the provider API key from its mounted secret file."""
-    path = path or KEY_FILE
-    try:
-        with open(path, "r", encoding="utf-8") as fh:
-            key = fh.read().strip()
-    except FileNotFoundError as exc:
-        raise LlmError(
-            f"LLM API key file not found at {path!r}. Was the secret mounted? "
-            f"See docker-compose.yml and bootstrap/."
-        ) from exc
-    if not key:
-        raise LlmError(f"LLM API key file {path!r} is empty")
-    return key
-
-
-@dataclass(frozen=True)
-class Usage:
-    """Token accounting for one call, so cost stays visible per agent."""
-    prompt_tokens: int = 0
-    completion_tokens: int = 0
-    reasoning_tokens: int = 0
-    cached_tokens: int = 0
-
-    @classmethod
-    def from_response(cls, usage: dict[str, Any]) -> "Usage":
-        details = usage.get("completion_tokens_details") or {}
-        prompt_details = usage.get("prompt_tokens_details") or {}
-        return cls(
-            prompt_tokens=usage.get("prompt_tokens", 0),
-            completion_tokens=usage.get("completion_tokens", 0),
-            reasoning_tokens=details.get("reasoning_tokens") or 0,
-            cached_tokens=prompt_details.get("cached_tokens") or 0,
-        )
-
-
-# --------------------------------------------------------------------------- #
-# Client
-# --------------------------------------------------------------------------- #
-
-class LlmClient:
-    """Chat-completions client scoped to one agent.
-
-    ``agent_name`` only labels log lines, but it is what makes per-agent token
-    spend legible when six of these are running at once.
+    Defaults to the configured loop LLM URL (``APTS_LOOP_LLM_URL``).
     """
+    if chat_url is None:
+        chat_url = settings.load().loop.llm_url
+    parts = urlsplit(chat_url)
+    path = parts.path
+    for suffix in ("/chat/completions", "/chat/completions/"):
+        if path.endswith(suffix):
+            path = path[: -len(suffix)]
+            break
+    return urlunsplit((parts.scheme, parts.netloc, path or "/v1", "", ""))
 
-    def __init__(self, agent_name: str, client: httpx.AsyncClient | None = None,
-                 api_key: str | None = None, model: str = MODEL,
-                 base_url: str = BASE_URL) -> None:
-        self._agent = agent_name
-        self._model = model
-        self._base_url = base_url.rstrip("/")
-        self._api_key = api_key
-        self._client = client
-        self._owns_client = client is None
 
-    async def __aenter__(self) -> "LlmClient":
-        if self._client is None:
-            self._client = httpx.AsyncClient(timeout=REQUEST_TIMEOUT)
-        if self._api_key is None:
-            self._api_key = load_api_key()
-        return self
+def _api_key() -> str:
+    """Bearer token for a hosted endpoint (empty string for a local llama).
 
-    async def __aexit__(self, *exc_info) -> None:
-        if self._owns_client and self._client is not None:
-            await self._client.aclose()
-            self._client = None
+    Env first (``APTS_LOOP_LLM_KEY``), then the mounted secret so in-container
+    workers need no extra env. Kept out of the settings schema on purpose: a
+    secret must not live in a config object.
+    """
+    key = os.environ.get("APTS_LOOP_LLM_KEY")
+    if key:
+        return key
+    try:
+        with open(os.environ.get("APTS_LLM_KEY_FILE",
+                                 "/run/secrets/llm_api_key")) as fh:
+            return fh.read().strip()
+    except OSError:
+        return ""
 
-    async def complete_json(self, system: str, user: str,
-                            max_tokens: int = MAX_TOKENS,
-                            retries: int = 1) -> dict[str, Any]:
-        """Ask for a JSON object and return it parsed.
 
-        ``system`` must describe the expected schema. JSON mode constrains the
-        model to emit syntactically valid JSON; it does not tell it what shape
-        to use, and a schema-less prompt in JSON mode reliably produces
-        well-formed objects with the wrong keys.
+# --------------------------------------------------------------------------- #
+# Chat model
+# --------------------------------------------------------------------------- #
 
-        Retries once on unparseable output — a rare but real failure that is
-        cheaper to retry than to escalate. Structural validation against the
-        agent's artifact schema is a separate concern and happens at the
-        Guardrails output checkpoint, not here.
-        """
-        payload = {
-            "model": self._model,
-            "messages": [
-                {"role": "system", "content": system},
-                {"role": "user", "content": user},
-            ],
-            "response_format": {"type": "json_object"},
-            "max_tokens": max_tokens,
-            "stream": False,
-        }
-        if REASONING_EFFORT:
-            payload["reasoning_effort"] = REASONING_EFFORT
+def build_chat_model(agent_name: str, *, max_tokens: int | None = None,
+                     temperature: float | None = None):
+    """Return a LangChain chat model for one agent's loop.
 
-        last_error: str = ""
-        for attempt in range(retries + 1):
-            started = time.perf_counter()
+    ``agent_name`` is attached as OpenAI ``metadata``/tags so Langfuse and any
+    other callback can attribute spend per agent. ``max_tokens`` mirrors the
+    per-loop cap the workers pass.
+
+    The import is local so that importing this module (e.g. in a unit test that
+    only exercises URL/key resolution) does not require ``langchain_openai`` to be
+    installed.
+    """
+    from langchain_openai import ChatOpenAI
+
+    cfg = settings.load().loop
+    key = _api_key()
+    extra_body: dict = {}
+    if not key:
+        # Keyless == local llama: disable its reasoning pass.
+        extra_body["chat_template_kwargs"] = {"enable_thinking": False}
+
+    # Temperature is DELIBERATELY unset unless APTS_LOOP_LLM_TEMPERATURE is given:
+    # several newer reasoning models reject it, and the old httpx loop never sent
+    # one. cfg.temperature is None when unset.
+    resolved_temp = cfg.temperature if temperature is None else temperature
+    kwargs: dict = dict(
+        model=cfg.model,
+        base_url=_base_url(),
+        # ChatOpenAI requires a non-empty key; a keyless local server ignores the
+        # Authorization header, so a placeholder is harmless and keeps the client
+        # from raising before the first call.
+        api_key=key or "not-needed",
+        timeout=cfg.timeout,
+        max_retries=0,  # the loops decide how to handle a failed turn themselves
+        max_tokens=max_tokens,
+        extra_body=extra_body or None,
+        metadata={"agent": agent_name},
+        tags=[f"agent:{agent_name}"],
+    )
+    # store=false: the hosted Bedrock/OpenAI-compatible endpoints otherwise retain
+    # request/response payloads server-side (~30 days). This stack drives a target
+    # with attacker payloads and extracts loot/credentials, so opt out of retention.
+    # `store` is a first-class ChatOpenAI param (pass it top-level, not via
+    # model_kwargs). Sent only to a keyed (hosted) endpoint — a local llama has no
+    # such retention and may reject it. Set APTS_LLM_STORE=1 to opt back in.
+    if key and not cfg.store_opt_in:
+        kwargs["store"] = False
+    if resolved_temp is not None:
+        kwargs["temperature"] = resolved_temp
+    return ChatOpenAI(**kwargs)
+
+
+# --------------------------------------------------------------------------- #
+# Langfuse — optional observability, fails open.
+# --------------------------------------------------------------------------- #
+
+def langfuse_enabled() -> bool:
+    """True only if Langfuse credentials are present in the environment.
+
+    ``APTS_LANGFUSE_DISABLED=1`` forces it off regardless — an operator switch
+    for a run that must send no prompt text off-box, mirroring
+    ``APTS_TRACE_ENABLED=0`` for the Postgres trace.
+    """
+    if settings.load().langfuse.disabled:
+        return False
+    return bool(os.environ.get("LANGFUSE_PUBLIC_KEY")
+                and os.environ.get("LANGFUSE_SECRET_KEY"))
+
+
+# --------------------------------------------------------------------------- #
+# Payload masking — this is a pentest stack: tool calls carry the engagement
+# session (auth cookies), attacker payloads, and extracted loot/credentials. The
+# LangChain→Langfuse integration would otherwise serialise all of that verbatim
+# into traces. A ``mask`` on the Langfuse client scrubs every input/output/
+# metadata value before it leaves the process.
+#
+# This is key-based + pattern-based redaction, not a full "lengths-only" rebuild:
+# it redacts values under sensitive keys in structured tool args, and secret-
+# shaped substrings in serialised strings. It does NOT strip a credential the
+# model happens to write into free-form reasoning text — for a hard guarantee,
+# follow the monorepo's approach of emitting diagnostics with values dropped
+# (see docs/langgraph-migration.md). Tune with APTS_LANGFUSE_EXTRA_MASK_KEYS.
+# --------------------------------------------------------------------------- #
+
+_SENSITIVE_KEYS = {
+    "cookie", "cookies", "set-cookie", "authorization", "auth", "token", "tokens",
+    "password", "passwd", "pwd", "secret", "api_key", "apikey", "x-api-key",
+    "credential", "credentials", "bearer", "session", "headers", "loot",
+}
+_SENSITIVE_KEYS |= set(settings.load().langfuse.extra_mask_keys)
+_REDACTED = "***REDACTED***"
+_SECRET_LINE = re.compile(
+    r"(?i)\b(cookie|set-cookie|authorization|token|password|passwd|pwd|secret|"
+    r"api[-_]?key|bearer)\b\s*[:=]\s*\S+")
+
+
+def _scrub_str(value: str) -> str:
+    return _SECRET_LINE.sub(lambda m: f"{m.group(1)}: {_REDACTED}", value)
+
+
+def _redact(value, depth: int = 0):
+    """Recursively redact sensitive keys (in dicts) and secret-shaped strings."""
+    if depth > 8:
+        return value
+    if isinstance(value, dict):
+        return {k: (_REDACTED if str(k).lower() in _SENSITIVE_KEYS
+                    else _redact(v, depth + 1)) for k, v in value.items()}
+    if isinstance(value, (list, tuple)):
+        return [_redact(v, depth + 1) for v in value]
+    if isinstance(value, str):
+        return _scrub_str(value)
+    return value
+
+
+def _mask(data=None, **_):
+    """Langfuse ``mask`` callback: applied to every traced value before export."""
+    try:
+        return _redact(data)
+    except Exception:  # noqa: BLE001 — a mask error must never leak the raw value
+        return "***REDACTED (mask error)***"
+
+
+@lru_cache(maxsize=1)
+def _client():
+    """The Langfuse client, built once with the masking function, or None.
+
+    Constructing it also registers the process-singleton the CallbackHandler
+    reads via ``get_client()``, so the handler inherits the mask. Any failure
+    (not installed, misconfigured) degrades to None — tracing never breaks a stage.
+    """
+    if not langfuse_enabled():
+        return None
+    try:
+        from langfuse import Langfuse
+        return Langfuse(mask=_mask)
+    except Exception as exc:  # noqa: BLE001
+        log.warning("Langfuse client unavailable: %s", exc)
+        return None
+
+
+@lru_cache(maxsize=1)
+def _handler():
+    """Build the Langfuse callback handler once, or None if unavailable.
+
+    Cached because the handler holds a flush thread; one per process is correct.
+    Depends on :func:`_client` having registered the masked singleton first.
+    """
+    if _client() is None:
+        return None
+    try:
+        from langfuse.langchain import CallbackHandler
+        return CallbackHandler()
+    except Exception as exc:  # noqa: BLE001 — observability must never break a stage
+        log.warning("Langfuse callback disabled: %s", exc)
+        return None
+
+
+def langfuse_callbacks() -> list:
+    """Callbacks to pass as ``config={"callbacks": langfuse_callbacks()}``.
+
+    Empty list when Langfuse is off, so every ``ainvoke`` can pass it
+    unconditionally. Combine with per-run metadata at the call site.
+    """
+    handler = _handler()
+    return [handler] if handler is not None else []
+
+
+def run_config(engagement_id: str = "", agent: str = "", **metadata) -> dict:
+    """A LangChain ``RunnableConfig`` carrying the Langfuse callback + trace tags.
+
+    Threads the engagement and agent into Langfuse as a session id / tags so a
+    run's traces group the way the Postgres ``agent_trace`` rows already do.
+    """
+    meta = {k: v for k, v in {"engagement_id": engagement_id, "agent": agent,
+                              **metadata}.items() if v}
+    cfg: dict = {"callbacks": langfuse_callbacks()}
+    if meta:
+        cfg["metadata"] = meta
+    if engagement_id:
+        # Langfuse reads these reserved metadata keys to group a trace.
+        cfg["metadata"]["langfuse_session_id"] = str(engagement_id)
+    if agent:
+        cfg["run_name"] = f"{agent}-loop"
+    return cfg
+
+
+# --------------------------------------------------------------------------- #
+# One run = one trace.
+# --------------------------------------------------------------------------- #
+
+@contextlib.contextmanager
+def trace_run(name: str, run_input=None, prompt=None, engagement_id: str = ""):
+    """Open ONE Langfuse root span for the duration of a multi-turn run.
+
+    Our loops make several model calls per run (a react graph invoke, then a
+    reflection turn, or a per-weakness proof loop). Without a root span each of
+    those bare ``model.ainvoke`` calls becomes its own trace, so a run fragments
+    into one-trace-per-turn with blank top-level I/O. Wrapping the whole run in an
+    active observation makes every callback-created span nest under it — one run,
+    one trace — and gives the trace list its Input/Output (set input here, call
+    :func:`set_run_output` before the block exits).
+
+    Yields the span (or None when Langfuse is off) and never raises: a failure to
+    open the span degrades to an un-nested run rather than breaking the stage.
+    Session/user grouping still rides the ``metadata`` set by :func:`run_config`.
+    """
+    client = _client()
+    span_cm = None
+    if client is not None:
+        obs_kwargs = {"name": name, "as_type": "span", "input": run_input}
+        if prompt is not None:
+            # Links every generation in the run to this prompt version, so a
+            # "which prompt version regressed?" question is answerable from traces.
+            obs_kwargs["prompt"] = prompt
+        if engagement_id:
+            # One tree for the WHOLE engagement: seed a deterministic trace id from
+            # the engagement id so every stage — each a separate process — writes
+            # its spans into the SAME Langfuse trace instead of one trace per loop.
+            # The per-stage span opened here becomes a top-level node of that single
+            # tree, and the per-request spans nest under it.
             try:
-                content, usage = await self._post(payload)
-            except LlmError as exc:
-                # Record the failed call before re-raising. A stage that failed
-                # because the model was unreachable is exactly the case where
-                # the trace needs to show the attempt was made.
-                self._trace(system, user, "", Usage(), attempt, started,
-                            error=str(exc))
-                raise
-            self._log_usage(usage, attempt)
-            self._trace(system, user, content, usage, attempt, started)
-
-            if not content.strip():
-                # Almost always the thinking-mode budget exhaustion described in
-                # the module docstring. Say so, rather than reporting empty JSON.
-                last_error = (
-                    f"model returned empty content "
-                    f"(reasoning_tokens={usage.reasoning_tokens}, "
-                    f"max_tokens={max_tokens}); raise max_tokens or set "
-                    f"APTS_LLM_REASONING_EFFORT=none")
-                continue
-
-            try:
-                parsed = json.loads(content)
-            except json.JSONDecodeError as exc:
-                last_error = f"model returned unparseable JSON: {exc}"
-                log.warning("[%s] %s", self._agent, last_error)
-                continue
-
-            if not isinstance(parsed, dict):
-                last_error = f"expected a JSON object, got {type(parsed).__name__}"
-                continue
-
-            return parsed
-
-        raise LlmError(f"[{self._agent}] {last_error}")
-
-    # ----------------------------------------------------------------- #
-
-    async def _post(self, payload: dict[str, Any]) -> tuple[str, Usage]:
-        if self._client is None or self._api_key is None:
-            raise LlmError(
-                "LlmClient used outside its async context; "
-                "use 'async with LlmClient(...) as llm:'")
-
+                obs_kwargs["trace_context"] = {
+                    "trace_id": client.create_trace_id(seed=str(engagement_id))}
+            except Exception as exc:  # noqa: BLE001 — fall back to an un-seeded trace
+                log.debug("trace_id seed failed: %s", exc)
         try:
-            response = await self._client.post(
-                f"{self._base_url}/chat/completions",
-                headers={"Authorization": f"Bearer {self._api_key}",
-                         "Content-Type": "application/json"},
-                json=payload,
-            )
-        except httpx.HTTPError as exc:
-            raise LlmError(f"[{self._agent}] LLM request failed: {exc}") from exc
+            span_cm = client.start_as_current_observation(**obs_kwargs)
+        except Exception as exc:  # noqa: BLE001
+            log.warning("Langfuse trace_run(%s) failed to start: %s", name, exc)
+            span_cm = None
+    if span_cm is None:
+        yield None
+        return
+    with span_cm as span:
+        yield span
 
-        if response.status_code != 200:
-            # Deliberately does not include the response body verbatim in the
-            # exception message beyond a short prefix — provider errors can echo
-            # request content, and agent prompts carry engagement detail.
-            raise LlmError(
-                f"[{self._agent}] LLM returned HTTP {response.status_code}: "
-                f"{response.text[:200]}")
 
-        body = response.json()
-        try:
-            message = body["choices"][0]["message"]
-        except (KeyError, IndexError) as exc:
-            raise LlmError(f"[{self._agent}] malformed LLM response") from exc
+def set_run_output(span, output) -> None:
+    """Set the root span's output (→ the trace's Output column). None-safe."""
+    if span is None:
+        return
+    try:
+        span.update(output=output)
+    except Exception as exc:  # noqa: BLE001
+        log.debug("Langfuse set_run_output failed: %s", exc)
 
-        return message.get("content") or "", Usage.from_response(body.get("usage", {}))
 
-    def _log_usage(self, usage: Usage, attempt: int) -> None:
-        log.info(
-            "[%s] llm call model=%s attempt=%d tokens in=%d (cached=%d) "
-            "out=%d (reasoning=%d)",
-            self._agent, self._model, attempt + 1,
-            usage.prompt_tokens, usage.cached_tokens,
-            usage.completion_tokens, usage.reasoning_tokens,
-        )
+def flush() -> None:
+    """Flush pending Langfuse spans. Call in a stage's ``finally``.
 
-    def _trace(self, system: str, user: str, content: str, usage: Usage,
-               attempt: int, started: float, error: str = "") -> None:
-        """Write the call to the execution trace.
-
-        Records the *raw* content, not the parsed object. When a stage fails on
-        malformed output, the parsed object is the thing that does not exist —
-        the raw string is the evidence. The parsed result is visible anyway as
-        the next stage's ``stage_input``.
-
-        No-op outside a stage run (see :mod:`shared.trace`), so this costs a
-        context lookup in tests and in any non-engagement code path.
-        """
-        trace.record(
-            "llm_call",
-            {
-                "model": self._model,
-                "attempt": attempt + 1,
-                "system_prompt": system,
-                "user_prompt": user,
-                "raw_response": content,
-                "reasoning_effort": REASONING_EFFORT,
-                "usage": {
-                    "prompt_tokens": usage.prompt_tokens,
-                    "completion_tokens": usage.completion_tokens,
-                    "reasoning_tokens": usage.reasoning_tokens,
-                    "cached_tokens": usage.cached_tokens,
-                },
-                **({"error": error} if error else {}),
-            },
-            duration_ms=int((time.perf_counter() - started) * 1000),
-        )
+    Agent stages are short-lived tasks; without an explicit flush the exporter's
+    background batch can be lost when the task ends. No-op when Langfuse is off.
+    """
+    client = _client()
+    if client is None:
+        return
+    try:
+        client.flush()
+    except Exception as exc:  # noqa: BLE001
+        log.debug("Langfuse flush failed: %s", exc)

@@ -260,23 +260,19 @@ docker exec apts-agent-recon python -c "import httpx;httpx.get('http://juice-sho
 
 ## 7. Running the tests
 
-250 tests, no network or database needed:
+The offline suite (28 tests, no network or database) covers the LangGraph engine,
+the MCP→LangChain tool wrapper, each stage loop on a real `create_react_agent`
+graph, config validation, and the prompt registry:
 
 ```bash
-docker build -t apts-skeleton:latest .
-docker run --rm --user root \
-  -v "$PWD/tests:/app/tests:ro" -v "$PWD/pytest.ini:/app/pytest.ini:ro" \
-  apts-skeleton:latest sh -c "pip install -q pytest pytest-asyncio && python -m pytest -q"
+python -m venv .venv-lc && . .venv-lc/bin/activate
+pip install -r requirements.txt -r requirements-dev.txt
+python -m pytest tests/test_langgraph_migration.py -q
 ```
 
-Tests that call the real AI model are skipped by default so nobody spends money
-by accident. Turn them on with `APTS_LIVE_LLM_TESTS=1`.
-
-Want to watch the safety checks work without running the whole system?
-
-```bash
-python scripts/trace_flow.py
-```
+The tests use a scripted fake chat model and a fake MCP client, so they never hit
+a real model or the network. See `docs/langgraph-migration.md` for the engine
+details.
 
 ---
 
