@@ -84,13 +84,18 @@ class AdviserWorker:
 
         model = build_chat_model("adviser", max_tokens=MAX_TOKENS)
         config = run_config(engagement_id=str(ctx.engagement_id), agent="adviser")
-        with trace_run(name="adviser", run_input=f"reason over {len(groups)} finding group(s)", engagement_id=str(ctx.engagement_id)) as _stage:
+        with trace_run(name="adviser",
+                       run_input={"groups": [g["key"] for g in groups]},
+                       engagement_id=str(ctx.engagement_id)) as _stage:
             try:
                 findings, narrative = await self._reason(
                     groups, agentic.directive_block(ctx.directive), model, config)
             finally:
                 flush()  # short-lived stage: push any buffered Langfuse spans
-            set_run_output(_stage, f"{len(findings)} finding(s)")
+            set_run_output(_stage, {
+                "findings": len(findings),
+                "items": [{"id": f.id, "title": f.title, "severity": f.severity}
+                          for f in findings]})
 
         n_total = len(weaknesses)
         n_tested = len(attempts)

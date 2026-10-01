@@ -90,7 +90,12 @@ class ReconWorker:
                 raise WorkFailed(f"recon loop failed: {type(exc).__name__}: {exc}") from exc
             finally:
                 flush()  # short-lived stage: push any buffered Langfuse spans
-            set_run_output(_stage, f"{len(observed)} request(s) ranked")
+            set_run_output(_stage, {
+                "requests": len(observed),
+                "high": sum(1 for r in observed if r.interest == "high"),
+                "items": [{"method": r.method,
+                           "path": urlparse(r.url).path or "/",
+                           "interest": r.interest} for r in observed]})
 
         asset_map = AssetMap(
             target_url=ctx.target_url,

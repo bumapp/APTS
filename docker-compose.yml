@@ -497,7 +497,7 @@ services:
       NODE_ENV: unsafe
     deploy:
       resources:
-        limits: { memory: 768M, cpus: "4.0" }
+        limits: { memory: 768M, cpus: "1.0" }
 
   # ---------------------------------------------------------------------
   #  Sandbox (locked-down stub)

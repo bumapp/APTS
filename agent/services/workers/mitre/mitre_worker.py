@@ -216,7 +216,11 @@ class MitreWorker:
         config = run_config(engagement_id=str(ctx.engagement_id), agent="mitre")
         system = prompts.get(MITRE_SYSTEM_PROMPT_ID)  # Langfuse-backed, default fallback
 
-        with trace_run(name="mitre", run_input=f"map {len(known_ids)} weakness(es) to ATT&CK", engagement_id=str(ctx.engagement_id)) as _stage:
+        with trace_run(name="mitre",
+                       run_input={"weaknesses": [
+                           {"id": wid, "title": by_id[wid].get("title", "")}
+                           for wid in sorted(known_ids)]},
+                       engagement_id=str(ctx.engagement_id)) as _stage:
             try:
                 async with Client(agentic.MCP_URL) as client:
                     descriptors = [t for t in (await client.list_tools()).tools
@@ -267,7 +271,10 @@ class MitreWorker:
                     f"mitre loop failed: {type(exc).__name__}: {exc}") from exc
             finally:
                 flush()  # short-lived stage: push any buffered Langfuse spans
-            set_run_output(_stage, f"{len(mapped)}/{len(known_ids)} tagged")
+            set_run_output(_stage, {
+                "tagged": len(mapped), "of": len(known_ids),
+                "mappings": {wid: [t["technique_id"] for t in tags]
+                             for wid, tags in mapped.items()}})
 
         try:
             artifact = AttackMap(mappings=mapped)

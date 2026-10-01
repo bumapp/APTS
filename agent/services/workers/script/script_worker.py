@@ -187,7 +187,10 @@ class ScriptWorker:
         scripts: list[AttackScript] = []
         rejected = 0
 
-        with trace_run(name="script", run_input=f"build PoCs for {len(confirmed)} confirmed", engagement_id=str(ctx.engagement_id)) as _stage:
+        with trace_run(name="script",
+                       run_input={"confirmed": [a.get("weakness_id")
+                                                for a in confirmed]},
+                       engagement_id=str(ctx.engagement_id)) as _stage:
             try:
                 async with Client(agentic.MCP_URL) as client:
                     descriptors = [t for t in (await client.list_tools()).tools
@@ -233,7 +236,10 @@ class ScriptWorker:
                                  source.count("\n") + 1, language)
             finally:
                 flush()  # short-lived stage: push any buffered Langfuse spans
-            set_run_output(_stage, f"{len(scripts)} script(s), {rejected} rejected")
+            set_run_output(_stage, {
+                "scripts": len(scripts), "rejected": rejected,
+                "items": [{"id": s.weakness_id, "language": s.language}
+                          for s in scripts]})
 
         playbook = AttackPlaybook(scripts=scripts, rejected=rejected)
         log.info("playbook: %d scripts shipped, %d rejected", len(scripts), rejected)

@@ -389,7 +389,10 @@ class VulnWorker:
                 raise WorkFailed(f"vuln loop failed: {type(exc).__name__}: {exc}") from exc
             finally:
                 flush()  # short-lived stage: push any buffered Langfuse spans
-            set_run_output(_stage, f"{len(weaknesses)} weakness(es)")
+            set_run_output(_stage, {
+                "weaknesses": len(weaknesses),
+                "items": [{"id": w.id, "title": w.title, "asset": w.asset}
+                          for w in weaknesses]})
 
         register = VulnerabilityRegister(weaknesses=weaknesses)
         log.info("register: %d weaknesses from hypotheses", len(register.weaknesses))
