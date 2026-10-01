@@ -6,8 +6,10 @@ from shared import prompts
 from shared import settings
 
 # --- loop configuration (env-tunable) ------------------------------------- #
-MAX_STEPS = int(os.environ.get("APTS_VULN_MAX_STEPS", "6"))
-MAX_TOKENS = int(os.environ.get("APTS_VULN_MAX_TOKENS", "900"))
+MAX_STEPS = int(os.environ.get("APTS_VULN_MAX_STEPS", "8"))
+# Bumped from 900: qwen on Bedrock was running out mid-answer and emitting
+# "Sorry, need more steps to process this request." instead of HYPOTHESIS blocks.
+MAX_TOKENS = int(os.environ.get("APTS_VULN_MAX_TOKENS", "1500"))
 REFLECT_ROUNDS = int(os.environ.get("APTS_VULN_REFLECT_ROUNDS", "1"))
 SKIP_NOISE = os.environ.get("APTS_VULN_SKIP_NOISE", "1") not in ("0", "false", "")
 # From the validated boot-time settings (shared/settings.py), not raw env.
@@ -17,6 +19,11 @@ _NOISE = {"stylesheet", "image", "font", "media"}
 # A create_react_agent step is one node visit; a full model→tools cycle is two.
 # Give the graph room for MAX_STEPS model turns plus the terminating turn.
 RECURSION_LIMIT = 2 * MAX_STEPS + 2
+
+# How many recon requests to assess concurrently. Vuln hits only the read-only
+# knowledge base (no target traffic), so it is bounded by the model endpoint, not
+# the target — it can run wider than exploit. Tune with APTS_VULN_CONCURRENCY.
+CONCURRENCY = int(os.environ.get("APTS_VULN_CONCURRENCY", "5"))
 
 # The vuln agent proposes; it does not probe. It is handed ONLY the knowledge-base
 # tools — never sqlmap/http_request — both because that is its job and to keep the

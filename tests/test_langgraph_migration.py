@@ -805,3 +805,16 @@ async def test_adviser_reason_falls_back_on_bad_json():
     findings, narrative = await worker._reason(groups, "", scripted, {})
     assert len(findings) == 1  # the proven group is never lost
     assert findings[0].severity == "critical"
+
+
+async def test_vuln_drops_junk_hypotheses():
+    """Refusal / out-of-budget non-answers must not be recorded as freeform weaknesses,
+    while real HYPOTHESIS blocks and substantive freeform replies still parse."""
+    from agent.services.workers.vuln import vuln_worker as V
+    assert V._extract_hypotheses("Sorry, need more steps to process this request.") == []
+    assert V._extract_hypotheses("   ") == []
+    assert V._extract_hypotheses("No vulnerabilities found.") == []
+    hyps = V._extract_hypotheses("HYPOTHESIS: XSS — search (param `q`)\nWHY: q reflects into DOM")
+    assert len(hyps) == 1 and "XSS" in hyps[0]
+    ff = V._extract_hypotheses("The q parameter reflects unsanitized into the search results DOM.")
+    assert len(ff) == 1

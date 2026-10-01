@@ -23,6 +23,7 @@ weaknesses Exploitation actually proved.
 """
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
 import re
@@ -41,7 +42,9 @@ from shared.models import VulnerabilityRegister, Weakness
 from agent.services.workers.common import common_agentic as agentic
 from agent.services.workers.base import WorkContext, WorkFailed
 from .vuln_constants import (
-    AGENT_TOOLS, MAX_STEPS, MAX_TOKENS, PROMPT_BUDGET_CHARS, RECURSION_LIMIT, REFLECT_PROMPT_TMPL, REFLECT_ROUNDS, SKIP_NOISE, VULN_SYSTEM_PROMPT_ID, _NOISE)
+    AGENT_TOOLS, CONCURRENCY, MAX_STEPS, MAX_TOKENS, PROMPT_BUDGET_CHARS,
+    RECURSION_LIMIT, REFLECT_PROMPT_TMPL, REFLECT_ROUNDS, SKIP_NOISE,
+    VULN_SYSTEM_PROMPT_ID, _NOISE)
 
 log = logging.getLogger("agent.workers.vuln")
 
@@ -141,6 +144,21 @@ def _observe(name: str, payload: Any, tried: dict[str, str]) -> str:
                         tried, steps_left)
 
 
+# Non-answers the model emits when it refuses or runs out of budget — these must
+# NOT be captured as freeform "weaknesses" (they flooded the register as
+# "(freeform) Sorry, need more steps to process this request." and starved the
+# downstream proving stages of real hypotheses).
+_JUNK_MARKERS = ("sorry", "need more steps", "cannot process", "unable to process",
+                 "no hypothes", "step limit", "can't process", "i cannot process",
+                 "no vulnerabilit")
+
+
+def _is_junk_reply(text: str) -> bool:
+    """True if the reply is a refusal / ran-out-of-steps non-answer, not a hypothesis."""
+    t = text.strip().lower()
+    return len(t) < 15 or any(j in t for j in _JUNK_MARKERS)
+
+
 def _extract_hypotheses(text: str) -> list[str]:
     """Pull HYPOTHESIS/WHY blocks from the model's message, leniently."""
     blocks: list[str] = []
@@ -155,7 +173,9 @@ def _extract_hypotheses(text: str) -> list[str]:
             if wm:
                 why = wm.group(1).strip()
         blocks.append(m.group(1).strip() + (f"\n   Hypothesis: {why}" if why else ""))
-    if not blocks and text.strip():
+    # Freeform fallback ONLY for a substantive reply — never wrap a refusal /
+    # "need more steps" non-answer as a (freeform) weakness.
+    if not blocks and text.strip() and not _is_junk_reply(text):
         blocks.append("(freeform) " + text.strip().splitlines()[0]
                       + f"\n   Hypothesis: {text.strip()}")
     return blocks
@@ -206,6 +226,17 @@ def _to_weakness(hypothesis: str, req: dict, idx: int) -> Weakness | None:
 # --------------------------------------------------------------------------- #
 # The loop: one fresh conversation per request
 # --------------------------------------------------------------------------- #
+
+def _generic_probe(req: dict) -> list[str]:
+    """Fallback 'hypothesis' when the model gives no usable one: carry the endpoint
+    forward so exploit still probes it. The recorded request is the valuable seed —
+    far more than the model's prose — so a high-interest endpoint is never dropped
+    just because the vuln model stalled, refused, or errored."""
+    params = ", ".join(_params_of(req)) or "no observed params"
+    return [f"Untargeted probe — test {req.get('method', 'GET')} "
+            f"{req.get('path', '/')} ({params}) for injection, XSS, and "
+            f"broken access control"]
+
 
 async def _reflect(model, messages: list, hypotheses: list[str], config: dict) -> list[str]:
     """Ask (without tools) whether more hypotheses are worth adding; merge them.
@@ -277,15 +308,18 @@ async def _run_request(model, tools, tried: dict[str, str], menu: str, req: dict
             except Exception as exc:  # noqa: BLE001
                 log.warning("vuln fallback call failed: %s", exc)
                 set_run_output(span, "(model call failed)")
-                return []
+                return _generic_probe(req)
         except Exception as exc:  # noqa: BLE001 — one bad request must not kill the stage
             log.warning("vuln request loop failed: %s: %s", type(exc).__name__, exc)
             set_run_output(span, "(request loop failed)")
-            return []
+            return _generic_probe(req)
 
         hyps = _extract_hypotheses(text)
         if REFLECT_ROUNDS and hyps:
             hyps = await _reflect(model, final_messages, hyps, config)
+        if not hyps:
+            # No usable hypothesis — carry the endpoint forward so exploit probes it.
+            hyps = _generic_probe(req)
         set_run_output(span, "\n".join(h.splitlines()[0] for h in hyps) or "(none)")
         return hyps
 
@@ -298,41 +332,59 @@ class VulnWorker:
         model = build_chat_model("vuln", max_tokens=MAX_TOKENS)
         config = run_config(engagement_id=str(ctx.engagement_id), agent="vuln")
         system = prompts.get(VULN_SYSTEM_PROMPT_ID)  # Langfuse-backed, default fallback
-        tried: dict[str, str] = {}
-        with trace_run(name="vuln", run_input=f"assess recon requests for {ctx.target_url}", engagement_id=str(ctx.engagement_id)) as _stage:
+        pre = agentic.directive_block(ctx.directive)
+        with trace_run(name="vuln",
+                       run_input=f"assess recon requests for {ctx.target_url}",
+                       engagement_id=str(ctx.engagement_id)) as _stage:
             try:
+                # One client just to fetch the shared, read-only inputs.
                 async with Client(agentic.MCP_URL) as client:
-                    descriptors = [t for t in (await client.list_tools()).tools
-                                   if t.name in AGENT_TOOLS]
-                    tools = agentic.as_langchain_tools(
-                        client, descriptors, tried=tried,
-                        # vuln's _outcome takes only (payload); the wrapper calls
-                        # outcome(name, payload) — adapt so the name is dropped.
-                        outcome=lambda _name, payload: _outcome(payload),
-                        observe=_observe)
-
                     overview = (await client.call_tool(
                         "hacktricks_overview", {})).structured_content
                     menu = _render_menu((overview or {}).get("techniques", []))
                     batch = (await client.call_tool(
                         "list_recorded_requests",
                         {"engagement_id": str(ctx.engagement_id)})).structured_content
-                    # No cap: recon already filtered to the high-interest requests,
-                    # so assess all of them (a proof run, not a bounded sample).
-                    requests = [r for r in (batch or {}).get("requests", [])
-                                if not (SKIP_NOISE and r.get("resource_type") in _NOISE)]
-                    log.info("vuln loop: assessing %d request(s): %s", len(requests),
-                             ", ".join(r.get("path", "?") for r in requests))
+                # No cap: recon already filtered to the high-interest requests.
+                requests = [r for r in (batch or {}).get("requests", [])
+                            if not (SKIP_NOISE and r.get("resource_type") in _NOISE)]
+                log.info("vuln loop: assessing %d request(s) (<=%d in parallel): %s",
+                         len(requests), CONCURRENCY,
+                         ", ".join(r.get("path", "?") for r in requests))
 
-                    pre = agentic.directive_block(ctx.directive)
-                    for req in requests:
-                        log.info("=== %s %s ===", req.get("method"), req.get("path"))
-                        hyps = await _run_request(model, tools, tried, menu, req, pre,
-                                                  config, system.text, system.trace_prompt)
-                        for hypothesis in hyps:
-                            weakness = _to_weakness(hypothesis, req, len(weaknesses) + 1)
-                            if weakness:
-                                weaknesses.append(weakness)
+                sem = asyncio.Semaphore(CONCURRENCY)
+
+                async def _assess(req: dict) -> tuple[dict, list[str]]:
+                    # Each request is independent: its own MCP session, repeat-call
+                    # ledger and tools, so they run concurrently without racing.
+                    async with sem:
+                        try:
+                            async with Client(agentic.MCP_URL) as rc:
+                                descriptors = [t for t in (await rc.list_tools()).tools
+                                               if t.name in AGENT_TOOLS]
+                                tried: dict[str, str] = {}
+                                tools = agentic.as_langchain_tools(
+                                    rc, descriptors, tried=tried,
+                                    outcome=lambda _name, payload: _outcome(payload),
+                                    observe=_observe)
+                                log.info("=== %s %s ===",
+                                         req.get("method"), req.get("path"))
+                                hyps = await _run_request(
+                                    model, tools, tried, menu, req, pre, config,
+                                    system.text, system.trace_prompt)
+                                return req, hyps
+                        except Exception as exc:  # noqa: BLE001 — one request must not kill the stage
+                            log.warning("vuln request %s failed: %s",
+                                        req.get("path"), exc)
+                            return req, []
+
+                results = await asyncio.gather(*(_assess(r) for r in requests))
+                # Assemble in request order so weakness ids stay stable (W-001…).
+                for req, hyps in results:
+                    for hypothesis in hyps:
+                        weakness = _to_weakness(hypothesis, req, len(weaknesses) + 1)
+                        if weakness:
+                            weaknesses.append(weakness)
             except Exception as exc:  # noqa: BLE001 — retryable stage failure
                 raise WorkFailed(f"vuln loop failed: {type(exc).__name__}: {exc}") from exc
             finally:
