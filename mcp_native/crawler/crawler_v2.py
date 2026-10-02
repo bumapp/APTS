@@ -167,11 +167,25 @@ class CrawlToolV2:
 
                     if "html" in ct and depth < max_depth:
                         try:
+                            # Wait for the SPA to actually render its inputs before filling.
+                            # Without this, on a cold render _fill_all finds no fields (esp.
+                            # the password field) and never submits — the real cause of the
+                            # flaky login capture, not click ordering.
+                            try:
+                                await page.wait_for_selector(
+                                    "input:visible, textarea:visible", timeout=4000)
+                            except Exception:
+                                pass
                             last = await self._fill_all(page)   # generic, by type
                             if last is not None:                # generic submit: Enter
                                 try:
                                     await last.press("Enter")
-                                    await page.wait_for_timeout(1000)
+                                    # wait for the submit's request to settle (networkidle),
+                                    # so the POST is observed before we move on; bounded.
+                                    try:
+                                        await page.wait_for_load_state("networkidle", timeout=3000)
+                                    except Exception:
+                                        await page.wait_for_timeout(1200)
                                 except Exception:
                                     pass
                                 if page.url != url:
