@@ -285,8 +285,9 @@ services:
       # and how many it proves at once. 8 replicas behind the sticky LB mean up to
       # CONCURRENCY proofs each land on their own target instance, so a heavy
       # sqlmap run no longer starves the others. Keep CONCURRENCY <= replica count.
-      APTS_EXPLOIT_MAX_WEAKNESSES: ${APTS_EXPLOIT_MAX_WEAKNESSES:-50}
-      APTS_EXPLOIT_CONCURRENCY: ${APTS_EXPLOIT_CONCURRENCY:-8}
+      APTS_EXPLOIT_MAX_WEAKNESSES: ${APTS_EXPLOIT_MAX_WEAKNESSES:-1000}
+      APTS_EXPLOIT_CONCURRENCY: ${APTS_EXPLOIT_CONCURRENCY:-10}
+      APTS_TARGET_REPLICAS: ${APTS_TARGET_REPLICAS:-10}
     secrets:
       - source: agent_exploit_token
         target: token
@@ -476,7 +477,9 @@ services:
       - "127.0.0.1:9000:9000"
     deploy:
       resources:
-        limits: { memory: 1536M, cpus: "1.5" }
+        # Hosts up to CONCURRENCY concurrent sqlmap runs (one per in-flight proof),
+        # so it needs real headroom at exploit concurrency 10.
+        limits: { memory: 4096M, cpus: "4.0" }
 
 
   # ---------------------------------------------------------------------
@@ -546,6 +549,14 @@ services:
     <<: *juice-shop-replica
     container_name: apts-juice-shop-8
     hostname: juice-shop-8
+  juice-shop-9:
+    <<: *juice-shop-replica
+    container_name: apts-juice-shop-9
+    hostname: juice-shop-9
+  juice-shop-10:
+    <<: *juice-shop-replica
+    container_name: apts-juice-shop-10
+    hostname: juice-shop-10
 
   # The engagement target name/URL is preserved: this nginx IS `juice-shop:3000`.
   juice-shop:
@@ -557,7 +568,8 @@ services:
     volumes:
       - ./config/juice-shop-lb.conf:/etc/nginx/conf.d/default.conf:ro
     depends_on: [ juice-shop-1, juice-shop-2, juice-shop-3, juice-shop-4,
-                  juice-shop-5, juice-shop-6, juice-shop-7, juice-shop-8 ]
+                  juice-shop-5, juice-shop-6, juice-shop-7, juice-shop-8,
+                  juice-shop-9, juice-shop-10 ]
 
   # ---------------------------------------------------------------------
   #  Sandbox (locked-down stub)

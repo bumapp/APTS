@@ -67,6 +67,7 @@ from mcp_native.crawler.config import (
     CRAWL_MAX_DEPTH,
     CRAWL_MAX_PAGES,
     CRAWL_MAX_SECONDS,
+    CRAWL_SETTLE_MS,
     TARGET_TIMEOUT_SECONDS,
 )
 from mcp_native.crawler.context import ToolContext
@@ -226,7 +227,18 @@ def _clean_route(path: str) -> str | None:
 # SPA firing tens of thousands of calls, not a curation knob. Deliberately high
 # and configurable: recon's contract is the COMPLETE request picture (every field,
 # full body, all headers), so nothing is dropped or shortened under normal loads.
-_MAX_OBSERVED_REQUESTS = int(os.environ.get("APTS_CRAWL_MAX_OBSERVED", "2000"))
+_MAX_OBSERVED_REQUESTS = int(os.environ.get("APTS_CRAWL_MAX_OBSERVED", "6000"))
+# How many frontier pages the crawler loads concurrently. The crawl is wait-bound
+# (navigation + settle), so overlapping pages is a near-linear speedup; each page
+# has its own tab + request listener. Keep it modest — all crawl traffic (no shard
+# header) routes to the default replica.
+_CRAWL_CONCURRENCY = int(os.environ.get("APTS_CRAWL_CONCURRENCY", "4"))
+# Cap on how many entry-page buttons the click-probe tries. This pass (click +
+# go_back per control, sequential) was the single biggest chunk of crawl time once
+# page-visiting went parallel. Route mining + menu expansion already surface the
+# SPA's routes; clicking every control is belt-and-suspenders, so bound it to the
+# first N (nav/header controls come first in DOM order). 0 disables the pass.
+_CLICK_LIMIT = int(os.environ.get("APTS_CRAWL_CLICK_LIMIT", "15"))
 
 # Same field-guessing heuristics as the POC browser agent this replaces —
 # first match wins, "test" is the fallback. No model call: guessing a
@@ -354,10 +366,10 @@ class CrawlTool:
         api_paths: set[str] = set()
         observed: list[dict] = []
         observed_seen: set[tuple[str, str, str | None]] = set()
-        current_page_url = seed  # page being loaded; tags each observed request
         out_of_scope_skipped = 0
         deadline = time.monotonic() + CRAWL_MAX_SECONDS
         truncated = False
+        stop = False            # hard stop (target gave up) — ends the batch loop
         routes_mined = False    # #2 runs once, after the first page's scripts are known
         menus_expanded = False  # #1 runs once — the nav menu is the same site-wide
         attempts: dict[str, int] = {}  # per-url navigation attempts (bounded retry)
@@ -417,227 +429,201 @@ class CrawlTool:
 
             await context.route("**/*", route_handler)
 
-            def on_request(request: PWRequest) -> None:
-                # Observe-only. The route handler above already decides what
-                # actually leaves the process; this records EVERY in-scope request
-                # the browser fired — in full. Recon's job is the complete attack
-                # surface, and "every little detail matters": an unusual header on
-                # even a static GET can be an injection point, so nothing is
-                # dropped by type or method and no field is shortened. Downstream
-                # ranks what matters; recon does not pre-discard it.
-                url = request.url
-                if not _in_scope(url, ctx):
-                    return
-                rtype = request.resource_type
-                method = request.method
+            # PER-PAGE observer (attached to each page in _crawl_one) rather than a
+            # single context-wide listener, so concurrently-loading pages attribute
+            # their requests to the RIGHT source_page. Observe-only — the route
+            # handler above decides what actually leaves the process; this records
+            # EVERY in-scope request the browser fired, in full (recon's job is the
+            # complete attack surface; downstream ranks, recon does not pre-discard).
+            # The shared observed/observed_seen/api_paths are mutated only from this
+            # synchronous callback, so they are safe to share across concurrent pages
+            # under the single event loop.
+            def make_on_request(page_url: str):
+                def on_request(request: PWRequest) -> None:
+                    url = request.url
+                    if not _in_scope(url, ctx):
+                        return
+                    rtype = request.resource_type
+                    method = request.method
+                    if rtype in _API_RESOURCE_TYPES:
+                        api_paths.add(urlparse(url).path or "/")
+                    try:
+                        post_data = request.post_data
+                    except Exception:
+                        post_data = None
+                    key = (method, url, post_data)
+                    if key in observed_seen:
+                        return
+                    observed_seen.add(key)
+                    if len(observed) >= _MAX_OBSERVED_REQUESTS:
+                        return
+                    try:
+                        headers = dict(request.headers)
+                    except Exception:
+                        headers = {}
+                    observed.append({
+                        "method": method,
+                        "url": url,
+                        "resource_type": rtype,
+                        "content_type": headers.get("content-type", ""),
+                        "post_data": post_data,          # full body, never truncated
+                        "headers": headers,              # all request headers, verbatim
+                        "source_page": page_url,         # the page that fired it
+                    })
+                return on_request
 
-                # API paths stay curated to the app's own XHR/fetch calls (that
-                # list means "candidate API routes", not "everything fetched").
-                if rtype in _API_RESOURCE_TYPES:
-                    api_paths.add(urlparse(url).path or "/")
+            async def _crawl_one(url: str, depth: int) -> None:
+                """Resolve, open, visit and mine ONE url. Safe to run many at once:
+                each call owns its own page + per-page request listener, and the
+                shared queue/seen/pages/observed are only ever mutated from
+                synchronous code (so there is no interleaving mid-update)."""
+                nonlocal truncated, recoveries, tech_detected
+                nonlocal routes_mined, menus_expanded, out_of_scope_skipped, stop
+
+                # Redirect hops are resolved and scope-checked by hand before
+                # Chromium is ever pointed at the URL (a same-navigation redirect
+                # chain — e.g. Juice Shop's /redirect?to= -> github.com — is not
+                # caught by context.route()). A failure on ONE url must not end the
+                # crawl and lose every route still queued.
+                try:
+                    resolved = await self._resolve_safe(context, url, ctx)
+                except Exception as exc:  # noqa: BLE001
+                    log.warning("crawl resolve error on %s: %s", url, exc)
+                    return
+                if resolved is None:
+                    out_of_scope_skipped += 1
+                    return
+                url = resolved
 
                 try:
-                    post_data = request.post_data
-                except Exception:
-                    post_data = None
-                key = (method, url, post_data)
-                if key in observed_seen:
+                    page = await context.new_page()
+                except Exception as exc:  # noqa: BLE001
+                    log.warning("crawl new_page error on %s: %s", url, exc)
                     return
-                observed_seen.add(key)
-                if len(observed) >= _MAX_OBSERVED_REQUESTS:
-                    return
-                try:
-                    headers = dict(request.headers)
-                except Exception:
-                    headers = {}
-                observed.append({
-                    "method": method,
-                    "url": url,
-                    "resource_type": rtype,
-                    "content_type": headers.get("content-type", ""),
-                    "post_data": post_data,          # full body, never truncated
-                    "headers": headers,              # all request headers, verbatim
-                    # The page the browser was on when this request fired. Set
-                    # from the crawl loop before each navigation (best-effort:
-                    # requests are observed context-wide, tagged to the page
-                    # currently being loaded).
-                    "source_page": current_page_url,
-                })
+                page.on("request", make_on_request(url))  # per-page attribution
+                page.on("dialog", lambda d: asyncio.create_task(d.accept()))
+                page.on("popup", lambda popup: asyncio.create_task(popup.close()))
 
-            context.on("request", on_request)
+                try:
+                    record, html, resp_headers = await self._visit(page, url)
+                except Exception as exc:
+                    await page.close()
+                    # Target unreachable (crashed/restarted or overwhelmed): wait for
+                    # it to recover, re-queue this url once, carry on. A circuit
+                    # breaker stops the crawl if it stays down.
+                    if _is_conn_error(exc):
+                        recoveries += 1
+                        if recoveries > _MAX_RECOVERIES:
+                            log.warning("crawl: target unreachable %d times "
+                                        "(%s) — stopping", recoveries, exc)
+                            truncated = True
+                            stop = True
+                            return
+                        log.warning("crawl: target unreachable at %s — waiting "
+                                    "for it to recover (%d/%d)", url, recoveries,
+                                    _MAX_RECOVERIES)
+                        came_back = await self._await_target(context, seed, deadline)
+                        if attempts.get(url, 0) < 1 and came_back:
+                            attempts[url] = attempts.get(url, 0) + 1
+                            queue.append((url, depth))  # retry later, not first
+                        if not came_back:
+                            truncated = True
+                            stop = True
+                    else:
+                        log.warning("crawl visit failed %s: %s", url, exc)
+                    return
+
+                # Belt and suspenders: if the page still ended up out of scope (an
+                # in-page JS redirect after load), the content is never parsed.
+                if not _in_scope(record["url"], ctx):
+                    log.warning("crawl landed out of scope: %s -> %s",
+                               url, record["url"])
+                    out_of_scope_skipped += 1
+                    await page.close()
+                    return
+
+                pages.append(record)
+
+                # One page's discovery error must not abort the crawl.
+                try:
+                    if html:
+                        self._note_technologies(record, technologies)
+                    if html and not tech_detected:
+                        tech_detected = True
+                        await self._detect_technologies(
+                            record["url"], html, resp_headers, technologies)
+
+                    if html and depth < max_depth:
+                        parsed = parse_page(html)
+                        if parsed.generator:
+                            technologies.setdefault(
+                                parsed.generator,
+                                {"source": "meta generator", "version": ""})
+                        for form in parsed.forms:
+                            form["page"] = url
+                            forms.append(form)
+                        for src in parsed.scripts:
+                            absolute = urljoin(url, src)
+                            scripts.add(absolute)
+                            host = urlparse(absolute).hostname
+                            if host and not host_matches(host, ctx.scope.domains):
+                                third_party.add(host)
+
+                        # #2 Route mining — once, on the entry page (which crawls
+                        # ALONE in the first batch, so no concurrency here).
+                        if not routes_mined and scripts:
+                            routes_mined = True
+                            landing = await self._collect_links(page)
+                            hash_router = any("#/" in h for h in landing)
+                            route_urls = await self._mine_routes(
+                                context, scripts, seed, hash_router, ctx)
+                            if route_urls:
+                                log.info("route mining: seeding %d client "
+                                         "route(s) from JS bundle", len(route_urls))
+                                out_of_scope_skipped += self._enqueue(
+                                    route_urls, seed, ctx, seen, queue, 0)
+
+                        await self._fill_and_submit(page, url)
+
+                        hrefs = await self._collect_links(page)
+                        out_of_scope_skipped += self._enqueue(
+                            hrefs, url, ctx, seen, queue, depth)
+
+                        # #1 Menu expansion — once (flag set synchronously, so only
+                        # one concurrent page runs it).
+                        if not menus_expanded:
+                            menus_expanded = True
+                            menu_hrefs = await self._expand_menus(page)
+                            if menu_hrefs:
+                                log.info("menu expansion: revealed %d link(s)",
+                                         len(menu_hrefs))
+                                out_of_scope_skipped += self._enqueue(
+                                    menu_hrefs, url, ctx, seen, queue, depth)
+
+                        # Button-clicking: only on the entry page (depth 0).
+                        if depth == 0:
+                            clicked_hrefs = await self._click_clickables(page, url)
+                            out_of_scope_skipped += self._enqueue(
+                                clicked_hrefs, url, ctx, seen, queue, depth)
+                except Exception as exc:  # noqa: BLE001 — one page must not end the crawl
+                    log.warning("crawl discovery error on %s: %s", url, exc)
+                finally:
+                    await page.close()
 
             try:
-                while queue:
+                # Batch-concurrent BFS: crawl up to CRAWL_CONCURRENCY frontier urls
+                # at once (the wait-bound page load/settle overlaps). The seed starts
+                # alone in the queue, so it crawls solo in the first batch and its
+                # one-time discovery passes (route mining, menu/button expansion) seed
+                # the frontier BEFORE the wide crawl begins — keeping those race-free.
+                while queue and not stop:
                     if len(pages) >= max_pages or time.monotonic() > deadline:
                         truncated = True
                         break
-
-                    url, depth = queue.popleft()
-
-                    # Verified by hand against this project's own practice
-                    # target: Juice Shop's `/redirect?to=` endpoint is
-                    # in-scope itself (host matches), but 302s straight to
-                    # github.com — and Chromium follows that redirect to
-                    # completion, fully loading the out-of-scope page, before
-                    # `context.route()` above ever sees a request for the
-                    # redirected URL. The route block is real defense in
-                    # depth for in-page JS firing a fresh request, but it does
-                    # not catch a same-navigation redirect chain, so every
-                    # redirect hop is resolved and scope-checked by hand,
-                    # here, before Chromium is ever pointed at the URL at all.
-                    # Guarded: a failure resolving or opening ONE url must not end
-                    # the crawl and lose every route still queued (that was capping
-                    # coverage well below what route mining had already found).
-                    try:
-                        resolved = await self._resolve_safe(context, url, ctx)
-                    except Exception as exc:  # noqa: BLE001
-                        log.warning("crawl resolve error on %s: %s", url, exc)
-                        continue
-                    if resolved is None:
-                        out_of_scope_skipped += 1
-                        continue
-                    url = resolved
-                    current_page_url = url  # tag requests fired while loading it
-
-                    try:
-                        page = await context.new_page()
-                    except Exception as exc:  # noqa: BLE001
-                        log.warning("crawl new_page error on %s: %s", url, exc)
-                        continue
-                    page.on("dialog", lambda d: asyncio.create_task(d.accept()))
-                    # "popup" fires only when *this* page opens another one
-                    # (target="_blank", window.open()) — unlike the
-                    # context-wide "page" event, it never fires for pages we
-                    # create ourselves, so there is no race with the goto()
-                    # below.
-                    page.on("popup", lambda popup: asyncio.create_task(popup.close()))
-
-                    try:
-                        record, html, resp_headers = await self._visit(page, url)
-                    except Exception as exc:
-                        await page.close()
-                        # If the target became unreachable (it crashed/restarted, or
-                        # a probe overwhelmed it), don't keep firing the queue at a
-                        # dead port: wait for it to recover, re-queue this url once,
-                        # and carry on. A circuit breaker stops the crawl if it stays
-                        # down. A plain page error (not a connection failure) is just
-                        # logged and skipped, as before.
-                        if _is_conn_error(exc):
-                            recoveries += 1
-                            if recoveries > _MAX_RECOVERIES:
-                                log.warning("crawl: target unreachable %d times "
-                                            "(%s) — stopping", recoveries, exc)
-                                truncated = True
-                                break
-                            log.warning("crawl: target unreachable at %s — waiting "
-                                        "for it to recover (%d/%d)", url, recoveries,
-                                        _MAX_RECOVERIES)
-                            came_back = await self._await_target(context, seed, deadline)
-                            if attempts.get(url, 0) < 1 and came_back:
-                                attempts[url] = attempts.get(url, 0) + 1
-                                queue.append((url, depth))  # retry later, not first
-                            if not came_back:
-                                truncated = True
-                                break
-                        else:
-                            log.warning("crawl visit failed %s: %s", url, exc)
-                        continue
-
-                    # Belt and suspenders: if the page still ended up
-                    # somewhere out of scope despite the pre-check above (an
-                    # in-page JS redirect after load, say), the content is
-                    # never parsed or reported — only the fact that it
-                    # happened is counted.
-                    if not _in_scope(record["url"], ctx):
-                        log.warning("crawl landed out of scope: %s -> %s",
-                                   url, record["url"])
-                        out_of_scope_skipped += 1
-                        await page.close()
-                        continue
-
-                    pages.append(record)
-
-                    # All per-page processing is wrapped: a discovery error on ONE
-                    # page (a click that navigates unexpectedly, a slow overlay, a
-                    # goto that fails) must not abort the whole crawl and lose every
-                    # queued route. It is logged and the crawl moves on to the next.
-                    try:
-                        # Fingerprint technologies once, on the first page that
-                        # renders HTML. One page is enough for the framework stack —
-                        # it is the same bundle on every route — and analysing every
-                        # page would repeat the identical answer for no gain. Runs
-                        # off the rendered DOM and response headers already in hand,
-                        # so it costs no extra request.
-                        if html:
-                            self._note_technologies(record, technologies)
-                        if html and not tech_detected:
-                            tech_detected = True
-                            await self._detect_technologies(
-                                record["url"], html, resp_headers, technologies)
-
-                        if html and depth < max_depth:
-                            parsed = parse_page(html)
-                            if parsed.generator:
-                                technologies.setdefault(
-                                    parsed.generator,
-                                    {"source": "meta generator", "version": ""})
-                            for form in parsed.forms:
-                                form["page"] = url
-                                forms.append(form)
-                            for src in parsed.scripts:
-                                absolute = urljoin(url, src)
-                                scripts.add(absolute)
-                                host = urlparse(absolute).hostname
-                                if host and not host_matches(host, ctx.scope.domains):
-                                    third_party.add(host)
-
-                            # #2 Route mining: read the SPA's client route table out
-                            # of its JS bundle and seed those routes, so pages only
-                            # reachable through menus/guards are still crawled. Once
-                            # per crawl, after the first page's scripts are known.
-                            if not routes_mined and scripts:
-                                routes_mined = True
-                                landing = await self._collect_links(page)
-                                hash_router = any("#/" in h for h in landing)
-                                route_urls = await self._mine_routes(
-                                    context, scripts, seed, hash_router, ctx)
-                                if route_urls:
-                                    log.info("route mining: seeding %d client "
-                                             "route(s) from JS bundle", len(route_urls))
-                                    out_of_scope_skipped += self._enqueue(
-                                        route_urls, seed, ctx, seen, queue, 0)
-
-                            await self._fill_and_submit(page, url)
-
-                            hrefs = await self._collect_links(page)
-                            out_of_scope_skipped += self._enqueue(
-                                hrefs, url, ctx, seen, queue, depth)
-
-                            # #1 Menu expansion: click controls that open menus/
-                            # overlays without navigating, then enqueue the links
-                            # they reveal. Once per crawl — the nav menu is the same
-                            # on every page, so re-expanding elsewhere only burns time.
-                            if not menus_expanded:
-                                menus_expanded = True
-                                menu_hrefs = await self._expand_menus(page)
-                                if menu_hrefs:
-                                    log.info("menu expansion: revealed %d link(s)",
-                                             len(menu_hrefs))
-                                    out_of_scope_skipped += self._enqueue(
-                                        menu_hrefs, url, ctx, seen, queue, depth)
-
-                            # Button-clicking (JS-only routes) is expensive — a click
-                            # + go_back per control. Run it only on the entry page,
-                            # where such nav lives; route mining + menu expansion
-                            # cover the rest, so it need not repeat on every page.
-                            if depth == 0:
-                                clicked_hrefs = await self._click_clickables(page, url)
-                                out_of_scope_skipped += self._enqueue(
-                                    clicked_hrefs, url, ctx, seen, queue, depth)
-                    except Exception as exc:  # noqa: BLE001 — one page must not end the crawl
-                        log.warning("crawl discovery error on %s: %s", url, exc)
-                    finally:
-                        await page.close()
+                    batch: list[tuple[str, int]] = []
+                    while queue and len(batch) < _CRAWL_CONCURRENCY:
+                        batch.append(queue.popleft())
+                    await asyncio.gather(*(_crawl_one(u, d) for u, d in batch))
             finally:
                 await context.close()
                 await browser.close()
@@ -731,7 +717,7 @@ class CrawlTool:
             # plus a brief settle lets the SPA render its route without that stall,
             # cutting seconds-per-page enough to actually reach the mined routes.
             response = await page.goto(url, wait_until="load")
-            await page.wait_for_timeout(1200)
+            await page.wait_for_timeout(CRAWL_SETTLE_MS)
         except PWTimeoutError:
             log.debug("crawl navigation timeout %s", url)
             return ({"url": url, "status": None, "content_type": "",
@@ -908,19 +894,24 @@ class CrawlTool:
         exists for the routes that have no `<a href>` at all.
         """
         found: list[str] = []
+        if _CLICK_LIMIT <= 0:
+            return found
         try:
             clickables = await page.query_selector_all(
                 ":not(form) > button, [role=button]:not(form [role=button])")
         except Exception:
             return found
 
-        for element in clickables:
+        # Bounded: clicking every control (with a go_back nav each) dominated the
+        # crawl; the first _CLICK_LIMIT (nav/header controls, in DOM order) plus
+        # route mining cover the JS-only routes.
+        for element in clickables[:_CLICK_LIMIT]:
             try:
-                await element.click(timeout=2000)
-                await page.wait_for_timeout(300)
+                await element.click(timeout=1500)
+                await page.wait_for_timeout(250)
                 if page.url != base_url:
                     found.append(page.url)
-                    await page.go_back(timeout=3000)
+                    await page.go_back(timeout=2000)
             except Exception:
                 continue
         return found
@@ -941,6 +932,16 @@ class CrawlTool:
         module docstring: the request's target is not vetted before it is
         sent, which is a deliberate scope decision for a disposable target.
         """
+        # Wait for the form to actually render before filling. Under the concurrent
+        # crawl, CPU contention from several tabs can leave an SPA route (e.g. the
+        # Angular login form) not yet interactive at the fixed settle — then this
+        # found no fields, never submitted, and the login POST was never observed,
+        # silently dropping the login endpoint from recon. Waiting for a field makes
+        # form submission robust regardless of render timing / concurrency load.
+        try:
+            await page.wait_for_selector("input, textarea, select", timeout=4000)
+        except Exception:
+            pass  # genuinely no fields, or still not rendered — query below handles it
         try:
             fields = await page.query_selector_all("input, textarea, select")
         except Exception:
@@ -975,6 +976,21 @@ class CrawlTool:
             return
 
         await self._click_submit(page)
+        # Belt-and-suspenders: also press Enter in a password/email field. Most SPA
+        # login/search forms submit on Enter, and _click_submit can pick the WRONG
+        # control when several buttons match (a header search button often precedes
+        # the login button in the DOM) — which left POST /rest/user/login never
+        # firing, so the login endpoint never reached recon. Enter in the password
+        # field fires the form's own primary action regardless of button ambiguity.
+        try:
+            for sel in ("input[type=password]", "input[type=email]",
+                        "input[name*=email i]", "input[name*=user i]"):
+                el = await page.query_selector(sel)
+                if el and await el.is_visible():
+                    await el.press("Enter")
+                    break
+        except Exception:
+            pass
         # Give the resulting XHR time to fire so on_request captures it.
         await page.wait_for_timeout(800)
         if page.url != url:

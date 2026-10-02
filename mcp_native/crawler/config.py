@@ -9,12 +9,18 @@ from __future__ import annotations
 import os
 
 TARGET_TIMEOUT_SECONDS = float(os.environ.get("APTS_TARGET_TIMEOUT", "10"))
-CRAWL_MAX_PAGES = int(os.environ.get("APTS_CRAWL_MAX_PAGES", "60"))
-CRAWL_MAX_DEPTH = int(os.environ.get("APTS_CRAWL_MAX_DEPTH", "3"))
-# Raised alongside route mining/menu expansion: those surface far more pages, and
-# the per-page speed-ups (load+settle instead of networkidle, discovery passes run
-# once) make a larger budget usable rather than just slower.
-CRAWL_MAX_SECONDS = float(os.environ.get("APTS_CRAWL_MAX_SECONDS", "240"))
+# Coverage-first defaults: crawl the whole app surface. The ceiling is high and the
+# time budget is generous so recon finds EVERY reachable endpoint; route mining +
+# menu expansion already surface far more pages than plain link-following.
+CRAWL_MAX_PAGES = int(os.environ.get("APTS_CRAWL_MAX_PAGES", "150"))
+CRAWL_MAX_DEPTH = int(os.environ.get("APTS_CRAWL_MAX_DEPTH", "4"))
+CRAWL_MAX_SECONDS = float(os.environ.get("APTS_CRAWL_MAX_SECONDS", "600"))
+# Per-page settle after "load" before reading requests/links AND before the crawler
+# fills+submits forms. 700ms proved too aggressive: the Angular login form was not
+# interactive yet, so _fill_and_submit never fired POST /rest/user/login, the login
+# endpoint never reached recon, and the login-SQLi finding was silently lost. Form
+# coverage (a critical finding class) beats shaving ~0.5s/page, so keep 1200ms.
+CRAWL_SETTLE_MS = int(os.environ.get("APTS_CRAWL_SETTLE_MS", "1200"))
 CRAWL_BODY_LIMIT = int(os.environ.get("APTS_CRAWL_BODY_LIMIT", "500000"))
 
 # Development crawl cache — off unless APTS_CRAWL_CACHE=1.

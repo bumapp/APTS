@@ -209,8 +209,11 @@ def _to_weakness(hypothesis: str, req: dict, idx: int) -> Weakness | None:
         if line.strip().lower().startswith("hypothesis:"):
             rationale = line.split(":", 1)[1].strip()[:500]
     # Carry the exact request forward so Exploitation needs no lookup tool.
+    # source_page is the SPA/client route the browser was ON when this request
+    # fired — for a reflected/DOM XSS proof that is the page where the value is
+    # rendered (xss_prove's spa_page), which the API path alone can't give.
     origin = {k: req.get(k) for k in ("method", "path", "url", "content_type",
-                                      "post_data") if req.get(k)}
+                                      "post_data", "source_page") if req.get(k)}
     origin["params"] = _params_of(req)
     try:
         return Weakness(
@@ -236,6 +239,41 @@ def _generic_probe(req: dict) -> list[str]:
     return [f"Untargeted probe — test {req.get('method', 'GET')} "
             f"{req.get('path', '/')} ({params}) for injection, XSS, and "
             f"broken access control"]
+
+
+def _ensure_class_coverage(hyps: list[str], req: dict) -> list[str]:
+    """Guarantee BOTH a SQL-injection and a reflected/DOM-XSS hypothesis for any
+    input-carrying request.
+
+    The model emits ~1 hypothesis per endpoint and picks a SINGLE class, so two bugs
+    on the SAME input (the classic: SQLi AND reflected XSS on one search parameter)
+    leave one class never hypothesised -> never proved -> runs confirm one or the
+    other, never both. Which classes an input deserves is domain knowledge, not a
+    per-run judgement call (same rationale as recon's deterministic interest override),
+    so we add whichever of the two the model missed. Exploit then proves SQLi with
+    sqlmap and XSS with xss_prove (against the request's source_page), each as its own
+    weakness — so co-located SQLi + XSS both get confirmed in the SAME run."""
+    params = _params_of(req)
+    if not params:
+        return hyps
+    joined = " ".join(hyps).lower()
+    method, path, p0, pstr = (req.get("method", "GET"), req.get("path", "/"),
+                              params[0], ", ".join(params))
+    extra: list[str] = []
+    if not any(k in joined for k in ("sql injection", "sqli", "injection")):
+        extra.append(
+            f"SQL injection — a parameter reaches a database query "
+            f"(param `{p0}`, {method} {path})\n"
+            f"   Hypothesis: input ({pstr}) may be concatenated into a SQL query; "
+            f"prove with sqlmap on this parameter.")
+    if not any(k in joined for k in ("xss", "cross-site script")):
+        extra.append(
+            f"Reflected/DOM XSS — a parameter's value rendered into the page unescaped "
+            f"(param `{p0}`, {method} {path})\n"
+            f"   Hypothesis: input ({pstr}) may be echoed back or displayed by the UI "
+            f"without encoding; prove with xss_prove on the client route that renders "
+            f"it (the request's source_page).")
+    return hyps + extra
 
 
 async def _reflect(model, messages: list, hypotheses: list[str], config: dict) -> list[str]:
@@ -320,6 +358,7 @@ async def _run_request(model, tools, tried: dict[str, str], menu: str, req: dict
         if not hyps:
             # No usable hypothesis — carry the endpoint forward so exploit probes it.
             hyps = _generic_probe(req)
+        hyps = _ensure_class_coverage(hyps, req)
         set_run_output(span, "\n".join(h.splitlines()[0] for h in hyps) or "(none)")
         return hyps
 

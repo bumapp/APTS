@@ -11,9 +11,15 @@ third_party_hosts, pages_crawled, truncated.
 """
 from __future__ import annotations
 
+import os
 from typing import Any
 from urllib.parse import urlparse
 from uuid import uuid4
+
+# Default to the crawler's full ceilings so a plain crawl (recon passes no override)
+# maps the WHOLE surface. The crawler still clamps to CRAWL_MAX_* as a hard cap.
+_DEFAULT_MAX_PAGES = int(os.environ.get("APTS_CRAWL_MAX_PAGES", "150"))
+_DEFAULT_MAX_DEPTH = int(os.environ.get("APTS_CRAWL_MAX_DEPTH", "4"))
 
 
 async def crawl(
@@ -21,8 +27,8 @@ async def crawl(
     allow_domains: list[str] | None = None,
     allow_paths: list[str] | None = None,
     deny_paths: list[str] | None = None,
-    max_pages: int = 40,
-    max_depth: int = 3,
+    max_pages: int = _DEFAULT_MAX_PAGES,
+    max_depth: int = _DEFAULT_MAX_DEPTH,
     headers: dict[str, str] | None = None,
     cookies: list[dict] | None = None,
     basic_auth: dict | None = None,

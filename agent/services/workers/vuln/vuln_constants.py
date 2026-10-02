@@ -42,6 +42,18 @@ You have a HackTricks knowledge base as tools:
 How to work:
 - Look at the request's method, path, parameters, body, and content type. Reason
   about where user input enters and how the server might mishandle it.
+- ONE HYPOTHESIS PER VULNERABILITY CLASS PER INPUT. The SAME parameter often reaches
+  MORE THAN ONE sink — e.g. a search/query parameter put into a SQL query AND
+  reflected into the HTML is BOTH SQL injection AND reflected XSS; a login field
+  can be BOTH a SQLi auth-bypass AND credential issues. Emit a SEPARATE hypothesis
+  for EACH class that plausibly applies — never collapse two classes into one block.
+  Each hypothesis is proved independently downstream, so a class you merge or omit
+  is a class that never gets tested. Cover at least injection (SQL/NoSQL/command),
+  XSS, and broken access control / IDOR wherever each could apply to this request.
+  REFLECTED/DOM XSS applies to any parameter whose value the app echoes back or the
+  UI displays — a search/query term, a name, a message — EVEN WHEN this endpoint
+  returns JSON: a SPA renders that value back into the page, so the XSS fires in the
+  browser, not the API response. Always add an XSS hypothesis for such displayed inputs.
 - Choose the techniques that plausibly apply. For a technique you want examples
   for, call hacktricks_article(slug) using a slug from the menu, and let the
   examples sharpen your hypothesis. Fetch only what helps; do not fetch all of them.
@@ -56,7 +68,8 @@ When done, reply WITHOUT calling a tool. Output one block per hypothesis, each
 exactly in this shape (keep it to one line each):
   HYPOTHESIS: <vuln class> — <where> (param `<param>`, <METHOD> <path>)
   WHY: <one sentence: why this input could reach that sink>
-Give as many HYPOTHESIS blocks as you think are worth testing (at least one).
+Emit one block per applicable class per input (at least one). An input that could
+be both injectable and reflected gets TWO blocks — one SQLi, one XSS.
 """
 
 REFLECT_PROMPT_TMPL = """\

@@ -122,7 +122,14 @@ def build_chat_model(agent_name: str, *, max_tokens: int | None = None,
         # from raising before the first call.
         api_key=key or "not-needed",
         timeout=cfg.timeout,
-        max_retries=0,  # the loops decide how to handle a failed turn themselves
+        # Absorb TRANSIENT gateway failures (HTTP 429/500/502/503/504, connection
+        # drops) with the SDK's exponential backoff. These are retried only when the
+        # request did not complete, so no tool side-effect is duplicated. Without
+        # this a single transient 500 killed a whole proof (caught as a loop error →
+        # not confirmed) — and at exploit concurrency 10 we hit the gateway hard.
+        # Logic the AGENT loop owns (bad verdict, step budget) is unaffected: those
+        # are successful responses, not retryable errors. Tune APTS_LLM_MAX_RETRIES.
+        max_retries=int(os.environ.get("APTS_LLM_MAX_RETRIES", "4")),
         max_tokens=max_tokens,
         extra_body=extra_body or None,
         metadata={"agent": agent_name},

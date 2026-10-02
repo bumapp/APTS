@@ -276,9 +276,16 @@ async def test_full_flow_vuln_then_exploit(monkeypatch):
     ctx = WorkContext(engagement_id=eid, target_url="http://t.test/",
                       scope=Scope(domains=["t.test"]), upstream={}, directive="")
     register = await V.VulnWorker()(ctx)
-    assert len(register["weaknesses"]) >= 1  # vuln produced a register
+    # The model emitted one SQLi hypothesis; vuln deterministically adds a reflected
+    # XSS hypothesis for the same input-carrying request (see _ensure_xss_coverage).
+    assert len(register["weaknesses"]) == 2
+    assert register["weaknesses"][0]["id"] == "W-001"  # model's SQLi first
+    assert any("xss" in w["title"].lower() for w in register["weaknesses"])  # XSS added
 
     # --- Stage 2: exploit consumes vuln's register ---
+    # Sequential so the shared ScriptedModel is consumed deterministically: proof 0
+    # (SQLi) runs fully, then proof 1 (the added XSS) gets its own verdict.
+    monkeypatch.setattr(E, "CONCURRENCY", 1)
     exploit_model = ScriptedModel(responses=[
         AIMessage(content="", tool_calls=[{
             "name": "sqlmap",
@@ -286,6 +293,7 @@ async def test_full_flow_vuln_then_exploit(monkeypatch):
             "id": "c1"}]),
         AIMessage(content=("VERDICT: PROVEN — sqlmap reported injectable\n"
                            "PROVEN_CLASS: SQL injection")),
+        AIMessage(content="VERDICT: INCONCLUSIVE — could not demonstrate XSS here"),
     ])
     monkeypatch.setattr(E, "build_chat_model", lambda *a, **k: exploit_model)
     exploit_fake = FakeMcpClient(_EXPLOIT_TOOLS, {
@@ -301,7 +309,7 @@ async def test_full_flow_vuln_then_exploit(monkeypatch):
     outcome = await E.ExploitWorker(results=results)(ctx2)
 
     assert len(outcome["attempts"]) == len(register["weaknesses"])
-    proven = outcome["attempts"][0]
+    proven = outcome["attempts"][0]  # gather preserves weakness order; [0] is the SQLi
     assert proven["confirmed"] is True
     assert proven["signal_basis"].startswith("sqlmap injectable")
     assert proven["weakness_id"] == register["weaknesses"][0]["id"]
@@ -579,6 +587,43 @@ async def test_exploit_lc_proven_without_signal_is_model_judgment(monkeypatch):
     # routing header (always present); no Authorization/Cookie slipped in.
     sent = next(args for name, args in fake.calls if name == "http_request")
     assert set(sent.get("headers") or {}) <= {E.SHARD_HEADER}
+
+
+async def test_exploit_deterministic_xss_backstop(monkeypatch):
+    """An XSS-class weakness the agent never proves via xss_prove is STILL confirmed:
+    the deterministic backstop drives xss_prove itself with the recorded source_page +
+    param, so a reflected XSS can't be missed by the agent's tool-choice variance."""
+    from agent.services.workers.exploit import exploit_worker as E
+
+    # The agent concludes WITHOUT ever calling xss_prove.
+    scripted = ScriptedModel(responses=[
+        AIMessage(content="VERDICT: INCONCLUSIVE — reflected but could not execute"),
+    ])
+    monkeypatch.setattr(E, "build_chat_model", lambda *a, **k: scripted)
+    monkeypatch.setattr(E, "CONCURRENCY", 1)
+    fake = FakeMcpClient(_EXPLOIT_TOOLS, {
+        "xss_prove": lambda a: {"proven": True, "dialog_fired": True,
+                                "nonce": a.get("nonce"), "strategy": "url"},
+    })
+    monkeypatch.setattr(E, "Client", lambda url: fake)
+
+    register = {"weaknesses": [{
+        "id": "W-001", "title": "Reflected/DOM XSS — search results",
+        "rationale": "the q value is rendered into the page",
+        "origin_request": {"method": "GET",
+                           "url": "http://t.test/rest/products/search?q=",
+                           "params": ["q"], "source_page": "http://t.test/#/search"}}]}
+    result = await E.ExploitWorker(results=_FakeResults(register, _RECON))(
+        _exploit_ctx(credentials={}))
+
+    a = result["attempts"][0]
+    assert a["confirmed"] is True
+    assert "xss_prove proven" in a["signal_basis"]
+    # the backstop drove xss_prove with the recorded SPA route + param + nonce'd payload
+    xss_call = next(args for name, args in fake.calls if name == "xss_prove")
+    assert xss_call["spa_page"] == "http://t.test/#/search"
+    assert xss_call["parameter"] == "q"
+    assert xss_call["nonce"] and xss_call["nonce"] in xss_call["payload"]
 
 
 # --------------------------------------------------------------------------- #
