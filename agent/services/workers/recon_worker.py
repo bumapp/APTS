@@ -65,56 +65,56 @@ def _mode_preamble(mode: str) -> str:
 
 RECON_LOOP_SYSTEM = """\
 You are a reconnaissance agent for an authorised penetration test. Your job is to
-MAP the security-relevant attack surface — you do NOT exploit anything, you only
-discover and map.
+CAPTURE the security-relevant attack surface — the real HTTP requests and hidden
+surface the vuln/exploit stages will test. You do NOT exploit; you discover and map.
 
-You are given the seed page and the app's MINED ROUTES (client routes found in the
-JavaScript, not yet crawled). You have four tools:
+A breadth sweep (katana) and a cheap behaviour peek have already run — you are GIVEN
+the routes, the concrete API/file endpoints, and, per interactive page, the input
+TYPES it exposes and the APIs it calls on load. Act on that map with three tools:
 
-- crawl(url): browser-crawl ONE route — follows links, submits forms, records the
-  requests it fires. Use it to map LINKED / form-reachable surface (login, search,
-  the APIs the UI calls). One route at a time; the guard refuses re-crawling.
-- katana(url): fast crawler that also parses JS for endpoints — use for a quick deep
-  endpoint sweep or to cross-check what crawl found.
-- ffuf(url, wordlist): fuzz for UNLINKED paths and enumerable IDs a crawler can
-  NEVER see. Put the FUZZ keyword in the url. Choose `wordlist` by purpose:
-  'common'/'big'/'raft-dirs'/'raft-files' = directories/files, 'api' = API routes,
-  'ids' = numeric ID enumeration (e.g. an IDOR endpoint:
-  url="<base>/api/<thing>/FUZZ" wordlist="ids"), 'lfi' = path-traversal, 'params' =
-  parameter-name fuzzing.
-- arjun(url): discover HIDDEN parameters an endpoint accepts (a query/body param not
-  shown in the UI) — the concrete injection points the later stages test.
+- crawl_v2(url): browser that fills a page's inputs by TYPE and submits (Enter/click),
+  recording the REAL request the form fires. Use it on INTERACTIVE pages (the peek
+  shows which have inputs) so the submit (e.g. a login/search/complaint POST) is
+  captured. This is the point of recon — one route per call; the guard refuses repeats.
+- ffuf(url, wordlist): fuzz for UNLINKED paths and enumerable IDs a crawler can NEVER
+  see. Put FUZZ in the url. wordlist by purpose: 'common'/'big'/'raft-dirs'/'raft-files'
+  = dirs/files, 'api' = API routes, 'ids' = numeric ID enumeration (IDOR:
+  url="<base>/<resource>/FUZZ" wordlist="ids"), 'lfi' = path-traversal, 'params'.
+- arjun(url): discover HIDDEN parameters an endpoint accepts — concrete injection points.
 
 How to work:
-- First crawl the interesting mined routes (forms, user input, APIs, admin/user).
-- Then go BEYOND the UI deliberately — a crawler only sees what is LINKED:
-  * ffuf path discovery at the root (wordlist 'common' or 'api', optionally
-    recursion=true) to surface unlinked directories/endpoints;
-  * for any endpoint that serves a resource by id (a path segment like note/user/
-    order/card/item/account), fuzz the id with wordlist 'ids'
-    (url="<base>/<resource>/FUZZ") — unlinked id endpoints are classic IDOR;
-  * if a crawl/katana response exposes an API prefix (e.g. /api, /rest, /v1),
-    ffuf UNDER that prefix too;
-  * arjun on each real endpoint to reveal hidden parameters.
-- Read each OBSERVATION and act on it. Never repeat an identical call. Stay on the
-  given target host.
-- STOP when you have covered the security-relevant surface: reply WITHOUT a tool
-  call, a single line "DONE — <one-line why>".
+- Start with the interactive pages the peek flagged (forms, user input, auth, upload):
+  crawl_v2 each so its real request is captured.
+- Then go BEYOND the UI: ffuf for unlinked dirs/IDs (fuzz an id on any /resource/<id>
+  endpoint), ffuf under any /api or /rest prefix, arjun on real endpoints for hidden params.
+- Read each OBSERVATION and act on it. Never repeat an identical call. Stay on host.
+- TRANSPORT NOISE IS NOT SURFACE: WebSocket/Socket.IO handshakes and long-polling
+  (e.g. /socket.io/?EIO=…&transport=polling), heartbeats/keepalives, and analytics
+  beacons are plumbing, not attack surface — recognise them early and dismiss them.
+  Never spend a tool call on them and never treat their parameters as interesting,
+  even though they carry params. Focus your calls on real app/API input instead.
+- STOP when the worthwhile surface is captured: reply WITHOUT a tool call, "DONE — <why>".
 """
 
 RECON_GRADE_SYSTEM = """\
-You are a reconnaissance analyst. You are given the attack surface a crawl mapped
-(endpoints, forms, parameterised requests, API paths, technologies). Produce a
-short summary and grade the notable, test-worthy findings.
+You are a reconnaissance analyst. You are given the mapped attack surface (endpoints,
+forms, parameterised requests, API paths, interactive pages with their input types,
+technologies). Summarise it and produce GROUPED, per-finding gradings for the
+vuln/exploit stages.
 
 Reply with ONLY JSON, no prose:
 {"summary":"<2-4 sentences on the security-relevant surface>",
  "findings":[{"finding":"<what it is>","where":"<path or parameter>",
+              "category":"<authentication|injection|access-control|file-upload|user-input|info-disclosure|api|other>",
               "grade":"high|medium|low","reason":"<one short line>"}]}
-Grade by test-worthiness for a pen test: high = authentication / user-input /
-injection / access-control surface; medium = app or API surface with less obvious
-risk; low = minor. Only include REAL findings — do not pad. Base everything ONLY on
-the surface given; invent nothing.
+One object PER finding (do not merge several into one). Group by assigning the right
+`category`. Grade by test-worthiness: high = authentication / user-input / injection /
+access-control / upload surface; medium = app or API surface with less obvious risk;
+low = minor. Only REAL findings grounded ONLY in the surface given; invent nothing.
+IGNORE TRANSPORT NOISE: WebSocket/Socket.IO handshakes and long-polling
+(/socket.io/?EIO=…&transport=polling), heartbeats/keepalives and analytics beacons are
+plumbing, not attack surface — do NOT emit findings for them even though they carry
+parameters. They are never test-worthy.
 """
 
 
@@ -137,19 +137,50 @@ class ReconWorker:
         try:
             async with Client(agentic.MCP_URL) as client, \
                     httpx.AsyncClient(timeout=agentic.LLM_TIMEOUT) as llm:
-                # 1) shallow seed crawl (code) — one page + mined route table
-                seed = await self._crawl(client, {
-                    "url": ctx.target_url, "allow_domains": domains,
-                    "allow_paths": list(ctx.scope.allow_paths),
-                    "deny_paths": list(ctx.scope.deny_paths),
-                    "max_pages": 1, "max_depth": 1, **self._cred_args(creds)})
-                mined = seed.get("mined_routes", []) or []
-                log.info("recon seed: %d request(s), %d mined route(s)",
-                         len(seed.get("observed_requests", [])), len(mined))
+                # ---- Phase 0: deep katana sweep (code) → breadth URI map ----
+                # Phase 0 is a CRUCIAL stage: a deep headless katana sweep (renders the
+                # JS app + jsluice + xhr + known-files) is the breadth map the whole
+                # recon reasons over. headless reuses the image's Chromium via the tool's
+                # -system-chrome-path, so it does not depend on a runtime download. If it
+                # errors OR comes back empty we do NOT silently degrade — we surface it
+                # and fail the stage so the operator knows the map is missing.
+                try:
+                    kat = (await client.call_tool("katana", {
+                        "url": ctx.target_url, "depth": 2, "js_crawl": True,
+                        "jsluice": True, "xhr": True, "headless": True,
+                        "known_files": True, "timeout_sec": 300})).structured_content or {}
+                except Exception as exc:  # noqa: BLE001
+                    raise WorkFailed(
+                        f"recon phase0: katana (headless deep sweep) failed to run "
+                        f"({type(exc).__name__}: {exc}). This is the breadth map the "
+                        f"stage depends on — aborting recon.") from exc
+                if kat.get("error"):
+                    raise WorkFailed(f"recon phase0: katana error: {kat['error']}")
+                kat_endpoints = kat.get("endpoints", []) or []
+                if not kat_endpoints:
+                    raise WorkFailed(
+                        "recon phase0: katana returned 0 endpoints — the headless "
+                        "browser likely could not start (no usable Chromium). The "
+                        "breadth map is empty; aborting rather than running blind.")
+                routes, api_file_eps = self._split_endpoints(kat_endpoints, ctx.target_url)
+                log.info("recon phase0: katana %d endpoint(s) -> %d route(s), %d api/file",
+                         len(kat_endpoints), len(routes), len(api_file_eps))
+                self._dump("phase0_katana", {"endpoints": kat_endpoints, "count": len(kat_endpoints),
+                                             "routes": routes, "api_file_endpoints": api_file_eps})
 
-                # 2) agent-driven crawl loop (LangGraph)
+                # ---- Phase 0.5: peek (code) → behaviour map of the routes ----
+                peek_pages = []
+                try:
+                    pk = (await client.call_tool("peek", {"urls": routes[:60]})).structured_content or {}
+                    peek_pages = pk.get("pages", []) or []
+                except Exception as exc:  # noqa: BLE001
+                    log.warning("recon phase0.5 peek failed: %s", exc)
+                log.info("recon phase0.5: peeked %d route(s)", len(peek_pages))
+                self._dump("phase05_peek", {"pages": peek_pages})
+
+                # ---- Phase 1: agent loop — 3 tools: crawl_v2, ffuf, arjun ----
                 tools = [t for t in (await client.list_tools()).tools
-                         if t.name in ("crawl", "katana", "ffuf", "arjun")]
+                         if t.name in ("crawl_v2", "ffuf", "arjun")]
                 openai_tools = agentic.mcp_tools_to_openai(tools)
 
                 async def model_call(messages):
@@ -160,58 +191,68 @@ class ReconWorker:
                     return out.structured_content or {}
 
                 graph = build_recon_graph(model_call, call_tool, MAX_STEPS)
-                seed_pages = [p.get("url", "") for p in seed.get("pages", []) if p.get("url")]
-                task = self._seed_task(seed, mined, mode, pre)
+                task = self._phase1_task(ctx.target_url, routes, api_file_eps,
+                                         peek_pages, mode, pre)
                 out = await graph.ainvoke({
                     "mode": mode, "target": ctx.target_url, "domains": domains,
                     "creds": creds,
                     "messages": [{"role": "system", "content": modepre + RECON_LOOP_SYSTEM},
                                  {"role": "user", "content": task}],
-                    "tried": {}, "crawled": list(seed_pages), "crawls": [seed],
+                    "tried": {}, "crawled": [], "crawls": [],
                     "enum": [], "step": 0,
                 }, config={"recursion_limit": 2 * MAX_STEPS + 5})
 
-                crawls = out.get("crawls") or [seed]
+                crawls = out.get("crawls") or []
+                self._dump("phase1_agent", {
+                    "tool_calls": out.get("tried", {}),
+                    "enum": out.get("enum", []),
+                    "crawled_pages": [p.get("url") for c in crawls for p in c.get("pages", [])],
+                    "captured_requests": [{"method": r.get("method"),
+                                           "url": r.get("url"), "post_data": r.get("post_data")}
+                                          for c in crawls for r in c.get("observed_requests", [])],
+                    "verdict": out.get("verdict_text", "")})
 
-                # 3) assemble the raw surface (CODE — intact), then grade (model)
+                # ---- Phase 2: assemble raw surface (CODE) + summarize/grade ----
                 merged = self._merge(crawls)
                 observed = self._observed_requests(merged)
                 self._assign_interest(observed)
                 if mode == "focused":  # keep fruitful; the floor (params/body) is always high/medium
                     observed = [r for r in observed if r.interest != "low"]
-                summary, findings = await self._grade(
-                    llm, merged, observed, modepre + pre)
-                # fold enumeration-tool output into the surface: unlinked paths
-                # (katana/ffuf) become api_paths; arjun params become findings.
-                extra_paths, enum_findings = set(), []
+                # katana (phase0) + ffuf/katana enum → api_paths; arjun → findings;
+                # peek → behavioural findings (file upload, auth forms, etc).
+                extra_paths = {urlparse(u).path for u in api_file_eps if urlparse(u).path}
+                enum_findings: list[dict] = []
                 for e in (out.get("enum") or []):
                     tool, res, a = e.get("tool"), e.get("result") or {}, e.get("args") or {}
                     if tool in ("katana", "ffuf"):
-                        urls = res.get("endpoints", []) + [h.get("url", "") for h in res.get("hits", [])]
-                        for u in urls:
-                            try:
-                                pth = urlparse(u).path
-                                if pth:
-                                    extra_paths.add(pth)
-                            except Exception:  # noqa: BLE001
-                                pass
+                        for u in res.get("endpoints", []) + [h.get("url", "") for h in res.get("hits", [])]:
+                            pth = urlparse(u).path
+                            if pth:
+                                extra_paths.add(pth)
                     elif tool == "arjun":
                         for prm in res.get("parameters", []):
                             enum_findings.append({
                                 "finding": f"hidden parameter '{prm}'",
-                                "where": a.get("url", ""), "grade": "high",
+                                "where": a.get("url", ""), "grade": "high", "category": "hidden-parameter",
                                 "reason": "endpoint accepts a parameter not exposed in the UI (arjun)"})
-                findings = (findings or []) + enum_findings
+                peek_findings = self._peek_findings(peek_pages)
+                summary, graded = await self._grade(
+                    llm, merged, observed, peek_pages, api_file_eps, modepre + pre)
+                findings = self._group_findings((graded or []) + enum_findings + peek_findings)
         except WorkFailed:
             raise
         except Exception as exc:  # noqa: BLE001 — retryable stage failure
             raise WorkFailed(f"recon loop failed: {type(exc).__name__}: {exc}") from exc
 
+        findings = self._attach_requests(findings, observed)
+        findings_tree = self._findings_tree(summary, findings)
+        self._dump("phase2_findings", {"summary": summary, "findings_tree": findings_tree,
+                                       "findings_flat": findings})
         request_tree = self._request_tree(summary, merged, observed)
         asset = AssetMap(
             target_url=ctx.target_url, mode=mode, summary=summary, findings=findings,
-            request_tree=request_tree,
-            endpoints=self._endpoints(merged), forms=self._forms(merged),
+            findings_tree=findings_tree, request_tree=request_tree,
+            endpoints=self._endpoints(merged, routes), forms=self._forms(merged),
             technologies=[Technology(name=t["name"], source=t.get("source", ""),
                                      version=t.get("version") or None)
                           for t in merged.get("technologies", [])],
@@ -234,6 +275,21 @@ class ReconWorker:
                  ", TRUNCATED" if asset.truncated else "")
         return asset.model_dump(mode="json")
 
+    # --- per-phase audit dump (opt-in via APTS_RECON_DEBUG_DIR) ----------- #
+    @staticmethod
+    def _dump(tag: str, data: dict) -> None:
+        """Write one phase's output to APTS_RECON_DEBUG_DIR/<tag>.json for auditing.
+        No-op unless the env var is set; never raises (auditing must not break recon)."""
+        d = os.environ.get("APTS_RECON_DEBUG_DIR")
+        if not d:
+            return
+        try:
+            os.makedirs(d, exist_ok=True)
+            with open(os.path.join(d, f"{tag}.json"), "w") as fh:
+                json.dump(data, fh, default=str, indent=1)
+        except Exception as exc:  # noqa: BLE001
+            log.debug("recon phase dump %s failed: %s", tag, exc)
+
     # --- crawl helper ------------------------------------------------------ #
     @staticmethod
     async def _crawl(client, args: dict) -> dict:
@@ -248,18 +304,189 @@ class ReconWorker:
                 out[k] = creds[k]
         return out
 
+    # --- Phase 0 / 0.5 helpers -------------------------------------------- #
     @staticmethod
-    def _seed_task(seed: dict, mined: list[str], mode: str, pre: str) -> str:
-        obs = seed.get("observed_requests", []) or []
-        reqs = "\n".join(f"  {r.get('method')} {urlparse(r.get('url','')).path or '/'}"
-                         f"{'  [body]' if r.get('post_data') else ''}"
-                         for r in obs[:25]) or "  (none)"
-        routes = "\n".join(f"  {m}" for m in mined[:60]) or "  (none mined)"
-        return (f"{pre}## Seed page: {seed.get('seed','')}\n"
-                f"Requests fired on load ({len(obs)}):\n{reqs}\n\n"
-                f"## Mined client routes (not yet crawled) — candidates to consider:\n{routes}\n\n"
-                f"Crawl the routes worth mapping for a penetration test, one at a time, "
-                f"then reply DONE. You are in {mode.upper()} mode.")
+    def _split_endpoints(endpoints: list[str], target: str) -> tuple[list[str], list[str]]:
+        """Split katana's flat URI list into app ROUTES (worth peeking/interacting)
+        and concrete API/FILE endpoints (worth fetching/observing directly). Generic,
+        host-scoped; no target-specific assumptions."""
+        host = urlparse(target).hostname or ""
+        base = f"{urlparse(target).scheme}://{urlparse(target).netloc}"
+        STATIC = (".js", ".css", ".png", ".jpg", ".jpeg", ".ico", ".woff2", ".svg",
+                  ".map", ".gif", ".webp")
+        NOISE = ("{{", "%7b", "%5c", "\\")
+        routes: list[str] = []
+        api_file: list[str] = []
+        seen_r: set[str] = set()
+        for u in endpoints:
+            p = urlparse(u)
+            if host and p.hostname and p.hostname != host:
+                continue
+            path = p.path or "/"
+            low = path.lower()
+            if any(n in u.lower() for n in NOISE) or low.endswith(STATIC):
+                continue
+            seg = low.split("/")[1] if "/" in low[1:] else low.strip("/")
+            if low.startswith(("/rest", "/api", "/ftp")) or "." in path.rsplit("/", 1)[-1]:
+                api_file.append(u)
+            else:
+                # an app page/route → peek it as an SPA hash route
+                route = base + "/#" + path if not p.fragment else base + "/#" + p.fragment
+                if route not in seen_r:
+                    seen_r.add(route)
+                    routes.append(route)
+        if base + "/#/" not in seen_r and base not in seen_r:
+            routes.insert(0, base + "/")
+        return routes[:60], sorted(set(api_file))[:120]
+
+    @staticmethod
+    def _phase1_task(target: str, routes: list[str], api_file_eps: list[str],
+                     peek_pages: list[dict], mode: str, pre: str) -> str:
+        """Hand the agent the Phase-0 breadth map + Phase-0.5 behaviour map and ask it
+        to CAPTURE the real requests on the worthwhile pages (crawl_v2) and discover
+        hidden surface (ffuf/arjun)."""
+        interactive = []
+        for p in peek_pages:
+            inputs = p.get("inputs", [])
+            if not inputs:
+                continue
+            interactive.append(
+                f"  {p.get('requested','')}  inputs={[i.get('type')+':'+i.get('name','') for i in inputs][:8]}"
+                f"  on_load_xhr={p.get('xhr_on_load',[])[:4]}")
+        api = "\n".join(f"  {u}" for u in api_file_eps[:40]) or "  (none)"
+        inter = "\n".join(interactive[:40]) or "  (none with inputs)"
+        return (f"{pre}## Phase-0 katana found {len(routes)} route(s), {len(api_file_eps)} API/file endpoint(s).\n"
+                f"## Phase-0.5 peek — interactive pages (route -> input types + on-load APIs):\n{inter}\n\n"
+                f"## Concrete API/file endpoints:\n{api}\n\n"
+                f"Your job: CAPTURE the real HTTP requests for the vuln/exploit stages.\n"
+                f"- For each interactive page, call crawl_v2(url=<the route>) so its form submits "
+                f"and the real request (e.g. a login/search/complaint POST) is recorded. Prioritise "
+                f"pages with user input (login, search, forms, file upload).\n"
+                f"- Use ffuf to find UNLINKED paths/IDs and arjun to find HIDDEN parameters on real endpoints.\n"
+                f"- Read each OBSERVATION; never repeat a call. Reply DONE when the worthwhile surface is captured. "
+                f"You are in {mode.upper()} mode.")
+
+    @staticmethod
+    def _peek_findings(peek_pages: list[dict]) -> list[dict]:
+        """Turn behavioural peek signals into findings (generic, by input type)."""
+        out: list[dict] = []
+        for p in peek_pages:
+            where = p.get("requested", "")
+            types = {i.get("type") for i in p.get("inputs", [])}
+            names = {(i.get("name") or "").lower() for i in p.get("inputs", [])}
+            if "file" in types:
+                out.append({"finding": "file upload input", "where": where, "grade": "high",
+                            "category": "file-upload",
+                            "reason": "page accepts a file upload — test upload/type/path-traversal"})
+            if "password" in types and ("email" in types or any("email" in n or "user" in n for n in names)):
+                out.append({"finding": "authentication form", "where": where, "grade": "high",
+                            "category": "authentication",
+                            "reason": "credential form — test auth bypass / weak-credential / injection"})
+            if "textarea" in types:
+                out.append({"finding": "free-text input", "where": where, "grade": "medium",
+                            "category": "user-input",
+                            "reason": "free-text field — test stored XSS / injection"})
+        return out
+
+    @classmethod
+    def _attach_requests(cls, findings: list[dict], observed: list) -> list[dict]:
+        """Attach each finding's RAW captured request + the PAGE it belongs to.
+
+        Matching is on the finding's TRUE subject, not a bare path:
+        - A finding on an SPA route (``where`` has a #/… fragment, e.g. #/register) is a
+          PAGE-level finding: its page IS that route, and we attach a request actually
+          fired on that page that carries input (body/params), if any.
+        - A finding on a concrete endpoint (``where`` = /rest/… or /api/…) matches an
+          observed request by that endpoint path; its page is that request's source_page.
+        - No match (e.g. an arjun hidden-param on an endpoint never requested) -> rogue
+          (request=None, page=None), so it lists first in the tree.
+        This avoids the old bug where a #/route collapsed to path "/" and matched the
+        landing GET. Pure matching/grouping — no judgement."""
+        by_path: dict[str, Any] = {}
+        for r in observed:
+            p = urlparse(r.url).path or "/"
+            by_path.setdefault(p, r)  # first (usually richest) wins
+
+        def _req_dict(req) -> dict:
+            return {"method": req.method, "path": urlparse(req.url).path or "/",
+                    "url": req.url, "params": _params_of(req),
+                    "post_data": req.post_data, "content_type": req.content_type}
+
+        def _is_transport(u: str) -> bool:  # socket.io / websocket / long-poll plumbing
+            p = urlparse(u).path.lower()
+            return "socket.io" in p or p.endswith((".io", "/poll")) or "/socket" in p
+
+        for f in findings:
+            wu = urlparse(str(f.get("where", "")))
+            cat = str(f.get("category", "")).lower()
+            req = None
+            # Endpoint-discovery findings (hidden params from arjun, etc.) are NOT tied to
+            # a page — they belong in the rogue group, not under whatever page happened to
+            # also call that endpoint.
+            if cat == "hidden-parameter":
+                f["page"] = None
+                f["request"] = None
+                continue
+            if wu.fragment.startswith("/"):
+                # SPA route finding — page is the route itself; attach a real submit
+                # request fired there, skipping transport/polling noise.
+                page = cls._endpoint_path(wu)
+                f["page"] = page
+                for r in observed:
+                    if cls._endpoint_path(urlparse(r.source_page or "")) == page \
+                            and (r.post_data or urlparse(r.url).query) \
+                            and not _is_transport(r.url):
+                        req = r
+                        break
+            else:
+                epath = wu.path or str(f.get("where", ""))
+                req = by_path.get(epath) if epath and epath != "/" else None
+                f["page"] = (cls._endpoint_path(urlparse(req.source_page or "")) or epath) \
+                    if req is not None else None
+            f["request"] = _req_dict(req) if req is not None else None
+        return findings
+
+    @classmethod
+    def _findings_tree(cls, summary: str, findings: list[dict]) -> dict:
+        """Group findings for the report/UI: rogue (no backing page) FIRST, then grouped
+        under the page that exercised them. Each finding keeps its raw `request`."""
+        pages: dict[str, list] = {}
+        order: list[str] = []
+        rogue: list[dict] = []
+        for f in findings:
+            page = f.get("page")
+            if not page:
+                rogue.append(f)
+                continue
+            if page not in pages:
+                pages[page] = []
+                order.append(page)
+            pages[page].append(f)
+        return {
+            "summary": summary,
+            "rogue_findings": rogue,
+            "pages": [{"page": p, "findings": pages[p]} for p in order],
+        }
+
+    @staticmethod
+    def _group_findings(findings: list[dict]) -> list[dict]:
+        """De-dup and group findings by category, high-grade first. Keeps the per-finding
+        grade; adds a 'category' default and stable ordering for the report/UI."""
+        order = {"high": 0, "medium": 1, "low": 2, "": 3}
+        seen: set[tuple] = set()
+        uniq: list[dict] = []
+        for f in findings:
+            if not isinstance(f, dict):
+                continue
+            f.setdefault("category", "other")
+            k = (f.get("finding", ""), f.get("where", ""))
+            if k in seen:
+                continue
+            seen.add(k)
+            uniq.append(f)
+        uniq.sort(key=lambda f: (f.get("category", "other"),
+                                 order.get(str(f.get("grade", "")).lower(), 3)))
+        return uniq
 
     # --- merge crawls into one surface dict (code-owned, intact) ---------- #
     @staticmethod
@@ -318,6 +545,7 @@ class ReconWorker:
 
     # --- the single grade call (model; additive, never touches raw data) --- #
     async def _grade(self, llm, merged: dict, observed: list[ObservedRequest],
+                     peek_pages: list[dict], api_file_eps: list[str],
                      preamble: str) -> tuple[str, list[dict]]:
         endpoints = sorted({r.get("url", "") and (urlparse(r["url"]).path or "/")
                             for r in merged.get("observed_requests", [])})
@@ -327,14 +555,20 @@ class ReconWorker:
         params = sorted({f"{urlparse(r.url).path or '/'}?{p}"
                         for r in observed if r.interest == "high"
                         for p in _params_of(r)})
+        # behavioural signals from the peek: route -> input types it exposes
+        peek_view = [{"page": urlparse(p.get("requested", "")).fragment or urlparse(p.get("requested","")).path,
+                      "inputs": [i.get("type") for i in p.get("inputs", [])],
+                      "xhr": p.get("xhr_on_load", [])[:6]}
+                     for p in peek_pages if p.get("inputs")][:40]
         view = {
             "target_paths": endpoints[:80],
             "forms": forms[:20],
             "parameterised_requests": params[:80],
-            "api_paths": merged.get("js_api_paths", [])[:80],
+            "api_paths": (merged.get("js_api_paths", []) + api_file_eps)[:100],
+            "interactive_pages": peek_view,
             "technologies": [t.get("name") for t in merged.get("technologies", [])],
         }
-        user = f"{preamble}Attack surface:\n{json.dumps(view, default=str)[:6000]}"
+        user = f"{preamble}Attack surface:\n{json.dumps(view, default=str)[:7000]}"
         try:
             msg = await agentic.chat(
                 llm, [{"role": "system", "content": RECON_GRADE_SYSTEM},
@@ -358,7 +592,7 @@ class ReconWorker:
 
     # --- AssetMap builders ------------------------------------------------- #
     @classmethod
-    def _endpoints(cls, crawl: dict) -> list[Endpoint]:
+    def _endpoints(cls, crawl: dict, extra_routes: list[str] | None = None) -> list[Endpoint]:
         endpoints: list[Endpoint] = []
         seen: set[str] = set()
         for page in crawl.get("pages", []):
@@ -372,6 +606,14 @@ class ReconWorker:
                 params=sorted({p.split("=")[0] for p in parsed.query.split("&") if p}),
                 content_type=page.get("content_type", ""),
                 response_headers=page.get("response_headers", {}) or {}))
+        # routes the katana/peek phases found but the agent did not deep-crawl
+        for url in extra_routes or []:
+            path = cls._endpoint_path(urlparse(url))
+            if path in seen:
+                continue
+            seen.add(path)
+            endpoints.append(Endpoint(path=path, status=None, params=[],
+                                      content_type="", response_headers={}))
         return endpoints
 
     @staticmethod
@@ -469,6 +711,7 @@ def _parse_grade(text: str) -> tuple[str, list[dict]]:
         findings.append({
             "finding": str(f.get("finding", ""))[:200],
             "where": str(f.get("where", ""))[:200],
+            "category": str(f.get("category", "other"))[:40] or "other",
             "grade": str(f.get("grade", "")).lower().strip()
                      if str(f.get("grade", "")).lower().strip() in ("high", "medium", "low") else "",
             "reason": str(f.get("reason", ""))[:200]})

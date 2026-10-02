@@ -267,9 +267,17 @@ class AssetMap(BaseModel):
                     "above, which stays authoritative and byte-intact.")
     findings: list[dict[str, Any]] = Field(default_factory=list,
         description="Graded recon findings the agent flagged — each is "
-                    "{finding, where, grade, reason}. Additive metadata on top of "
+                    "{finding, where, category, grade, reason, page, request}. `request` "
+                    "is the raw captured HTTP request backing the finding (method/path/"
+                    "params/body) when one exists, else null. Additive metadata on top of "
                     "the raw surface; downstream still reads endpoints/observed_"
                     "requests directly, so a dropped finding never drops a request.")
+    findings_tree: dict[str, Any] = Field(default_factory=dict,
+        description="Findings grouped for the report/UI: {summary, rogue_findings:[...], "
+                    "pages:[{page, findings:[...]}]}. Rogue findings (not tied to any "
+                    "observed page) are listed FIRST; the rest are grouped under the page "
+                    "that exercised them. Each finding carries its raw `request` when known. "
+                    "Derived view; the flat `findings` list stays authoritative for downstream.")
     request_tree: dict[str, Any] = Field(default_factory=dict,
         description="A human/UI-friendly summary of the recorded surface as a tree: "
                     "{summary, technologies, pages:[{page, requests:[{method, path, "

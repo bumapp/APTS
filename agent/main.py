@@ -135,7 +135,9 @@ def build_worker(results: AgentResultRepository, exit_stack: list) -> Worker:
     if AGENT_NAME == "mitre":
         return MitreWorker(llm)
     if AGENT_NAME == "vuln":
-        return VulnWorker(llm)
+        # results store so it can read recon's AssetMap (findings) — ctx.upstream is
+        # empty in orchestrator-driven mode, so load the predecessor from the store.
+        return VulnWorker(llm, results)
     if AGENT_NAME == "exploit":
         # Also reads the register from the store — MITRE sits between this
         # stage and the artifact it needs.

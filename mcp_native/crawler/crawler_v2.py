@@ -210,17 +210,21 @@ class CrawlToolV2:
     # --- generic interaction: fill by type, click what the page shows -------- #
     @staticmethod
     async def _fill_all(page):
-        """Fill every visible input, choosing the value by its HTML ``type``, and
-        return the last text field filled (so the caller can submit with Enter).
+        """Fill every visible input (value chosen by its HTML ``type``) and return the
+        field to press Enter on to SUBMIT.
 
-        No English field-name matching — the value is picked from the input's own
-        declared type (an email field gets an email, a password field a password).
-        """
+        Prefer the last PASSWORD field when present — a generic signal that this is a
+        credential/submit form, and Enter on it reliably submits. Only if there is no
+        password field do we fall back to the last text/email field. (Returning "the
+        last field filled" was unreliable: the last field is often a checkbox/toggle —
+        e.g. rememberMe — and Enter there never submits, so logins silently didn't fire.)
+        No English field-name matching — purely by HTML type."""
         try:
             fields = await page.query_selector_all("input, textarea, select")
         except Exception:
             return None
-        last = None
+        last_text = None
+        last_password = None
         for f in fields:
             try:
                 if not await f.is_visible():
@@ -235,10 +239,12 @@ class CrawlToolV2:
                     await f.select_option(index=0)
                 else:
                     await f.fill(_fill_value(ftype), timeout=1000)
-                    last = f
+                    last_text = f
+                    if ftype == "password":
+                        last_password = f
             except Exception:
                 continue
-        return last
+        return last_password or last_text
 
     async def _click_all(self, page, base: str, ctx: ToolContext,
                          seen: set, queue: deque, depth: int) -> None:

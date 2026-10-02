@@ -52,4 +52,8 @@ COPY mcp_native/ /app/mcp_native/
 RUN mkdir -p /etc/apts && chown -R apts:apts /app /etc/apts /ms-playwright
 USER apts
 
-CMD ["python", "-m", "mcp_native.server", "--http"]
+# Warm katana's headless (go-rod) Chrome in the BACKGROUND on boot, then start the
+# server immediately. The download (katana points at its own Chrome; -system-chrome
+# does not work) finishes well before the first recon runs, so the headless deep
+# sweep never pays it inline. Non-blocking so server startup/health is unaffected.
+CMD ["sh", "-c", "(HOME=/tmp katana -u https://example.com -headless -nos -ho disable-dev-shm-usage -d 0 -silent -nc >/dev/null 2>&1 || true) & exec python -m mcp_native.server --http"]

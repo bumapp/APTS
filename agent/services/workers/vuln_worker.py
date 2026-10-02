@@ -337,11 +337,68 @@ def _to_weakness(hypothesis: str, req: dict, idx: int) -> Weakness | None:
         return None
 
 
+def _req_signature(r: dict) -> tuple:
+    """Shape of a request for dedup: (method, path, sorted param-names) — NOT the exact
+    URL, so repeated transport/polling calls (socket.io ?t=&sid= change each time) share
+    one signature and collapse to a single representative."""
+    path = r.get("path") or urlparse(r.get("url", "")).path or "/"
+    return (r.get("method", "GET"), path, tuple(sorted(_params_of(r))))
+
+
+def _group_for_vuln(requests: list[dict]) -> list[dict]:
+    """Deterministic PLUMBING (no judgement): collapse requests with the same
+    (method, path, param-set) to one representative — killing repeated transport/dup
+    calls — then order them grouped by the page that fired them. Nothing is scored,
+    importance-ranked, or dropped on a vulnerability judgement; only exact-shape
+    duplicates are merged (lossless: the representative keeps the shape)."""
+    seen: set = set()
+    reps: list[dict] = []
+    for r in requests:
+        sig = _req_signature(r)
+        if sig in seen:
+            continue
+        seen.add(sig)
+        reps.append(r)
+    reps.sort(key=lambda r: (r.get("source_page") or "", r.get("path") or ""))
+    return reps
+
+
+def _finding_to_weakness(f: dict, idx: int) -> Weakness | None:
+    """Render a recon FINDING (not a recorded request) as a Weakness hypothesis, so
+    behavioural/discovery findings — hidden params, file-upload inputs, auth forms,
+    unlinked endpoints — are proven by Exploitation, not just request-derived ones."""
+    title = (str(f.get("finding") or "recon finding").strip())[:180]
+    where = str(f.get("where") or "/").strip()
+    cat = str(f.get("category") or "other")
+    try:
+        path = urlparse(where).path or where
+    except Exception:  # noqa: BLE001
+        path = where
+    # Attach the RAW captured request recon matched to this finding as evidence, so the
+    # exploit stage proves against the real request; fall back to a bare GET on `where`.
+    req = f.get("request") if isinstance(f.get("request"), dict) else None
+    if req:
+        origin = {k: req.get(k) for k in ("method", "path", "url", "content_type",
+                                          "post_data", "params") if req.get(k)}
+        origin.setdefault("path", path)
+    else:
+        origin = {"method": "GET", "path": path, "url": where}
+    try:
+        return Weakness(
+            id=f"W-{idx:03d}", title=f"{title} [{cat}]", asset=path,
+            confidence="possible", evidence=[],
+            rationale=(str(f.get("reason") or title))[:500], origin_request=origin)
+    except Exception:  # noqa: BLE001
+        log.warning("dropping unmappable finding: %s", title)
+        return None
+
+
 class VulnWorker:
     """The vulnerability agent: the hypothesis loop, rendered as a register."""
 
-    def __init__(self, llm: LlmClient) -> None:
+    def __init__(self, llm: LlmClient, results=None) -> None:
         self._llm = llm  # unused: the loop drives the AWS model itself
+        self._results = results  # to load recon's AssetMap (findings) from the store
 
     async def __call__(self, ctx: WorkContext) -> dict[str, Any]:
         weaknesses: list[Weakness] = []
@@ -361,8 +418,13 @@ class VulnWorker:
                 # so assess all of them (a proof run, not a bounded sample).
                 requests = [r for r in (batch or {}).get("requests", [])
                             if not (SKIP_NOISE and r.get("resource_type") in _NOISE)]
-                log.info("vuln loop: assessing %d request(s): %s", len(requests),
-                         ", ".join(r.get("path", "?") for r in requests))
+                # Deterministic plumbing: collapse duplicate/transport requests to one
+                # representative each and order them grouped by page (no judgement).
+                before = len(requests)
+                requests = _group_for_vuln(requests)
+                log.info("vuln loop: %d request(s) after dedup/grouping (from %d): %s",
+                         len(requests), before,
+                         ", ".join(f"{r.get('method')} {r.get('path','?')}" for r in requests))
 
                 pre = agentic.directive_block(ctx.directive)
                 for req in requests:
@@ -375,6 +437,28 @@ class VulnWorker:
         except Exception as exc:  # noqa: BLE001 — retryable stage failure
             raise WorkFailed(f"vuln loop failed: {type(exc).__name__}: {exc}") from exc
 
+        # Fold recon's graded FINDINGS (handed over in the AssetMap) into the register —
+        # high/medium only, de-duped against request-derived weaknesses by (title, asset).
+        req_weaknesses = len(weaknesses)
+        seen = {(w.title, w.asset) for w in weaknesses}
+        # recon's AssetMap: from the store (driven mode), falling back to ctx.upstream.
+        recon_asset = {}
+        if self._results is not None:
+            try:
+                recon_asset = self._results.load(ctx.engagement_id, "recon") or {}
+            except Exception:  # noqa: BLE001
+                recon_asset = {}
+        findings = recon_asset.get("findings") or (ctx.upstream or {}).get("findings") or []
+        for f in findings if isinstance(findings, list) else []:
+            if not isinstance(f, dict) or str(f.get("grade", "")).lower() not in ("high", "medium"):
+                continue
+            w = _finding_to_weakness(f, len(weaknesses) + 1)
+            if w and (w.title, w.asset) not in seen:
+                seen.add((w.title, w.asset))
+                weaknesses.append(w)
+
         register = VulnerabilityRegister(weaknesses=weaknesses)
-        log.info("register: %d weaknesses from hypotheses", len(register.weaknesses))
+        log.info("register: %d weaknesses (%d from requests, %d from recon findings)",
+                 len(register.weaknesses), req_weaknesses,
+                 len(register.weaknesses) - req_weaknesses)
         return register.model_dump(mode="json")

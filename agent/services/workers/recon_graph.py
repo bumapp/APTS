@@ -146,7 +146,8 @@ def build_recon_graph(model_call: ModelCall, call_tool: CallTool, max_steps: int
         crawled_set = {normalize_url(u) for u in crawled}
         steps_left = max_steps - state["step"]
         new_msgs: list[dict] = []
-        _TOOLS = ("crawl", "katana", "ffuf", "arjun")
+        _TOOLS = ("crawl", "crawl_v2", "katana", "ffuf", "arjun")
+        _CRAWLERS = ("crawl", "crawl_v2")
 
         for call in msg.get("tool_calls") or []:
             name = call["function"]["name"]
@@ -166,7 +167,7 @@ def build_recon_graph(model_call: ModelCall, call_tool: CallTool, max_steps: int
                 continue
             creds = state.get("creds") or {}
 
-            if name == "crawl":
+            if name in _CRAWLERS:
                 seed = args.get("url", "")
                 if seed and normalize_url(seed) in crawled_set:
                     new_msgs.append({"role": "tool", "tool_call_id": call["id"],
@@ -176,7 +177,8 @@ def build_recon_graph(model_call: ModelCall, call_tool: CallTool, max_steps: int
                 # de-dup guard + scope + shallow/targeted (seed already mined routes)
                 args.setdefault("allow_domains", list(state.get("domains", []) or []))
                 args["skip_urls"] = crawled
-                args["mine"] = False
+                if name == "crawl":
+                    args["mine"] = False  # crawl_v2 has no route-mining to gate
                 args["max_pages"] = min(int(args.get("max_pages", _ROUTE_MAX_PAGES) or _ROUTE_MAX_PAGES),
                                         _ROUTE_MAX_PAGES)
                 args["max_depth"] = min(int(args.get("max_depth", _ROUTE_MAX_DEPTH) or _ROUTE_MAX_DEPTH),
@@ -184,7 +186,7 @@ def build_recon_graph(model_call: ModelCall, call_tool: CallTool, max_steps: int
                 for k in ("headers", "cookies", "basic_auth"):
                     if creds.get(k) and k not in args:
                         args[k] = creds[k]
-                result = await call_tool("crawl", args)
+                result = await call_tool(name, args)
                 crawls.append(result)
                 digest, new_pages = _crawl_digest(result, crawled_set)
                 for u in new_pages:
@@ -195,7 +197,7 @@ def build_recon_graph(model_call: ModelCall, call_tool: CallTool, max_steps: int
                 tried[key] = (f"{len(new_pages)} new page(s), "
                               f"{len(result.get('observed_requests', []))} request(s)")
                 new_msgs.append({"role": "tool", "tool_call_id": call["id"],
-                                 "content": (f"OBSERVATION from crawl of {seed}:\n{digest}\n---\n"
+                                 "content": (f"OBSERVATION from {name} of {seed}:\n{digest}\n---\n"
                                              f"PROGRESS: {steps_left} step(s) left. Crawled so far: "
                                              f"{len(crawled)} page(s). Crawl another route, run "
                                              f"ffuf/arjun/katana, or reply DONE.")})
