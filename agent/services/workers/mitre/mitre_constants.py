@@ -12,6 +12,11 @@ MAX_PASSES = int(os.environ.get("APTS_MITRE_MAX_PASSES", "3"))
 
 RECURSION_LIMIT = 2 * MAX_STEPS + 2
 
+# mitre is target-free — it only queries the ATT&CK knowledge base, never the
+# target — so concurrency is bounded by the model endpoint, not the target, and
+# several weaknesses can be mapped at once. Tune with APTS_MITRE_CONCURRENCY.
+CONCURRENCY = int(os.environ.get("APTS_MITRE_CONCURRENCY", "5"))
+
 # The mapping agent classifies; it does not probe. It gets only the ATT&CK
 # reference tools — never http_request/sqlmap.
 AGENT_TOOLS = {"attack_catalog", "attack_search", "attack_technique"}

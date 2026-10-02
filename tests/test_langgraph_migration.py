@@ -541,10 +541,16 @@ async def test_exploit_lc_credential_injection_and_deterministic_signal(monkeypa
     # Credential injection: the args SENT to sqlmap carried the session cookie...
     sent_sqlmap = next(args for name, args in fake.calls if name == "sqlmap")
     assert sent_sqlmap.get("cookie") == "token=abc"
+    # ...and the same call carries the sticky-LB shard header (a slot<n> value, one
+    # replica slot per proof), coexisting with the injected session, so the LB pins
+    # the whole proof to its own replica.
+    import re as _re
+    assert _re.fullmatch(r"slot\d+", sent_sqlmap.get("headers", {}).get(E.SHARD_HEADER) or "")
     # ...but the recorded evidence/transcript keeps the model's ORIGINAL args
-    # (no token duplicated into the stored request).
+    # (no token or shard header duplicated into the stored request).
     tx = next(t for t in result["transcript"] if t["tool"] == "sqlmap")
     assert "cookie" not in tx["request"]
+    assert E.SHARD_HEADER not in (tx["request"].get("headers") or {})
 
 
 async def test_exploit_lc_proven_without_signal_is_model_judgment(monkeypatch):
@@ -569,9 +575,10 @@ async def test_exploit_lc_proven_without_signal_is_model_judgment(monkeypatch):
     assert a["confirmed"] is True
     # A PROVEN verdict with no tool signal is flagged model_judgment, not upgraded.
     assert a["signal_basis"] == "model_judgment"
-    # No creds ⇒ the sent args were never touched.
+    # No creds ⇒ no CREDENTIAL injection. The only header added is the sticky-LB
+    # routing header (always present); no Authorization/Cookie slipped in.
     sent = next(args for name, args in fake.calls if name == "http_request")
-    assert "headers" not in sent or not sent.get("headers")
+    assert set(sent.get("headers") or {}) <= {E.SHARD_HEADER}
 
 
 # --------------------------------------------------------------------------- #
@@ -765,6 +772,49 @@ async def test_recon_worker_triages_observed_requests(monkeypatch):
     assert result["observed_requests"][0]["interest"] == "high"
 
 
+def test_recon_deterministic_interest_demotes_noise_promotes_api():
+    """socket.io/static -> low (so it can't flood the high-interest index); input &
+    REST/API endpoints -> high (so a bad LLM rating can't drop them from vuln's set)."""
+    from agent.services.workers.recon.recon_worker import _deterministic_interest
+    from shared.models import ObservedRequest
+
+    def R_(method, url, post_data=None, resource_type="xhr"):
+        return ObservedRequest(method=method, url=url, post_data=post_data,
+                               resource_type=resource_type)
+
+    assert _deterministic_interest(R_("GET", "http://t/rest/products/search?q=a")) == "high"
+    assert _deterministic_interest(R_("POST", "http://t/rest/user/login",
+                                      post_data='{"email":"a"}')) == "high"
+    assert _deterministic_interest(R_("GET", "http://t/api/Users/1")) == "high"  # IDOR, no param
+    assert _deterministic_interest(R_("GET", "http://t/socket.io/?EIO=4")) == "low"
+    assert _deterministic_interest(R_("POST", "http://t/socket.io/", post_data="x",
+                                      resource_type="websocket")) == "low"
+    assert _deterministic_interest(R_("GET", "http://t/main.js", resource_type="script")) == "low"
+    assert _deterministic_interest(R_("GET", "http://t/", resource_type="document")) is None  # defer
+
+
+async def test_recon_override_beats_llm_misrating(monkeypatch):
+    """Even when the LLM rates socket.io 'high', the deterministic pass demotes it."""
+    from agent.services.workers.recon import recon_worker as R
+    from shared.models import ObservedRequest
+
+    scripted = ScriptedModel(responses=[
+        AIMessage(content='{"rankings":[{"i":0,"interest":"high","reason":"looks busy"},'
+                          '{"i":1,"interest":"low","reason":"dunno"}]}'),
+    ])
+    monkeypatch.setattr(R, "build_chat_model", lambda *a, **k: scripted)
+    observed = [
+        ObservedRequest(method="POST", url="http://t/socket.io/", post_data="x",
+                        resource_type="websocket", source_page="p"),
+        ObservedRequest(method="GET", url="http://t/rest/products/search?q=a",
+                        resource_type="xhr", source_page="p"),
+    ]
+    await R.ReconWorker()._verify(scripted, {}, observed)
+    by_path = {o.url: o.interest for o in observed}
+    assert by_path["http://t/socket.io/"] == "low"             # demoted despite LLM "high"
+    assert by_path["http://t/rest/products/search?q=a"] == "high"  # promoted despite LLM "low"
+
+
 async def test_adviser_reason_uses_model_findings():
     """The adviser's reasoning call now runs on the LangChain model and yields findings."""
     from agent.services.workers.adviser import adviser_worker as A
@@ -818,3 +868,25 @@ async def test_vuln_drops_junk_hypotheses():
     assert len(hyps) == 1 and "XSS" in hyps[0]
     ff = V._extract_hypotheses("The q parameter reflects unsanitized into the search results DOM.")
     assert len(ff) == 1
+
+
+async def test_tool_wrapper_retries_on_target_connection_failure(monkeypatch):
+    """A connection-failure payload (target crashed/restarting) is retried below the
+    model; a normal result passes straight through."""
+    from agent.services.workers.common import common_agentic as A
+    monkeypatch.setattr(A, "TARGET_RETRY_WAIT", 0)   # no real sleep in the test
+    monkeypatch.setattr(A, "TARGET_RETRIES", 2)
+    calls = {"n": 0}
+    def resp(args):
+        calls["n"] += 1
+        if calls["n"] == 1:
+            return {"error": "All connection attempts failed"}   # target down
+        return {"found": True, "slug": args.get("slug")}          # back up
+    fake = FakeMcpClient(
+        [_Descriptor("hacktricks_article", "d",
+                     {"type": "object", "properties": {"slug": {"type": "string"}}})],
+        {"hacktricks_article": resp})
+    tools = A.as_langchain_tools(fake, await _descriptors(fake), tried={})
+    out = await {t.name: t for t in tools}["hacktricks_article"].ainvoke({"slug": "x"})
+    assert calls["n"] == 2            # retried once past the connection failure
+    assert "OBSERVATION" in out       # and succeeded on the retry

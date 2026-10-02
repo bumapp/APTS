@@ -24,8 +24,10 @@ Two deliberate choices
 """
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
+import os
 from typing import Any, Awaitable, Callable  # noqa: F401 (Awaitable re-exported for hooks)
 from urllib.parse import urlparse
 
@@ -37,6 +39,29 @@ from agent.services.workers.common.common_constants import (CONTEXT_BUDGET_CHARS
                                                       MCP_URL)
 
 log = logging.getLogger("agent.workers.agentic")
+
+# Target-resilience: a flaky/overloaded target can crash and restart mid-proof (a
+# fragile training app under fuzzing does this; so can a rate-limited real target).
+# When a tool call comes back looking like a connection failure, wait briefly and
+# retry the SAME call a few times rather than handing the model a false dead end —
+# the target is usually back within seconds. A normal result (even "not injectable")
+# never matches, so non-target tools (knowledge base) are unaffected.
+TARGET_RETRIES = int(os.environ.get("APTS_TOOL_CONN_RETRIES", "3"))
+TARGET_RETRY_WAIT = float(os.environ.get("APTS_TOOL_CONN_RETRY_WAIT", "3"))
+_CONN_FAIL_MARKERS = (
+    "connection refused", "connection_refused", "econnrefused", "err_connection",
+    "connection reset", "econnreset", "all connection attempts failed",
+    "max retries exceeded", "failed to establish", "connection aborted",
+    "socket hang up", "connection error", "remotedisconnected", "server disconnect")
+
+
+def _looks_like_conn_failure(payload: Any) -> bool:
+    """True if a tool payload looks like the target dropped the connection."""
+    try:
+        s = json.dumps(payload, default=str).lower()
+    except Exception:  # noqa: BLE001
+        s = str(payload).lower()
+    return any(m in s for m in _CONN_FAIL_MARKERS)
 
 
 # --------------------------------------------------------------------------- #
@@ -143,8 +168,19 @@ def as_langchain_tools(client: Any, descriptors: list, *,
                 return (f"You already ran this exact call: {name} -> {ledger[key]}. "
                         f"Change the arguments or use a different tool, or conclude now.")
             sent = transform(name, args) if transform else args
-            result = await client.call_tool(name, sent)
-            payload = _payload_of(result)
+            # Absorb transient target-connection failures (target crashed/restarting)
+            # below the model: wait and retry the same call a few times. Only
+            # connection-shaped failures retry; any real result passes straight through.
+            payload = None
+            for _try in range(TARGET_RETRIES + 1):
+                result = await client.call_tool(name, sent)
+                payload = _payload_of(result)
+                if _try < TARGET_RETRIES and _looks_like_conn_failure(payload):
+                    log.warning("%s: target connection failure, retry %d/%d in %.0fs",
+                                name, _try + 1, TARGET_RETRIES, TARGET_RETRY_WAIT)
+                    await asyncio.sleep(TARGET_RETRY_WAIT)
+                    continue
+                break
             # The bookkeeping callbacks (on_call/outcome) are side effects — a bug
             # in one must never turn a successful tool result into a model-facing
             # error (that once happened via a callback arity mismatch). Guard them.

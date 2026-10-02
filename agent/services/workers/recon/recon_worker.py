@@ -19,6 +19,7 @@ the observed requests just gain ``source_page`` and the model's ``interest`` /
 """
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
 import re
@@ -41,7 +42,7 @@ from shared.models import (
 from agent.services.workers.common import common_agentic as agentic
 from agent.services.workers.base import WorkContext, WorkFailed
 from .recon_constants import (
-    MAX_TOKENS, RECON_SYSTEM_PROMPT_ID)
+    CONCURRENCY, MAX_TOKENS, RECON_SYSTEM_PROMPT_ID)
 
 log = logging.getLogger("agent.workers.recon")
 
@@ -137,22 +138,28 @@ class ReconWorker:
         for idx, req in enumerate(observed):
             by_page.setdefault(req.source_page or "(unknown page)", []).append(idx)
 
-        for page, idxs in by_page.items():
+        # Pages are independent, so triage them concurrently (bounded). Each page
+        # owns a DISJOINT set of request indices, so writing each request's interest
+        # in parallel is race-free. This turns ~N sequential model calls into ~N/CONCURRENCY.
+        sem = asyncio.Semaphore(CONCURRENCY)
+
+        async def _rank_page(page: str, idxs: list[int]) -> None:
             listing = "\n".join(
                 f"{n}: {observed[i].method} {urlparse(observed[i].url).path or '/'}"
                 f"  params: {', '.join(_params_of(observed[i])) or '(none)'}"
                 f"{'  [has body]' if observed[i].post_data else ''}"
                 for n, i in enumerate(idxs))
             user = f"{directive}Page: {page}\nRequests:\n{listing}"
-            with trace_run(name="recon-triage", run_input=user,
-                           prompt=system.trace_prompt):
-                try:
-                    msg = await model.ainvoke(
-                        agentic.to_lc_messages(system.text, user), config=config)
-                except Exception as exc:  # noqa: BLE001 — triage is best-effort per page
-                    log.warning("recon rank call failed for %s: %s", page, exc)
-                    continue
-                reply = agentic.message_text(msg)
+            async with sem:
+                with trace_run(name="recon-triage", run_input=user,
+                               prompt=system.trace_prompt):
+                    try:
+                        msg = await model.ainvoke(
+                            agentic.to_lc_messages(system.text, user), config=config)
+                    except Exception as exc:  # noqa: BLE001 — triage is best-effort per page
+                        log.warning("recon rank call failed for %s: %s", page, exc)
+                        return
+                    reply = agentic.message_text(msg)
             for rank in _parse_rankings(reply):
                 pos = rank.get("i")
                 if isinstance(pos, int) and 0 <= pos < len(idxs):
@@ -164,6 +171,26 @@ class ReconWorker:
                      ", ".join(f"{observed[i].method} "
                                f"{urlparse(observed[i].url).path or '/'}="
                                f"{observed[i].interest or '?'}" for i in idxs))
+
+        await asyncio.gather(*(_rank_page(page, idxs)
+                               for page, idxs in by_page.items()))
+
+        # Deterministic override for the clear cases — applied to EVERY observed
+        # request (even ones the per-page LLM pass failed to rank), so transport
+        # noise can't flood the high-interest index and a real API endpoint can't
+        # be silently dropped from it by a bad rating.
+        forced = 0
+        for req in observed:
+            verdict = _deterministic_interest(req)
+            if verdict and verdict != req.interest:
+                req.interest = verdict
+                req.interest_reason = ("deterministic: input/API endpoint"
+                                       if verdict == "high"
+                                       else "deterministic: transport/static noise")
+                forced += 1
+        if forced:
+            log.info("recon triage: deterministic override set interest on %d "
+                     "request(s) (noise demoted, input/API endpoints promoted)", forced)
 
     # --- Asset Map builders (unchanged, plus source_page) ----------------- #
 
@@ -231,6 +258,45 @@ def _params_of(req: ObservedRequest) -> list[str]:
             params += [k for k, _ in parse_qsl(req.post_data, keep_blank_values=True)]
     seen: set[str] = set()
     return [p for p in params if not (p in seen or seen.add(p))]
+
+
+# Transport/polling and static-asset paths that are NEVER an attack surface worth
+# fuzzing. The LLM ranker kept rating juice-shop's socket.io long-poll as "high"
+# (hundreds of GET/POST /socket.io/), which flooded the high-interest index and
+# pushed real endpoints like /rest/products/search out of the vuln working set.
+_NOISE_PATH_RE = re.compile(r"(?:^|/)socket\.io(?:/|$)", re.IGNORECASE)
+_STATIC_EXT_RE = re.compile(
+    r"\.(?:js|mjs|css|map|png|jpe?g|gif|svg|ico|webp|woff2?|ttf|eot|mp4|webm|woff)$",
+    re.IGNORECASE)
+_STATIC_RESOURCE_TYPES = {"stylesheet", "image", "font", "media", "script"}
+# Paths that carry user input into app logic — the real surface. Forcing these high
+# means a single LLM mis-rating can't silently drop an API endpoint from the index.
+_API_PREFIX_RE = re.compile(r"^/(?:rest|api)/", re.IGNORECASE)
+
+
+def _deterministic_interest(req: ObservedRequest) -> str | None:
+    """Security-domain interest for the CLEAR cases, overriding the LLM.
+
+    Returns "low" for transport/static noise, "high" for input-carrying endpoints,
+    or None to defer to the model's rating. Deterministic on purpose: which HTTP
+    requests are worth fuzzing is domain knowledge, not a judgement call the ranker
+    should get to fumble per page.
+    """
+    path = urlparse(req.url).path or "/"
+    # Noise first — never promote transport/static, whatever the model said.
+    if _NOISE_PATH_RE.search(path):
+        return "low"
+    has_input = bool(_params_of(req)) or (
+        req.method.upper() in ("POST", "PUT", "PATCH", "DELETE")
+        and bool(req.post_data and req.post_data.strip()))
+    if not has_input and (_STATIC_EXT_RE.search(path)
+                          or (req.resource_type or "").lower() in _STATIC_RESOURCE_TYPES):
+        return "low"
+    # Real surface — input-carrying requests, and REST/API endpoints (IDOR/injection
+    # surface even when a GET shows no params, e.g. /api/Users/1).
+    if has_input or _API_PREFIX_RE.match(path):
+        return "high"
+    return None
 
 
 def _parse_rankings(text: str) -> list[dict]:

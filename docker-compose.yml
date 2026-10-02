@@ -212,7 +212,9 @@ services:
       APTS_LOOP_LLM_MODEL:   ${APTS_LOOP_LLM_MODEL:-qwen.qwen3-coder-480b-a35b-instruct}
       APTS_LOOP_LLM_TIMEOUT: ${APTS_LOOP_LLM_TIMEOUT:-150}
       APTS_VULN_FORCE_FETCH: ${APTS_VULN_FORCE_FETCH:-0}
-      APTS_VULN_MAX_REQUESTS: ${APTS_VULN_MAX_REQUESTS:-14}
+      # vuln assesses every high-interest recon request (no count cap in code), so it
+      # never bottlenecks the ~50 weaknesses exploit can now take. (The old
+      # APTS_VULN_MAX_REQUESTS was dead — nothing read it — so it is gone.)
       APTS_VULN_MAX_STEPS:   ${APTS_VULN_MAX_STEPS:-5}
       APTS_VULN_MAX_TOKENS:  ${APTS_VULN_MAX_TOKENS:-900}
     secrets:
@@ -278,8 +280,13 @@ services:
       APTS_LOOP_LLM_URL:     ${APTS_LOOP_LLM_URL:-https://bedrock-mantle.eu-north-1.api.aws/v1/chat/completions}
       APTS_LOOP_LLM_MODEL:   ${APTS_LOOP_LLM_MODEL:-qwen.qwen3-coder-480b-a35b-instruct}
       APTS_LOOP_LLM_TIMEOUT: ${APTS_LOOP_LLM_TIMEOUT:-300}
-      APTS_LOOP_MAX_STEPS:   ${APTS_LOOP_MAX_STEPS:-25}
-      APTS_EXPLOIT_MAX_WEAKNESSES: ${APTS_EXPLOIT_MAX_WEAKNESSES:-8}
+      APTS_LOOP_MAX_STEPS:   ${APTS_LOOP_MAX_STEPS:-50}
+      # How many candidate weaknesses the exploit stage actually tries to prove,
+      # and how many it proves at once. 8 replicas behind the sticky LB mean up to
+      # CONCURRENCY proofs each land on their own target instance, so a heavy
+      # sqlmap run no longer starves the others. Keep CONCURRENCY <= replica count.
+      APTS_EXPLOIT_MAX_WEAKNESSES: ${APTS_EXPLOIT_MAX_WEAKNESSES:-50}
+      APTS_EXPLOIT_CONCURRENCY: ${APTS_EXPLOIT_CONCURRENCY:-8}
     secrets:
       - source: agent_exploit_token
         target: token
@@ -487,10 +494,23 @@ services:
   #  `ports:` mapping yourself if you want to browse it, and understand that
   #  doing so puts a vulnerable app on your network.
   # ---------------------------------------------------------------------
-  juice-shop:
+  #  This training app leaks/over-allocates under aggressive concurrent fuzzing and
+  #  hits "JavaScript heap out of memory" no matter how much RAM/heap it is given
+  #  (verified: 2 GB + a 1.5 GB V8 heap still crash-looped). More memory does NOT
+  #  help; spreading the load does. So the engagement target `juice-shop` is an nginx
+  #  sticky LB in front of N identical replicas: each exploit proof is pinned (by the
+  #  X-APTS-Shard header the exploit worker sets) to ONE replica, so stateful detection
+  #  (sqlmap boolean-blind/UNION, login sessions, stored XSS) stays consistent, while
+  #  different weaknesses spread across replicas and no single instance is overloaded.
+  #  The exploit tool wrapper still retries the connection drop if a replica briefly
+  #  restarts (see common_agentic). Scale the pool by adding a juice-shop-N service
+  #  plus a matching `server` line in config/juice-shop-lb.conf. Agents still target
+  #  http://juice-shop:3000/ — only the LB is addressed; the replicas are internal to
+  #  its upstream and never named by the agents. This is lab-only horizontal scale.
+  juice-shop-1: &juice-shop-replica
     image: bkimminich/juice-shop:v17.1.1
-    container_name: apts-juice-shop
-    hostname: juice-shop
+    container_name: apts-juice-shop-1
+    hostname: juice-shop-1
     restart: unless-stopped
     networks: [ apts-target ]
     environment:
@@ -498,6 +518,46 @@ services:
     deploy:
       resources:
         limits: { memory: 768M, cpus: "1.0" }
+  juice-shop-2:
+    <<: *juice-shop-replica
+    container_name: apts-juice-shop-2
+    hostname: juice-shop-2
+  juice-shop-3:
+    <<: *juice-shop-replica
+    container_name: apts-juice-shop-3
+    hostname: juice-shop-3
+  juice-shop-4:
+    <<: *juice-shop-replica
+    container_name: apts-juice-shop-4
+    hostname: juice-shop-4
+  juice-shop-5:
+    <<: *juice-shop-replica
+    container_name: apts-juice-shop-5
+    hostname: juice-shop-5
+  juice-shop-6:
+    <<: *juice-shop-replica
+    container_name: apts-juice-shop-6
+    hostname: juice-shop-6
+  juice-shop-7:
+    <<: *juice-shop-replica
+    container_name: apts-juice-shop-7
+    hostname: juice-shop-7
+  juice-shop-8:
+    <<: *juice-shop-replica
+    container_name: apts-juice-shop-8
+    hostname: juice-shop-8
+
+  # The engagement target name/URL is preserved: this nginx IS `juice-shop:3000`.
+  juice-shop:
+    image: nginx:1.27-alpine
+    container_name: apts-juice-shop
+    hostname: juice-shop
+    restart: unless-stopped
+    networks: [ apts-target ]
+    volumes:
+      - ./config/juice-shop-lb.conf:/etc/nginx/conf.d/default.conf:ro
+    depends_on: [ juice-shop-1, juice-shop-2, juice-shop-3, juice-shop-4,
+                  juice-shop-5, juice-shop-6, juice-shop-7, juice-shop-8 ]
 
   # ---------------------------------------------------------------------
   #  Sandbox (locked-down stub)

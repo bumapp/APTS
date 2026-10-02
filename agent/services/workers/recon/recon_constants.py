@@ -6,6 +6,11 @@ from shared import prompts
 
 MAX_TOKENS = int(os.environ.get("APTS_RECON_MAX_TOKENS", "800"))
 
+# Triage ranks each crawled page independently, so the per-page model calls run
+# concurrently (bounded) instead of one-after-another — recon's crawl dominates
+# wall-clock, and sequential triage was adding ~1.5 min on a 40-page crawl.
+CONCURRENCY = int(os.environ.get("APTS_RECON_CONCURRENCY", "8"))
+
 RANK_SYSTEM = """\
 You are a web recon analyst triaging observed HTTP requests for an authorised
 penetration test. For the page below you are given the requests the browser

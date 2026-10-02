@@ -23,6 +23,7 @@ burning passes.
 """
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
 import re
@@ -41,7 +42,7 @@ from shared.models import AttackMap
 from agent.services.workers.common import common_agentic as agentic
 from agent.services.workers.base import WorkContext, WorkFailed
 from .mitre_constants import (
-    AGENT_TOOLS, FALLBACK_TECHNIQUE, MAX_PASSES, MAX_STEPS, MAX_TOKENS,
+    AGENT_TOOLS, CONCURRENCY, FALLBACK_TECHNIQUE, MAX_PASSES, MAX_STEPS, MAX_TOKENS,
     MITRE_SYSTEM_PROMPT_ID, RECURSION_LIMIT)
 
 log = logging.getLogger("agent.workers.mitre")
@@ -222,6 +223,8 @@ class MitreWorker:
                            for wid in sorted(known_ids)]},
                        engagement_id=str(ctx.engagement_id)) as _stage:
             try:
+                # One client to validate the ATT&CK tools exist + fetch the menu;
+                # each per-weakness mapping below opens its own session.
                 async with Client(agentic.MCP_URL) as client:
                     descriptors = [t for t in (await client.list_tools()).tools
                                    if t.name in AGENT_TOOLS]
@@ -233,37 +236,52 @@ class MitreWorker:
                         "attack_catalog", {})).structured_content
                     menu = _render_menu((catalog or {}).get("techniques", []))
 
-                    pre = agentic.directive_block(ctx.directive)
-                    for attempt in range(1, MAX_PASSES + 1):
-                        progressed = False
-                        for wid in sorted(remaining):
-                            tags = await _run_weakness(
-                                model, client, descriptors, menu, by_id[wid], pre,
-                                config, system.text, system.trace_prompt)
-                            if tags:
-                                mapped[wid] = tags
-                                remaining.discard(wid)
-                                progressed = True
-                        if not remaining:
-                            log.info("all %d weaknesses tagged after %d pass(es)",
-                                     len(known_ids), attempt)
-                            break
-                        if not progressed:
-                            log.warning(
-                                "pass %d confirmed no new technique for %d "
-                                "weakness(es); applying the deterministic fallback",
-                                attempt, len(remaining))
-                            break
-                        log.info("pass %d: %d tagged, %d still to map", attempt,
-                                 len(known_ids) - len(remaining), len(remaining))
-                    # §5.4 needs every weakness to carry >=1 technique. Any the
-                    # model could not map gets a deterministic fallback, so one
-                    # model/format miss never stalls the whole pipeline — the model
-                    # judges, the code guarantees the floor.
-                    for wid in sorted(remaining):
-                        mapped[wid] = [dict(FALLBACK_TECHNIQUE)]
-                        log.info("mitre fallback for %s -> %s", wid,
-                                 FALLBACK_TECHNIQUE["technique_id"])
+                pre = agentic.directive_block(ctx.directive)
+                sem = asyncio.Semaphore(CONCURRENCY)
+
+                async def _map_one(wid: str):
+                    # Target-free (ATT&CK KB only): each weakness in its own MCP
+                    # session so they map concurrently without racing.
+                    async with sem:
+                        try:
+                            async with Client(agentic.MCP_URL) as c:
+                                descs = [t for t in (await c.list_tools()).tools
+                                         if t.name in AGENT_TOOLS]
+                                return wid, await _run_weakness(
+                                    model, c, descs, menu, by_id[wid], pre, config,
+                                    system.text, system.trace_prompt)
+                        except Exception as exc:  # noqa: BLE001 — one weakness must not kill the stage
+                            log.warning("mitre map for %s failed: %s", wid, exc)
+                            return wid, []
+
+                for attempt in range(1, MAX_PASSES + 1):
+                    results = await asyncio.gather(
+                        *(_map_one(wid) for wid in sorted(remaining)))
+                    progressed = False
+                    for wid, tags in results:
+                        if tags:
+                            mapped[wid] = tags
+                            remaining.discard(wid)
+                            progressed = True
+                    if not remaining:
+                        log.info("all %d weaknesses tagged after %d pass(es)",
+                                 len(known_ids), attempt)
+                        break
+                    if not progressed:
+                        log.warning(
+                            "pass %d confirmed no new technique for %d "
+                            "weakness(es); applying the deterministic fallback",
+                            attempt, len(remaining))
+                        break
+                    log.info("pass %d: %d tagged, %d still to map", attempt,
+                             len(known_ids) - len(remaining), len(remaining))
+                # §5.4 needs every weakness to carry >=1 technique. Any the model
+                # could not map gets a deterministic fallback, so one model/format
+                # miss never stalls the whole pipeline — model judges, code floors.
+                for wid in sorted(remaining):
+                    mapped[wid] = [dict(FALLBACK_TECHNIQUE)]
+                    log.info("mitre fallback for %s -> %s", wid,
+                             FALLBACK_TECHNIQUE["technique_id"])
             except WorkFailed:
                 raise
             except Exception as exc:  # noqa: BLE001 — retryable stage failure

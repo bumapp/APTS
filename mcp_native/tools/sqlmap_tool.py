@@ -181,14 +181,22 @@ async def sqlmap(
             ["--dbms-cred", "--no-cast"]. The escape hatch for full control.
         timeout_sec: Hard wall-clock limit for this run (default 180s).
     """
+    # Clamp thoroughness. level/risk are the dominant request multipliers — level 5
+    # (tests headers/cookies/referer + more boundaries) and risk 3 (heavy OR-based
+    # payloads) can turn one call into tens of thousands of requests, which crashes
+    # the fragile target and wastes the step budget on dead endpoints. Real bugs on
+    # this surface prove at level 1-2 (login SQLi: level 2; search UNION: level 1),
+    # so cap at level 3 / risk 2 — the agent can still escalate within that band.
+    level = max(1, min(int(level), 3))
+    risk = max(1, min(int(risk), 2))
     argv = [
         "python3", SQLMAP_PATH,
         "-u", url,
         "--batch",                 # never interactive
         "--disable-coloring",      # clean, parseable output
         "--output-dir", OUTPUT_DIR,
-        "--level", str(int(level)),
-        "--risk", str(int(risk)),
+        "--level", str(level),
+        "--risk", str(risk),
     ]
     if method and method.upper() != "GET":
         argv += ["--method", method.upper()]
