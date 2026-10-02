@@ -17,6 +17,11 @@ container on a fresh Ubuntu 24.04 host.
   * `bootstrap/generate_certs.sh`
   * `bootstrap/generate_tokens.py`
 
+  Build the archive from the repository's own `bootstrap/` directory — those
+  three files are the canonical copies. Do not keep a second set alongside this
+  guide: it drifts, and a schema that is quietly one table short is how that
+  drift shows up.
+
 ---
 
 ## 1. Create a non-root user

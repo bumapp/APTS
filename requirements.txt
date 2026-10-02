@@ -6,5 +6,30 @@
 fastapi==0.115.5
 uvicorn[standard]==0.32.1
 httpx==0.27.2
-pydantic==2.9.2
+pydantic==2.13.5
 psycopg[binary]==3.2.3
+# Native MCP client — the vuln/exploit agentic loops drive the mcp-native server.
+# Requires pydantic>=2.12 (hence the bump above); schemas verified under 2.13.
+mcp==2.1.0
+# NOTE: the browser crawler (Playwright + python-Wappalyzer) now lives only in
+# the mcp-native image (mcp_native/crawler/, mcp_native/requirements.txt). No
+# service in this shared image drives a browser, so those deps are not here.
+# LangChain / LangGraph engine for the agentic loops + Langfuse observability.
+# Every agentic stage runs on this (create_react_agent + a shared ChatOpenAI;
+# see shared/llm.py, agent/services/workers/agentic.py). Every runtime backend is
+# OpenAI-compatible, so langchain-openai's ChatOpenAI covers Bedrock/local/DeepSeek
+# — no per-provider LangChain package needed. NOTE: langchain-mcp-adapters is
+# deliberately NOT here — it targets the MCP v1 SDK and this stack pins mcp v2
+# (shared workers use `mcp.Client`); the MCP tools are wrapped by hand instead
+# (agent/services/workers/agentic.py). langfuse needs the umbrella `langchain`
+# package for its callback handler (langfuse.langchain.CallbackHandler).
+langchain==0.3.30
+langchain-core==0.3.86
+langchain-openai==0.3.35
+langgraph==0.3.34
+langfuse==4.15.6
+# NOTE: the native MCP server (mcp_native/) is deliberately NOT built from this
+# shared image. Its SDK needs pydantic>=2.12 (this stack pins 2.9.2) and drags
+# in starlette/uvicorn/httpx2, so it gets its own isolated image —
+# mcp_native/Dockerfile + mcp_native/requirements.txt — keeping the six agents'
+# dependency set untouched.

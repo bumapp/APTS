@@ -24,12 +24,9 @@ Retry logic.
 """
 from __future__ import annotations
 
-import asyncio
 import logging
 import os
-import ssl
 from contextlib import asynccontextmanager
-from datetime import datetime
 from typing import Any
 from uuid import UUID, uuid4
 
@@ -37,9 +34,8 @@ import httpx
 import psycopg
 import uvicorn
 from fastapi import Depends, FastAPI, HTTPException
-from fastapi.responses import JSONResponse
 
-from shared import logging_config
+from shared import logging_config, pipeline, trace
 from shared.auth import Caller, bearer_headers, load_own_token, require_auth
 from shared.db import audit, get_conn
 from shared.models import (
@@ -56,16 +52,55 @@ from orchestrator.guardrails_entry import (
     GuardrailsEntryBlocked,
     check_engagement_spec,
 )
+# The orchestrator authors each next-stage directive with the model, reusing the
+# shared LangChain chat-model factory + the agents' message helpers (the
+# orchestrator image ships the agent code and has the same APTS_LOOP_LLM_* env +
+# llm_api_key secret).
+from agent.services.workers.common import common_agentic as agentic
+from shared.llm import build_chat_model, run_config
 
 logging_config.configure("orchestrator")
 log = logging.getLogger("orchestrator")
 
-CHAIN = ["recon", "vuln", "mitre", "exploit", "script", "adviser"]
-CRITICAL_AGENTS = {"recon", "vuln", "exploit"}
-MINOR_AGENTS   = {"mitre", "script", "adviser"}
-MAX_RETRIES    = 3  
-STALL_TIMEOUT_SECONDS = 60
-STALL_SCAN_INTERVAL   = 10
+# Stage order, criticality, and retry budget all live in shared.pipeline so the
+# orchestrator and the agents cannot disagree about the shape of the chain.
+CHAIN = list(pipeline.CHAIN)
+CRITICAL_AGENTS = pipeline.CRITICAL_AGENTS
+MAX_RETRIES = pipeline.MAX_RETRIES
+
+# When on, the orchestrator drives the pipeline: agents report ``done`` and the
+# orchestrator decides the next stage and dispatches it with a generated
+# directive. Must match the agents' APTS_ORCHESTRATOR_DRIVEN, or the chain either
+# stalls (agents wait, orchestrator idle) or double-runs (both advance). Off
+# restores the original agent self-chaining. Default on.
+ORCHESTRATOR_DRIVEN = os.environ.get("APTS_ORCHESTRATOR_DRIVEN", "1") == "1"
+
+def _recon_directive(objective: str = "") -> str:
+    """The first-stage directive for the CLI path, optionally shaped by the
+    operator's brief. Mirrors ``orchestrator.mcp_control._recon_directive`` (see
+    that module's note on the deliberate mirroring); generic by construction — the
+    objective is injected verbatim, never interpreted, and only biases triage."""
+    directive = ("Map the attack surface of the target: crawl it, record every "
+                 "in-scope request, and triage which are worth testing.")
+    objective = (objective or "").strip()
+    if objective:
+        directive += (f" Operator objective for this engagement: {objective} "
+                      "Let it steer what you prioritise; rank surface outside it lower.")
+    return directive
+
+
+# One-line brief for each stage, used to compose the directive handed to it.
+_STAGE_JOB = {
+    "vuln": "Assess each recon request and hypothesise concrete, testable web "
+            "weaknesses — pursue anything imaginable.",
+    "mitre": "Map each weakness to the MITRE ATT&CK technique(s) it corresponds to.",
+    "exploit": "Prove or disprove each weakness against the live target using "
+               "your tools; confirm only on a real tool signal.",
+    "script": "Write and sandbox-test a proof-of-concept script for each "
+              "confirmed weakness.",
+    "adviser": "Produce the client report: group duplicates, keep only proven "
+               "findings, and rank by impact.",
+}
 
 # We hold the orchestrator's own token in memory once, at startup.
 _OWN_TOKEN: str | None = None
@@ -87,24 +122,20 @@ async def lifespan(app: FastAPI):
         verify=client_ssl_context(),
         timeout=httpx.Timeout(30.0, connect=5.0),
     )
+    # Bring an older DB up to the current schema (idempotent) before serving.
+    from orchestrator import mcp_control
+    mcp_control._ensure_schema()
     log.info("orchestrator ready (chain=%s)", CHAIN)
     audit("orchestrator", "startup")
-
-    # Background: stall detection (§8)
-    scanner = asyncio.create_task(_stall_scanner(), name="stall_scanner")
-
     try:
         yield
     finally:
-        scanner.cancel()
-        try:
-            await scanner
-        except asyncio.CancelledError:
-            pass
         await _client.aclose()
         audit("orchestrator", "shutdown")
 
+
 app = FastAPI(title="APTS Orchestrator", lifespan=lifespan)
+
 
 # --------------------------------------------------------------------------- #
 # Public HTTPS API (port 8443, token-authenticated)
@@ -135,6 +166,13 @@ async def progress(update: ProgressUpdate, caller: Caller = Depends(require_auth
     # If an agent explicitly reports failure, decide whether to retry it.
     if update.status == "failed":
         await _handle_agent_failure(update)
+
+    # A stage finished cleanly. In orchestrator-driven mode this is our cue to
+    # decide the next stage and dispatch it; in agent-driven mode the agent has
+    # already handed off, so we only note terminal completion.
+    if update.status == "done":
+        if ORCHESTRATOR_DRIVEN and pipeline.next_agent(update.agent) is not None:
+            await _advance_after(update)
 
     # If the Adviser reports done, the engagement is complete.
     if update.agent == "adviser" and update.status == "done":
@@ -174,6 +212,18 @@ async def admin_start(spec: EngagementSpec) -> StartEngagementResponse:
     audit("orchestrator", "engagement_created",
           engagement_id=str(engagement_id), detail={"target_url": spec.target_url})
 
+    # The first row of the flow file: the request, exactly as accepted. Recorded
+    # after the engagement row exists, because agent_trace has a foreign key to
+    # it. A spec rejected at the entry checkpoint never gets an engagement ID and
+    # so has no trace — that rejection lives in audit_log alone.
+    trace.record_for(engagement_id, "orchestrator", "engagement_requested", {
+        "target_url": spec.target_url,
+        "scope": spec.scope.model_dump(mode="json"),
+        "objective": spec.objective,
+        "time_window": spec.time_window.model_dump(mode="json") if spec.time_window else {},
+        "chain": CHAIN,
+    })
+
     handoff = ChainHandoff(
         engagement_id=engagement_id,
         from_component="orchestrator",
@@ -181,11 +231,11 @@ async def admin_start(spec: EngagementSpec) -> StartEngagementResponse:
         scope=spec.scope,
         time_window=spec.time_window,
         results={},
+        directive=_recon_directive(spec.objective),
+        credentials=spec.credentials,
     )
 
-    ok = await _kickoff_agent_or_fail("recon", handoff)
-    if not ok:
-        pass
+    await _kickoff_agent("recon", handoff)
     return StartEngagementResponse(engagement_id=engagement_id, status="running")
 
 
@@ -201,11 +251,13 @@ def admin_read(engagement_id: UUID) -> EngagementStatus:
 def _create_engagement_row(engagement_id: UUID, spec: EngagementSpec) -> None:
     with get_conn() as conn, conn.cursor() as cur:
         cur.execute(
-            """INSERT INTO engagements (id, target_url, scope, time_window, status)
-               VALUES (%s, %s, %s::jsonb, %s::jsonb, 'running')""",
+            """INSERT INTO engagements
+                   (id, target_url, scope, time_window, objective, credentials, status)
+               VALUES (%s, %s, %s::jsonb, %s::jsonb, %s, %s::jsonb, 'running')""",
             (str(engagement_id), spec.target_url,
              psycopg.types.json.Json(spec.scope.model_dump()),
-             psycopg.types.json.Json(spec.time_window.model_dump() if spec.time_window else {})),
+             psycopg.types.json.Json(spec.time_window.model_dump() if spec.time_window else {}),
+             spec.objective, psycopg.types.json.Json(spec.credentials or {})),
         )
         # Seed the per-agent state rows so retries have something to increment
         for agent in CHAIN:
@@ -239,38 +291,8 @@ def _mark_engagement_complete(engagement_id: UUID) -> None:
         )
     log.info("engagement %s complete", engagement_id)
     audit("orchestrator", "engagement_complete", engagement_id=str(engagement_id))
+    trace.record_for(engagement_id, "orchestrator", "engagement_complete")
 
-def _mark_engagement_complete_partial(engagement_id: UUID, reason: str) -> None:
-    """Mark an engagement complete despite one or more minor agents having failed.
-
-    Used when a minor agent (MITRE, Script, Adviser) exhausted its retries
-    and the chain either continued with a backup path or ended without a
-    final report from the Adviser.  The engagement is still 'complete' from
-    the operator's point of view — only the record notes what was skipped.
-    """
-    with get_conn() as conn, conn.cursor() as cur:
-        cur.execute(
-            """UPDATE engagements SET status = 'complete_with_warnings',
-                                       completed_at = NOW()
-               WHERE id = %s""",
-            (str(engagement_id),),
-        )
-    log.warning("engagement %s complete with warnings: %s", engagement_id, reason)
-    audit("orchestrator", "engagement_complete_with_warnings",
-          engagement_id=str(engagement_id), detail={"reason": reason})
-
-
-def _mark_agent_skipped(engagement_id: UUID, agent: str) -> None:
-    """Record that a minor agent was skipped after retries exhausted."""
-    with get_conn() as conn, conn.cursor() as cur:
-        cur.execute(
-            """UPDATE engagement_state
-               SET status = 'skipped', updated_at = NOW()
-               WHERE engagement_id = %s AND agent = %s""",
-            (str(engagement_id), agent),
-        )
-    audit("orchestrator", "minor_agent_skipped",
-          engagement_id=str(engagement_id), detail={"agent": agent})
 
 def _read_status(engagement_id: UUID) -> EngagementStatus:
     with get_conn() as conn, conn.cursor() as cur:
@@ -314,27 +336,28 @@ async def _handle_agent_failure(update: ProgressUpdate) -> None:
         )
         (retry_count,) = cur.fetchone()
 
-    if retry_count >= MAX_RETRIES:
+    if retry_count > MAX_RETRIES:
         log.error("%s exhausted retries (%d) for engagement %s",
                   agent, MAX_RETRIES, update.engagement_id)
         audit("orchestrator", "retries_exhausted",
               engagement_id=str(update.engagement_id),
               detail={"agent": agent, "retry_count": retry_count})
-
         if agent in CRITICAL_AGENTS:
-            # §2.2.4 (annotated): a critical agent that cannot produce output
-            # ends the run — no downstream agent can proceed without it.
-            _mark_engagement_failed(update.engagement_id,
-                                    reason=f"{agent} failed {MAX_RETRIES} times")
-            return
-
-        # Minor agent — skip it and continue the chain from the next stage.
-        await _handle_minor_exhausted(update.engagement_id, agent)
+            _mark_engagement_failed(update.engagement_id, reason=f"{agent} failed 3 times")
         return
 
-    # Re-launch this agent with the *previous* stage's stored output
+    # Re-launch this agent with the *previous* stage's stored output, and tell it
+    # WHY the last attempt failed so it can try a different approach rather than
+    # replaying the same prompt into the same failure.
     prev_agent = _previous_agent(agent)
     payload = _load_prev_output(update.engagement_id, prev_agent)
+    results = payload.get("results", {})
+    feedback = (f"your previous attempt failed: "
+                f"{(update.message or 'no error message').strip()[:200]} — "
+                f"try a different approach, do not repeat what failed")
+    directive = await _compose_directive(agent, prev_agent or "orchestrator",
+                                         results, note=feedback,
+                                         objective=payload.get("objective", ""))
 
     handoff = ChainHandoff(
         engagement_id=update.engagement_id,
@@ -342,75 +365,181 @@ async def _handle_agent_failure(update: ProgressUpdate) -> None:
         target_url=payload["target_url"],
         scope=payload["scope"],
         time_window=payload.get("time_window"),
-        results=payload.get("results", {}),
+        results=results,
+        directive=directive,
+        credentials=payload.get("credentials", {}),
     )
     log.info("retry #%d for agent %s (engagement %s)", retry_count, agent, update.engagement_id)
     audit("orchestrator", "retry_launched",
           engagement_id=str(update.engagement_id),
           detail={"agent": agent, "attempt": retry_count})
-    await _kickoff_agent_or_fail(agent, handoff)
+    trace.record_for(update.engagement_id, "orchestrator", "retry_launched",
+                     {"agent": agent, "attempt": retry_count,
+                      "reason": update.message,
+                      "replayed_from": prev_agent or "(engagement spec)"})
+    await _kickoff_agent(agent, handoff)
 
-async def _handle_minor_exhausted(engagement_id: UUID, agent: str) -> None:
-    """A minor agent exhausted its retries.  Skip it, continue the chain.
 
-    Backup paths (§2.2.4 annotated):
-      * MITRE  → Exploit runs on Vuln's raw weakness list
-      * Script → Adviser runs on Exploit's evidence (Adviser reads from DB)
-      * Adviser → engagement is complete-with-warnings
-    """
-    _mark_agent_skipped(engagement_id, agent)
+def _previous_agent(agent: str) -> str | None:
+    return pipeline.previous_agent(agent)
 
-    next_agent = _next_agent(agent)
-    if next_agent is None:
-        # Adviser is the terminal agent — nothing to hand off to.
-        _mark_engagement_complete_partial(
-            engagement_id,
-            reason=f"{agent} skipped after {MAX_RETRIES} retries; no final report")
+
+# --------------------------------------------------------------------------- #
+# Orchestrator-driven advancement
+# --------------------------------------------------------------------------- #
+
+def _engagement_status(engagement_id: UUID) -> str | None:
+    with get_conn() as conn, conn.cursor() as cur:
+        cur.execute("SELECT status FROM engagements WHERE id = %s",
+                    (str(engagement_id),))
+        row = cur.fetchone()
+    return row[0] if row else None
+
+
+def _summarise_payload(payload: dict[str, Any]) -> str:
+    """A short line about what a stage produced — counts its list/dict members."""
+    if not isinstance(payload, dict):
+        return "a result"
+    parts = [f"{len(v)} {k}" for k, v in payload.items()
+             if isinstance(v, (list, dict)) and v]
+    return ", ".join(parts[:5]) or "a result"
+
+
+def _directive_for(successor: str, prev_agent: str, prev_payload: dict) -> str:
+    """Deterministic template directive — the fallback when the model is
+    unreachable, and the base the failure-feedback path builds on."""
+    return (f"The {prev_agent} stage produced: {_summarise_payload(prev_payload)}. "
+            f"{_STAGE_JOB.get(successor, 'Continue the pipeline.')}")
+
+
+DIRECTIVE_SYSTEM = """\
+You are the APTS orchestrator directing a pipeline of autonomous security agents
+(recon -> vuln -> mitre -> exploit -> script -> adviser). Write a SHORT directive
+(1-3 sentences, plain text, no preamble, no lists) telling the NEXT stage what to
+focus on, grounded in what the PREVIOUS stage actually produced. The structured
+artifact the agent receives is authoritative; your directive only steers
+emphasis and priorities. If an OPERATOR OBJECTIVE is given, it governs: carry it
+into this stage — translate it into what THIS stage should prioritise (and rank
+down what falls outside it) — while still doing the stage's core job. Be specific
+to this run. Output ONLY the directive text."""
+
+
+def _artifact_excerpt(payload: dict, limit: int = 1200) -> str:
+    """A compact highlights view of an artifact for the directive prompt."""
+    if not isinstance(payload, dict):
+        return ""
+    lines: list[str] = []
+    for k, v in payload.items():
+        if isinstance(v, list) and v:
+            parts = []
+            for it in v[:6]:
+                if isinstance(it, dict):
+                    label = (it.get("title") or it.get("id") or it.get("path")
+                             or it.get("url") or it.get("weakness_id")
+                             or next((str(x) for x in it.values()), ""))
+                    parts.append(str(label)[:70])
+                else:
+                    parts.append(str(it)[:70])
+            lines.append(f"- {k}: " + "; ".join(parts))
+    return "\n".join(lines)[:limit]
+
+
+async def _compose_directive(successor: str, prev_agent: str,
+                             prev_payload: dict, note: str = "",
+                             objective: str = "") -> str:
+    """Have the model author the next stage's directive from the previous output.
+
+    Falls back to the deterministic template if the model is unreachable, so an
+    advance never stalls on a directive. ``note`` (e.g. a failure reason) is
+    always surfaced to the agent, whichever path is taken. ``objective`` is the
+    operator's engagement-wide brief; it is injected verbatim (never interpreted
+    here) so every stage's directive is shaped by the same user intent."""
+    job = _STAGE_JOB.get(successor, "Continue the pipeline.")
+    objective = (objective or "").strip()
+    objective_line = (f"OPERATOR OBJECTIVE (governs this whole engagement — carry it "
+                      f"into this stage): {objective}\n" if objective else "")
+    loot = prev_payload.get("loot") if isinstance(prev_payload, dict) else None
+    loot_line = ""
+    if loot:
+        items = "; ".join(f"{l.get('type')}={str(l.get('value'))[:40]}"
+                          for l in loot[:6] if isinstance(l, dict))
+        loot_line = f"Interesting data already collected: {items}\n"
+    user = (objective_line +
+            f"Previous stage: {prev_agent} -> produced {_summarise_payload(prev_payload)}.\n"
+            f"Highlights:\n{_artifact_excerpt(prev_payload) or '(none)'}\n"
+            + loot_line +
+            f"\nNext stage: {successor}. Its job: {job}\n"
+            + (f"Also address this: {note}\n" if note else "")
+            + "Write the directive for the next stage.")
+    directive = ""
+    try:
+        model = build_chat_model("orchestrator", max_tokens=200)
+        msg = await model.ainvoke(
+            agentic.to_lc_messages(DIRECTIVE_SYSTEM, user),
+            config=run_config(agent="orchestrator"))
+        directive = agentic.message_text(msg)
+    except Exception as exc:  # noqa: BLE001 — never let a directive call stall the chain
+        log.warning("directive model call failed (%s); using template", exc)
+    if not directive:
+        directive = _directive_for(successor, prev_agent, prev_payload)
+        # The template can't fold in the objective, so append it verbatim.
+        if objective:
+            directive = f"{directive} Operator objective: {objective}"
+    # Guarantee the note reaches the agent even if the model dropped it.
+    if note and note.lower()[:20] not in directive.lower():
+        directive = f"{directive} (Note: {note})"
+    return directive
+
+
+async def _advance_after(update: ProgressUpdate) -> None:
+    """A stage reported ``done``; dispatch the next stage with a directive."""
+    agent = update.agent
+    successor = pipeline.next_agent(agent)
+    if successor is None:
+        return  # terminal stage; completion is handled by the caller
+
+    # Do not advance an engagement the operator stopped or that already ended.
+    status = _engagement_status(update.engagement_id)
+    if status != "running":
+        log.info("not advancing %s -> %s: engagement %s is %s",
+                 agent, successor, update.engagement_id, status)
         return
 
-    # Feed the next agent the output of the stage BEFORE the failed one, so
-    # it starts with the same input the failed agent would have processed.
-    predecessor_of_failed = _previous_agent(agent)
-    payload = _load_prev_output(engagement_id, predecessor_of_failed)
-
+    payload = _load_prev_output(update.engagement_id, agent)
+    results = payload.get("results", {}) or {}
+    directive = await _compose_directive(successor, agent, results,
+                                         objective=payload.get("objective", ""))
     handoff = ChainHandoff(
-        engagement_id=engagement_id,
+        engagement_id=update.engagement_id,
         from_component="orchestrator",
         target_url=payload["target_url"],
         scope=payload["scope"],
         time_window=payload.get("time_window"),
-        results=payload.get("results", {}),
+        results=results,
+        directive=directive,
+        credentials=payload.get("credentials", {}),
     )
+    log.info("advancing %s -> %s (engagement %s)", agent, successor,
+             update.engagement_id)
+    trace.record_for(update.engagement_id, "orchestrator", "advance",
+                     {"from": agent, "to": successor, "directive": directive})
+    await _kickoff_agent(successor, handoff)
 
-    log.warning("minor agent %s skipped; forwarding to %s using %s's output",
-                agent, next_agent, predecessor_of_failed)
-    audit("orchestrator", "chain_forwarded_past_skip",
-          engagement_id=str(engagement_id),
-          detail={"skipped": agent, "next": next_agent,
-                  "input_from": predecessor_of_failed})
-
-    await _kickoff_agent_or_fail(next_agent, handoff)
-
-def _previous_agent(agent: str) -> str | None:
-    idx = CHAIN.index(agent)
-    return CHAIN[idx - 1] if idx > 0 else None
-
-def _next_agent(agent: str) -> str | None:
-    """Return the next agent in the chain, or None if this is the Adviser."""
-    idx = CHAIN.index(agent)
-    return CHAIN[idx + 1] if idx < len(CHAIN) - 1 else None
 
 def _load_prev_output(engagement_id: UUID, prev_agent: str | None) -> dict[str, Any]:
     with get_conn() as conn, conn.cursor() as cur:
         cur.execute(
-            "SELECT target_url, scope, time_window FROM engagements WHERE id = %s",
+            "SELECT target_url, scope, time_window, objective, credentials "
+            "FROM engagements WHERE id = %s",
             (str(engagement_id),),
         )
-        target_url, scope, time_window = cur.fetchone()
+        target_url, scope, time_window, objective, credentials = cur.fetchone()
         payload: dict[str, Any] = {
             "target_url": target_url,
             "scope": scope,
             "time_window": time_window,
+            "objective": objective or "",
+            "credentials": credentials or {},
             "results": {},
         }
         if prev_agent is not None:
@@ -434,69 +563,8 @@ def _mark_engagement_failed(engagement_id: UUID, reason: str) -> None:
     log.error("engagement %s failed: %s", engagement_id, reason)
     audit("orchestrator", "engagement_failed",
           engagement_id=str(engagement_id), detail={"reason": reason})
-
-# --------------------------------------------------------------------------- #
-# Stall detection (§8)
-# --------------------------------------------------------------------------- #
-
-async def _stall_scanner() -> None:
-    """Background task: periodically look for stalled agents.
-
-    An agent is considered stalled if its ``engagement_state`` row is in an
-    active state (``kicked_off``, ``started``, ``in_progress``) and its
-    ``updated_at`` is older than ``STALL_TIMEOUT_SECONDS`` ago.  Each stall
-    is treated as an implicit failure and routed through the retry path.
-    """
-    log.info("stall scanner started (timeout=%ds, interval=%ds)",
-             STALL_TIMEOUT_SECONDS, STALL_SCAN_INTERVAL)
-    try:
-        while True:
-            await asyncio.sleep(STALL_SCAN_INTERVAL)
-            try:
-                await _scan_once()
-            except Exception as exc:
-                log.error("stall scan raised: %s", exc)
-    except asyncio.CancelledError:
-        log.info("stall scanner stopping")
-        raise
-
-
-async def _scan_once() -> None:
-    """One pass over the DB looking for stalled agents."""
-    with get_conn() as conn, conn.cursor() as cur:
-        cur.execute(
-            """SELECT es.engagement_id, es.agent, es.updated_at
-               FROM engagement_state es
-               JOIN engagements e ON e.id = es.engagement_id
-               WHERE e.status = 'running'
-                 AND es.status IN ('kicked_off', 'started', 'in_progress')
-                 AND es.updated_at < NOW() - make_interval(secs => %s)""",
-            (STALL_TIMEOUT_SECONDS,),
-        )
-        stalled = cur.fetchall()
-
-    for engagement_id, agent, updated_at in stalled:
-        log.warning("stall detected: engagement=%s agent=%s (last update %s)",
-                    engagement_id, agent, updated_at)
-        audit("orchestrator", "stall_detected",
-              engagement_id=str(engagement_id),
-              detail={"agent": agent,
-                      "last_update": updated_at.isoformat(),
-                      "timeout_seconds": STALL_TIMEOUT_SECONDS})
-
-        synthetic = ProgressUpdate(
-            engagement_id=engagement_id,
-            agent=agent,
-            status="failed",
-            message=(f"stall detected: no progress for at least "
-                     f"{STALL_TIMEOUT_SECONDS}s"),
-        )
-        _record_progress(synthetic)
-        try:
-            await _handle_agent_failure(synthetic)
-        except Exception as exc:
-            log.error("stall recovery for %s/%s raised: %s",
-                      engagement_id, agent, exc)
+    trace.record_for(engagement_id, "orchestrator", "engagement_failed",
+                     {"reason": reason})
 
 
 # --------------------------------------------------------------------------- #
@@ -504,62 +572,29 @@ async def _scan_once() -> None:
 # --------------------------------------------------------------------------- #
 
 async def _kickoff_agent(agent: str, handoff: ChainHandoff) -> None:
-    """Post the initial handoff to an agent's /run endpoint.
-
-    On success, arm the stall timer for this agent by recording
-    ``kicked_off`` in ``engagement_state``.  On failure, raise — the caller
-    is responsible for routing the failure through the retry path.
-    """
     assert _client is not None
     assert _OWN_TOKEN is not None
     url = f"https://agent-{agent}:8443/run"
-    resp = await _client.post(
-        url,
-        content=handoff.model_dump_json(),
-        headers=bearer_headers(_OWN_TOKEN),
-    )
-    resp.raise_for_status()
-
-    _record_kickoff(handoff.engagement_id, agent)
-    audit("orchestrator", "kickoff_launched",
-          engagement_id=str(handoff.engagement_id),
-          detail={"agent": agent})
-
-async def _kickoff_agent_or_fail(agent: str, handoff: ChainHandoff) -> bool:
-    """Call ``_kickoff_agent`` and route any exception through the retry path.
-
-    Returns True on success, False if the failure was handled by the retry
-    logic (which may have re-kicked the agent, exhausted it, or aborted the
-    engagement).
-    """
     try:
-        await _kickoff_agent(agent, handoff)
-        return True
+        resp = await _client.post(
+            url,
+            content=handoff.model_dump_json(),
+            headers=bearer_headers(_OWN_TOKEN),
+        )
+        resp.raise_for_status()
+        trace.record_for(handoff.engagement_id, "orchestrator", "kickoff",
+                         {"agent": agent, "url": url, "directive": handoff.directive})
     except Exception as exc:
-        log.error("kickoff of %s failed: %s", agent, exc)
+        log.error("failed to kick off %s: %s", agent, exc)
         audit("orchestrator", "kickoff_failed",
               engagement_id=str(handoff.engagement_id),
               detail={"agent": agent, "error": str(exc)})
-        synthetic = ProgressUpdate(
-            engagement_id=handoff.engagement_id,
-            agent=agent,
-            status="failed",
-            message=f"kickoff failed: {exc}",
-        )
-        _record_progress(synthetic)
-        await _handle_agent_failure(synthetic)
-        return False
+        trace.record_for(handoff.engagement_id, "orchestrator", "kickoff_failed",
+                         {"agent": agent, "url": url, "error": str(exc)})
+        # We don't retry the kickoff itself here; the failure will surface when
+        # the agent's status stays 'pending'.  Stall detection is a TODO.
+        raise
 
-def _record_kickoff(engagement_id: UUID, agent: str) -> None:
-    """Mark an agent's state as kicked_off, arming the stall timer."""
-    with get_conn() as conn, conn.cursor() as cur:
-        cur.execute(
-            """UPDATE engagement_state
-               SET status = 'kicked_off',
-                   updated_at = NOW()
-               WHERE engagement_id = %s AND agent = %s""",
-            (str(engagement_id), agent),
-        )
 
 # --------------------------------------------------------------------------- #
 # Entry point (runs both servers)
@@ -583,8 +618,16 @@ def _run_admin() -> None:
 
 
 if __name__ == "__main__":
-    # Run both servers in the same process using a small threading harness.
+    # Run the servers in the same process using a small threading harness:
+    # the admin API, the native-MCP control server (the Composer's interface),
+    # and the public API on the main thread.
     import threading
-    t = threading.Thread(target=_run_admin, name="admin", daemon=True)
-    t.start()
+    threading.Thread(target=_run_admin, name="admin", daemon=True).start()
+
+    from orchestrator import mcp_control
+    threading.Thread(target=mcp_control.serve, name="control-mcp", daemon=True).start()
+
+    from orchestrator import composer
+    threading.Thread(target=composer.serve, name="composer", daemon=True).start()
+
     _run_public()

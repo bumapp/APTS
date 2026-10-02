@@ -12,6 +12,13 @@ CREATE TABLE IF NOT EXISTS engagements (
     target_url   TEXT        NOT NULL,
     scope        JSONB       NOT NULL,
     time_window  JSONB       NOT NULL DEFAULT '{}',
+    objective    TEXT        NOT NULL DEFAULT '',
+        -- operator's free-text engagement brief; the orchestrator folds it into
+        -- every stage's composed directive. Advisory, does not narrow scope.
+    credentials  JSONB       NOT NULL DEFAULT '{}',
+        -- optional auth for the run (headers/cookies/basic_auth), carried to
+        -- every stage so any tool that needs it can authenticate to in-scope
+        -- hosts. Sensitive — same store already holds captured tokens as loot.
     status       VARCHAR(32) NOT NULL DEFAULT 'created',
         -- created | running | complete | failed
     created_at   TIMESTAMPTZ NOT NULL DEFAULT NOW(),
@@ -40,6 +47,45 @@ CREATE INDEX IF NOT EXISTS agent_results_engagement_idx
 
 
 -- =========================================================================
+--  recon_requests — one row per HTTP request the recon crawler actually
+--  observed, exploded out of the recon AssetMap so a request can be looked up
+--  precisely by its endpoint path.
+--
+--  The same data lives inside agent_results.payload->'observed_requests' as a
+--  JSON array; this table is the *indexed* projection of it. Populated eagerly
+--  by the recon pipeline when it persists its result (see
+--  agent/repositories/recon_request_repository.py), never from the crawl cache.
+--  The btree on (engagement_id, path) is what makes "fetch the request for
+--  endpoint /rest/user/login" an exact index lookup rather than a blob scan.
+-- =========================================================================
+CREATE TABLE IF NOT EXISTS recon_requests (
+    id            BIGSERIAL   PRIMARY KEY,
+    engagement_id UUID        NOT NULL REFERENCES engagements(id) ON DELETE CASCADE,
+    seq           INT         NOT NULL DEFAULT 0,
+        -- order the request was observed in during the crawl
+    method        VARCHAR(8)  NOT NULL DEFAULT 'GET',
+    url           TEXT        NOT NULL,
+        -- the full observed URL, query string included
+    path          TEXT        NOT NULL,
+        -- normalised path (no scheme/host/query) — the lookup key
+    source_page   TEXT        NOT NULL DEFAULT '',
+        -- the page that fired the request (its Referer), '' if none
+    content_type  TEXT        NOT NULL DEFAULT '',
+    resource_type VARCHAR(32) NOT NULL DEFAULT '',
+        -- xhr | fetch | document | ... (Playwright resource type)
+    headers       JSONB       NOT NULL DEFAULT '{}',
+    post_data     TEXT,
+        -- request body, if any (e.g. a login POST payload)
+    recorded_at   TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS recon_requests_engagement_path_idx
+    ON recon_requests (engagement_id, path);
+CREATE INDEX IF NOT EXISTS recon_requests_path_idx
+    ON recon_requests (path);
+
+
+-- =========================================================================
 --  audit_log — append-only history of every event in the system
 -- =========================================================================
 CREATE TABLE IF NOT EXISTS audit_log (
@@ -55,6 +101,43 @@ CREATE TABLE IF NOT EXISTS audit_log (
 CREATE INDEX IF NOT EXISTS audit_log_engagement_idx  ON audit_log (engagement_id);
 CREATE INDEX IF NOT EXISTS audit_log_component_idx   ON audit_log (component);
 CREATE INDEX IF NOT EXISTS audit_log_logged_at_idx   ON audit_log (logged_at DESC);
+
+
+-- =========================================================================
+--  agent_trace — the narrative of a run: what each stage was given, every
+--  model call and tool call it made, and what it produced
+-- =========================================================================
+--  Deliberately separate from audit_log. That table is the security trail —
+--  who called what, and which Guardrails decision followed (§8) — and it is
+--  small, uniform, and worth keeping forever. This one carries prompts and
+--  response bodies, is an order of magnitude larger, and exists to answer
+--  "why did the report say that?". Mixing the two would make the compliance
+--  log unreadable and the debugging log unquotable.
+--
+--  Ordering is by `id`, not `seq`: BIGSERIAL is monotonic across every agent
+--  writing concurrently, whereas `seq` only orders events within one stage
+--  run (and is 0 for orchestrator-level events, which have no stage).
+CREATE TABLE IF NOT EXISTS agent_trace (
+    id            BIGSERIAL   PRIMARY KEY,
+    engagement_id UUID        NOT NULL REFERENCES engagements(id) ON DELETE CASCADE,
+    agent         VARCHAR(32) NOT NULL,
+        -- a chain stage, or 'orchestrator' for request/retry/completion events
+    seq           INT         NOT NULL DEFAULT 0,
+        -- ordinal within this stage run; 0 for orchestrator events
+    event_type    VARCHAR(32) NOT NULL,
+        -- engagement_requested | kickoff | stage_input | llm_call | tool_call
+        -- | stage_output | handoff | stage_failed | retry_launched
+        -- | report_written | engagement_complete | engagement_failed
+    payload       JSONB       NOT NULL DEFAULT '{}',
+    duration_ms   INT,
+        -- nullable: instantaneous events have no duration
+    logged_at     TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS agent_trace_engagement_idx
+    ON agent_trace (engagement_id, id);
+CREATE INDEX IF NOT EXISTS agent_trace_event_type_idx
+    ON agent_trace (event_type);
 
 
 -- =========================================================================

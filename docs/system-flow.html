@@ -1,0 +1,349 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>How APTS works</title>
+<style>
+  /* Self-contained on purpose: no CDN, no webfonts, no build step.
+     Open it straight off disk, online or not. */
+  :root {
+    color-scheme: light dark;
+    --ink:#0e1217; --ground:#f2f4f7; --surface:#ffffff;
+    --rule:#d3d9e2; --rule-soft:#e9edf2;
+    --text:#1a2028; --text-dim:#5c6675; --text-faint:#8b95a4;
+    --accent:#c8811f; --accent-ink:#8a5409;
+    --ok:#2f7a4f; --warn:#b2552c; --bad:#982f45; --ai:#5b6bbf;
+    --mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+    --sans: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --ink:#f2f4f7; --ground:#0e1217; --surface:#161c24;
+      --rule:#2b3441; --rule-soft:#1c242e;
+      --text:#dfe5ec; --text-dim:#98a3b2; --text-faint:#6b7686;
+      --accent:#d99433; --accent-ink:#e0a04a;
+      --ok:#5cb185; --warn:#e08c5f; --bad:#d96e83; --ai:#93a0e0;
+    }
+  }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--ground); color:var(--text);
+         font-family:var(--sans); font-size:16px; line-height:1.65;
+         -webkit-font-smoothing:antialiased; }
+  .page { max-width:900px; margin:0 auto; padding:3rem 1.25rem 6rem; }
+
+  h1 { font-family:var(--mono); font-size:clamp(1.7rem,5vw,2.4rem); font-weight:600;
+       letter-spacing:-.03em; margin:0 0 .6rem; color:var(--ink); }
+  .sub { font-size:1.08rem; color:var(--text-dim); margin:0 0 .4rem; max-width:62ch; }
+  h2 { font-size:1.35rem; margin:3.2rem 0 1rem; color:var(--ink);
+       padding-bottom:.5rem; border-bottom:2px solid var(--accent);
+       display:inline-block; }
+  h3 { font-size:1.02rem; margin:1.8rem 0 .5rem; color:var(--ink); }
+  p, li { max-width:70ch; }
+  code { font-family:var(--mono); font-size:.87em; background:var(--rule-soft);
+         color:var(--accent-ink); padding:.12em .38em; border-radius:3px; }
+  pre { background:var(--surface); border:1px solid var(--rule); border-radius:4px;
+        padding:.9rem 1rem; overflow-x:auto; font-family:var(--mono);
+        font-size:.82rem; line-height:1.6; }
+  pre code { background:none; color:var(--text); padding:0; }
+  a { color:var(--accent-ink); }
+
+  .callout { border-left:4px solid var(--accent); background:var(--surface);
+             padding:1rem 1.2rem; border-radius:0 4px 4px 0; margin:1.4rem 0;
+             max-width:70ch; }
+  .callout.big { font-size:1.15rem; font-weight:600; color:var(--ink); }
+  .callout h3 { margin-top:0; color:var(--accent-ink); }
+
+  table { border-collapse:collapse; width:100%; margin:1.2rem 0; font-size:.92rem;
+          display:block; overflow-x:auto; }
+  th, td { text-align:left; padding:.6rem .8rem; border-bottom:1px solid var(--rule);
+           vertical-align:top; }
+  th { font-family:var(--mono); font-size:.7rem; letter-spacing:.1em;
+       text-transform:uppercase; color:var(--text-faint); font-weight:600; }
+  td code { white-space:nowrap; }
+
+  /* pipeline diagram, drawn in CSS so it needs nothing */
+  .pipeline { display:flex; flex-wrap:wrap; gap:.5rem; align-items:stretch;
+              margin:1.5rem 0; }
+  .step { flex:1 1 130px; background:var(--surface); border:1px solid var(--rule);
+          border-top:3px solid var(--tone); border-radius:4px; padding:.7rem .8rem;
+          display:flex; flex-direction:column; gap:.25rem; min-width:130px; }
+  .step .n { font-family:var(--mono); font-size:.65rem; letter-spacing:.12em;
+             text-transform:uppercase; color:var(--text-faint); }
+  .step .t { font-family:var(--mono); font-size:.92rem; color:var(--ink); font-weight:600; }
+  .step .d { font-size:.8rem; color:var(--text-dim); }
+  .step .ai { font-family:var(--mono); font-size:.62rem; letter-spacing:.08em;
+              text-transform:uppercase; color:var(--tone); margin-top:.15rem; }
+
+  .flowbox { background:var(--surface); border:1px solid var(--rule); border-radius:4px;
+             padding:1.1rem 1.2rem; margin:1.2rem 0; font-family:var(--mono);
+             font-size:.83rem; line-height:1.9; overflow-x:auto; }
+  .flowbox .q { color:var(--ink); font-weight:600; }
+  .flowbox .no { color:var(--bad); }
+  .flowbox .yes { color:var(--ok); }
+
+  .legend { display:flex; flex-wrap:wrap; gap:.5rem 1.4rem; font-family:var(--mono);
+            font-size:.72rem; color:var(--text-dim); margin:.6rem 0 0; }
+  .legend span { display:flex; align-items:center; gap:.4rem; }
+  .legend i { width:10px; height:10px; border-radius:2px; }
+
+  footer { margin-top:4rem; padding-top:1.2rem; border-top:1px solid var(--rule);
+           font-family:var(--mono); font-size:.72rem; letter-spacing:.08em;
+           text-transform:uppercase; color:var(--text-faint); }
+</style>
+</head>
+<body>
+<div class="page">
+
+<h1>How APTS works</h1>
+<p class="sub">New to the project? Start here. Fifteen minutes and you'll know what
+this system does, how the pieces fit, and which rules you must not break.</p>
+<p class="sub" style="font-size:.9rem">Same content as
+<a href="system-flow.md"><code>system-flow.md</code></a>, which renders on GitHub.</p>
+
+<h2>1. What this thing is</h2>
+<p><strong>You give it a website. It tries to break in. It writes you a report.</strong></p>
+<p>A human penetration tester spends 1–4 weeks doing this by hand. APTS is six small
+programs — we call them <em>agents</em> — that do the same job in a few minutes, one
+after another, like a factory line.</p>
+
+<div class="pipeline">
+  <div class="step" style="--tone:var(--ok)">
+    <div class="n">step 1</div><div class="t">recon</div>
+    <div class="d">Find the pages</div><div class="ai">no AI</div></div>
+  <div class="step" style="--tone:var(--ai)">
+    <div class="n">step 2</div><div class="t">vuln</div>
+    <div class="d">Guess what's broken</div><div class="ai">AI + checks</div></div>
+  <div class="step" style="--tone:var(--ai)">
+    <div class="n">step 3</div><div class="t">mitre</div>
+    <div class="d">Label each bug</div><div class="ai">AI</div></div>
+  <div class="step" style="--tone:var(--ai)">
+    <div class="n">step 4</div><div class="t">exploit</div>
+    <div class="d">Try to prove it</div><div class="ai">AI + judge</div></div>
+  <div class="step" style="--tone:var(--ai)">
+    <div class="n">step 5</div><div class="t">script</div>
+    <div class="d">Write repro scripts</div><div class="ai">AI + safety</div></div>
+  <div class="step" style="--tone:var(--accent)">
+    <div class="n">step 6</div><div class="t">adviser</div>
+    <div class="d">Write the report</div><div class="ai">AI wording</div></div>
+</div>
+<div class="legend">
+  <span><i style="background:var(--ok)"></i> plain code</span>
+  <span><i style="background:var(--ai)"></i> AI involved</span>
+  <span><i style="background:var(--accent)"></i> the deliverable</span>
+</div>
+<p>Each agent does one job, hands its result to the next, and saves a copy to the
+database. Four of the six use an AI model. Two don't.</p>
+
+<h2>2. The one rule that explains everything else</h2>
+<div class="callout big">The AI suggests. The code decides.</div>
+<p>Every important decision in this system is made by ordinary Python, not by the AI.
+The AI is only allowed to do the fuzzy, judgement-y parts.</p>
+
+<h3>A real example of why</h3>
+<p>On an early run, the AI looked at a cross-site scripting bug and rated it
+<strong>9.6 out of 10 — critical</strong>. That kind of bug is normally about a 6. If
+we'd shipped that, a customer would have dropped everything to fix a
+medium-severity issue.</p>
+<p>So now the AI is not allowed to give us a number at all. It gives us a
+<em>description</em> of the bug (<code>AV:N/AC:L/PR:N/UI:R/...</code> — a standard
+format called a CVSS vector), and our code does the arithmetic. If the AI's
+description is obviously exaggerated for that type of bug, the code overrules it
+and writes down that it did.</p>
+
+<table>
+  <tr><th>The AI is allowed to…</th><th>Code always decides…</th></tr>
+  <tr><td>Guess which pages look vulnerable</td><td>Whether that page actually exists (we fetch it)</td></tr>
+  <tr><td>Describe how bad a bug is</td><td>The severity number</td></tr>
+  <tr><td>Design a test that would prove a bug</td><td>Whether the test actually proved it</td></tr>
+  <tr><td>Write remediation advice in English</td><td>Every count, status, and score in the report</td></tr>
+</table>
+
+<p><strong>Why so strict?</strong> Because a wrong answer here doesn't just look bad —
+it goes into a report that a customer acts on. A made-up vulnerability wastes their
+engineers' time. A fake "confirmed" makes them trust a report they shouldn't.</p>
+
+<h2>3. The six agents</h2>
+<table>
+  <tr><th>#</th><th>Agent</th><th>Gets</th><th>Produces</th><th>AI?</th></tr>
+  <tr><td>1</td><td><code>recon</code></td><td>the target URL</td><td>pages, forms, API routes</td><td><strong>No</strong></td></tr>
+  <tr><td>2</td><td><code>vuln</code></td><td>that list</td><td>suspected bugs with severity</td><td>Yes</td></tr>
+  <tr><td>3</td><td><code>mitre</code></td><td>the bug list</td><td>standard labels per bug</td><td>Yes</td></tr>
+  <tr><td>4</td><td><code>exploit</code></td><td>the bug list</td><td>which bugs are actually real</td><td>Yes</td></tr>
+  <tr><td>5</td><td><code>script</code></td><td>the proven bugs</td><td>copy-pasteable repro scripts</td><td>Yes</td></tr>
+  <tr><td>6</td><td><code>adviser</code></td><td>everything above</td><td>the final report</td><td>Wording only</td></tr>
+</table>
+
+<h3>Why recon has no AI</h3>
+<p>Recon's job is "what pages exist on this site?" A crawler answers that
+<em>exactly</em>. An AI would answer it <em>approximately</em> — and a made-up page
+would then be tested by agent 2, labelled by agent 3, and printed in the customer's
+report as part of their application. So recon just crawls and reports what it saw.</p>
+
+<h3>What "confirmed" means</h3>
+<p>Only agent 4 may say a bug is <strong>confirmed</strong>. Everything before it is a
+guess. How it works:</p>
+<ol>
+  <li>The AI writes down, <em>in advance</em>, what it would need to see to prove the
+      bug. For example: <em>"send <code>?q=UNIQUEMARKER</code> and if
+      <code>UNIQUEMARKER</code> comes back in the page unescaped, that proves
+      reflection."</em></li>
+  <li>Our code sends the request and checks for exactly that.</li>
+  <li>Our code also fetches the page <strong>without</strong> the payload. If the
+      marker shows up there too, it proves nothing.</li>
+</ol>
+<div class="callout">
+  <h3>Why step 3 exists</h3>
+  <p>A real bug we hit. The AI said "if the response contains the word
+  <code>admin</code>, that proves it." The server returned a 500 error page that
+  printed the requested URL — <code>/rest/admin</code> — so the word "admin" was
+  right there. <strong>Four findings got confirmed on nothing at all.</strong> The
+  before-and-after comparison fixed it.</p>
+</div>
+
+<h2>4. What happens when you run it</h2>
+<pre><code>docker compose up -d
+
+docker exec apts-orchestrator python -m orchestrator.cli start \
+  --target=http://juice-shop:3000/ --domain='juice-shop'</code></pre>
+
+<ol>
+  <li><strong>The orchestrator checks your request.</strong> Is this target one we're
+      allowed to test? Does the URL fall inside the scope you declared? If not it
+      refuses now, rather than starting a run that would fail on its first request.</li>
+  <li><strong>Recon crawls the site.</strong> Our practice target (OWASP Juice Shop)
+      is a JavaScript app, so its homepage has <em>no links at all</em> — everything is
+      drawn by JavaScript. So recon also downloads the JavaScript files and pulls the
+      API addresses out of them. That takes it from 1 page found to
+      <strong>44 API routes</strong>.</li>
+  <li><strong>Vuln asks the AI</strong> which look risky, then <strong>fetches each
+      one</strong> to check it's real. Anything returning 404 is thrown away — the AI
+      made it up.</li>
+  <li><strong>Mitre</strong> labels each bug with a standard code (like
+      <code>T1190</code>) so the report speaks the same language as other security
+      tools.</li>
+  <li><strong>Exploit</strong> tries to prove each one, using the before-and-after
+      check above.</li>
+  <li><strong>Script</strong> writes a small Python script for each <em>proven</em>
+      bug. Nothing gets a script unless it was proven.</li>
+  <li><strong>Adviser</strong> collects everything and writes the report to
+      <code>./reports/</code>.</li>
+</ol>
+
+<pre><code>reports/report-&lt;engagement-id&gt;.md     ← read this one
+reports/report-&lt;engagement-id&gt;.json   ← for other tools to parse</code></pre>
+
+<h3>A real result</h3>
+<p>From an actual run against Juice Shop: <strong>15 suspected bugs</strong>,
+<strong>2 proven</strong> (<code>/rest/user/whoami</code> and
+<code>/api/SecurityQuestions</code> both hand out data without asking who you are),
+8 tested but not proven, 5 never tested.</p>
+<p>The report says all of that plainly. It does <strong>not</strong> say "13 issues
+found" and leave you to assume they're real.</p>
+
+<h2>5. Where the code lives</h2>
+<p>Every service is organised the same way:</p>
+<pre><code>controllers/    the web endpoints — receives a request, returns a response
+providers/      the recipe — calls services in the right order
+services/       the actual work — one job each
+repositories/   database only — every SQL query lives here
+utils/          little helpers with no dependencies</code></pre>
+<p><strong>Each layer only ever calls the one below it.</strong> A controller never
+runs SQL. A service never knows there's a web request. If you find yourself importing
+"upwards", something has gone wrong.</p>
+
+<table>
+  <tr><th>I want to…</th><th>Look at</th></tr>
+  <tr><td>Change what an agent does</td><td><code>agent/services/workers/&lt;name&gt;_worker.py</code></td></tr>
+  <tr><td>Add a new tool for agents</td><td><code>mcp_tools/services/tools/</code></td></tr>
+  <tr><td>Change who can use which tool</td><td><code>mcp_tools/services/policy_service.py</code></td></tr>
+  <tr><td>Change the safety rules</td><td><code>mcp_tools/services/guardrails_service.py</code></td></tr>
+  <tr><td>Change how the report looks</td><td><code>agent/services/report_renderer.py</code></td></tr>
+  <tr><td>Change severity maths</td><td><code>shared/cvss.py</code></td></tr>
+</table>
+
+<h2>6. The safety rules</h2>
+<p>Agents <strong>never</strong> talk to the target directly. Every request goes
+through one container (<code>mcp-tools</code>) that checks it first:</p>
+
+<div class="flowbox">
+<span class="q">1. Are you a real agent?</span> ───────────────── <span class="no">no → refused</span><br>
+<span class="q">2. Is this tool on your allowed list?</span> ───── <span class="no">no → refused</span><br>
+<span class="q">3. What scope was this job approved for?</span> ── (looked up in the database)<br>
+<span class="q">4. Inside that scope, and not destructive?</span> ─ <span class="no">no → blocked</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; <span class="yes">all yes → the tool runs</span>
+</div>
+
+<ul>
+  <li><strong>Recon literally cannot run shell commands.</strong> Not "shouldn't" —
+      the allowed list doesn't include it, so the request is refused before anything
+      reads the arguments.</li>
+  <li><strong>Scope comes from the database, never from the agent.</strong> An agent
+      can't ask for a bigger playground than it was given.</li>
+  <li><strong>If we can't tell whether something is in scope, we block it.</strong>
+      "I'm not sure" and "no" have the same result.</li>
+  <li><strong>The crawler re-checks every link it finds.</strong> The safety check
+      only ever saw the first URL. A link to <code>evil.com</code> on an approved page
+      is just a normal <code>&lt;a href&gt;</code> — an unchecked crawler would happily
+      follow it.</li>
+  <li><strong>Nothing destructive is ever sent.</strong> No <code>DROP TABLE</code>,
+      no <code>DELETE</code>, no <code>rm</code>. We prove a bug by making the app
+      <em>react</em>, never by breaking anything.</li>
+</ul>
+
+<h3>The network</h3>
+<p>The practice target sits on its own Docker network marked
+<code>internal: true</code>, which means Docker gives it no route out. It can't reach
+the internet, and nothing on your machine can reach it. Only <code>mcp-tools</code>
+sits on both networks — which is exactly why the safety checks live there and nowhere
+else.</p>
+<pre><code># works
+docker exec apts-mcp-tools  python -c "import httpx;print(httpx.get('http://juice-shop:3000/').status_code)"
+# fails with ConnectError — agents can't reach the target directly
+docker exec apts-agent-recon python -c "import httpx;httpx.get('http://juice-shop:3000/',timeout=5)"</code></pre>
+
+<h2>7. Running the tests</h2>
+<p>189 tests, no network or database needed:</p>
+<pre><code>docker build -t apts-skeleton:latest .
+docker run --rm --user root \
+  -v "$PWD/tests:/app/tests:ro" -v "$PWD/pytest.ini:/app/pytest.ini:ro" \
+  apts-skeleton:latest sh -c "pip install -q pytest pytest-asyncio && python -m pytest -q"</code></pre>
+<p>Tests that call the real AI model are skipped by default so nobody spends money by
+accident. Turn them on with <code>APTS_LIVE_LLM_TESTS=1</code>.</p>
+<p>Want to watch the safety checks work without running the whole system?
+<code>python scripts/trace_flow.py</code></p>
+
+<h2>8. What isn't finished</h2>
+<p>Be honest about this in any demo:</p>
+<ul>
+  <li><strong>The AI picks weak proof signals.</strong> Our checking is solid, but the
+      AI often chooses something lazy like "did it return 200?" — which proves the page
+      exists, not that it's broken. Most bugs stay unproven as a result.</li>
+  <li><strong>Standard labels aren't verified.</strong> We check that
+      <code>T1190</code> is the right <em>shape</em>, not the right <em>label</em>. A
+      real code applied to the wrong bug still gets through.</li>
+  <li><strong>No PDF.</strong> Markdown and JSON only.</li>
+  <li><strong>No Simulation Engine.</strong> The spec describes a feature that
+      generates practice websites on demand — six templates, adjustable difficulty. It
+      doesn't exist yet; we borrow OWASP Juice Shop instead. That's roughly 40% of the
+      spec.</li>
+</ul>
+
+<h2>Jargon</h2>
+<table>
+  <tr><th>Term</th><th>Meaning</th></tr>
+  <tr><td><strong>Agent</strong></td><td>One of the six programs in the pipeline</td></tr>
+  <tr><td><strong>Engagement</strong></td><td>One run against one target</td></tr>
+  <tr><td><strong>Scope</strong></td><td>The domains and paths we're allowed to touch</td></tr>
+  <tr><td><strong>Artifact</strong></td><td>The typed result one agent hands to the next</td></tr>
+  <tr><td><strong>MCP</strong></td><td>The container holding every tool agents can use</td></tr>
+  <tr><td><strong>Guardrails</strong></td><td>The safety checks that block unsafe requests</td></tr>
+  <tr><td><strong>CVSS</strong></td><td>Industry-standard 0–10 severity score</td></tr>
+  <tr><td><strong>ATT&amp;CK</strong></td><td>Industry-standard catalogue of attacker techniques</td></tr>
+  <tr><td><strong>Juice Shop</strong></td><td>A deliberately broken practice website</td></tr>
+</table>
+
+<footer>Agentic Penetration Testing System · onboarding · internal</footer>
+</div>
+</body>
+</html>

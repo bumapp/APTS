@@ -21,10 +21,17 @@ RUN groupadd --system --gid 1000 apts \
 
 # Minimum system packages: openssl for cert manipulation, ca-certificates for
 # the base OS trust store.  Everything else comes from wheels.
-RUN apt-get update \
+#
+# Fetch over HTTPS: networks with an intercepting HTTP proxy corrupt apt's
+# clearsigned InRelease files ("got 'NOSPLIT'").  ca-certificates ships in the
+# base image, so https works before we install anything.
+RUN sed -i 's|http://deb.debian.org|https://deb.debian.org|g' \
+        /etc/apt/sources.list.d/debian.sources /etc/apt/sources.list 2>/dev/null; \
+    apt-get update \
  && apt-get install -y --no-install-recommends \
         openssl \
         ca-certificates \
+        curl \
         tini \
  && rm -rf /var/lib/apt/lists/*
 
@@ -34,11 +41,14 @@ WORKDIR /app
 COPY requirements.txt /app/requirements.txt
 RUN pip install --no-cache-dir -r /app/requirements.txt
 
+# No service in this image drives a browser anymore — the Playwright crawler
+# moved to the mcp-native image (mcp_native/crawler/). So no Chromium install
+# here; that heavy layer belongs only to mcp-native now.
+
 # Copy the source last so a code edit only busts the final layer
 COPY shared/       /app/shared/
 COPY orchestrator/ /app/orchestrator/
 COPY agent/        /app/agent/
-COPY mcp_tools/    /app/mcp_tools/
 COPY sandbox/      /app/sandbox/
 
 # Directory where each service expects to find its TLS cert and the trust bundle

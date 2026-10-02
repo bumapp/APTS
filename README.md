@@ -1,17 +1,24 @@
-# APTS Skeleton
+# APTS — Agentic Penetration Testing System
 
-Deployment infrastructure for the **Autonomous Penetration Testing System** —
-a chain of six working agents plus an orchestrator, backed by a central
-database and reached only through a controlled MCP surface. This repository
-is the **skeleton**: every container, every secure channel, every DB write,
-and every retry path is real, but each agent's actual work is a stub that
-sleeps briefly and returns a canned result. Swapping the stubs for real
-model calls is a follow-up step that touches only `agent/stub_work.py` and
-`mcp_tools/main.py` — the deployment, transport, and control-plane
-infrastructure does not change.
+Point it at a web application; it maps the attack surface, proposes weaknesses,
+tries to prove them, and writes a report. Six agents run in sequence behind an
+orchestrator, backed by Postgres, and every request to the target passes through
+a single controlled MCP surface.
+
+All six stages now do real work — four use an LLM, two are pure code. The design
+rule throughout is **the model judges, code decides**: anything a wrong answer
+would put in front of a client (a severity, a confirmation, a count) is computed,
+never generated.
 
 
 ![deployment topology](docs/deployment.png)
+
+---
+
+**New here?** Read **[docs/system-flow.md](docs/system-flow.md)** first — what the
+system does, how the six agents fit together, and the rules not to break. There is
+a [browser version](docs/system-flow.html) of the same thing. Full doc index:
+[docs/README.md](docs/README.md).
 
 ---
 
@@ -91,7 +98,9 @@ docker compose logs -f database   # wait for "database system is ready to accept
 ```
 
 The schema in `bootstrap/init_db.sql` is loaded automatically on first
-start (via the Postgres image's `docker-entrypoint-initdb.d` hook).
+start (via the Postgres image's `docker-entrypoint-initdb.d` hook). That hook
+runs *only* against an empty data directory — if the `db_data` volume already
+exists, apply schema changes by hand (see §9a).
 
 ### 5. Generate tokens and seed hashes
 
@@ -160,6 +169,62 @@ docker exec -it apts-database psql -U apts -d apts \
 You should see one `agent_results` row per agent and a dense audit trail
 covering every kickoff, handoff, and progress update.
 
+### 9a. Read the execution flow
+
+Every engagement writes a **flow file** next to its report — the whole run from
+the request to the generated report, including each stage's input and output,
+every LLM prompt and raw reply, and every tool call's arguments and response:
+
+```bash
+ls reports/
+# report-<id>.json   report-<id>.md    ← the deliverable
+# flow-<id>.json     flow-<id>.md      ← how it was produced
+```
+
+`flow-<id>.md` opens with a timeline and a per-agent token-spend table, then a
+section per stage with the prompts and payloads in collapsible blocks. The JSON
+form is the raw event list, so anything the renderer omits is still recoverable.
+
+The same data is queryable in `agent_trace`:
+
+```bash
+# What did each stage do, in order?
+docker exec -it apts-database psql -U apts -d apts \
+    -c "SELECT agent, seq, event_type, duration_ms FROM agent_trace
+        WHERE engagement_id = '6b4c...' ORDER BY id;"
+
+# What exactly did we ask the model, and what came back?
+docker exec -it apts-database psql -U apts -d apts \
+    -c "SELECT agent, payload->>'system_prompt', payload->>'raw_response'
+        FROM agent_trace WHERE event_type = 'llm_call'
+          AND engagement_id = '6b4c...' ORDER BY id;"
+
+# Which tool calls did Guardrails block, and why?
+docker exec -it apts-database psql -U apts -d apts \
+    -c "SELECT agent, payload->>'tool', payload->>'reason' FROM agent_trace
+        WHERE event_type = 'tool_call' AND payload->>'blocked' = 'true';"
+```
+
+`agent_trace` is deliberately separate from `audit_log`: that table is the
+security trail (§8) and is small, uniform, and worth keeping forever, while this
+one carries prompts and response bodies and exists to answer "why did the report
+say that?". Fields are capped — 8 KB per string, 200 items per list — and each
+truncated value states its original size. Set `APTS_TRACE_ENABLED=0` to record
+nothing at all.
+
+> **Upgrading an existing database.** `init_db.sql` is mounted into
+> `/docker-entrypoint-initdb.d/`, which Postgres runs **only when initialising an
+> empty data directory**. A stack that has already run engagements therefore will
+> not have `agent_trace`, and the flow file will say so instead of appearing.
+> Apply it to a live volume with:
+>
+> ```bash
+> docker exec -i apts-database psql -U apts -d apts < bootstrap/init_db.sql
+> ```
+>
+> Every statement in that file is `CREATE ... IF NOT EXISTS`, so re-applying it is
+> safe and touches nothing that already exists.
+
 ### 10. Test the retry path
 
 ```bash
@@ -218,14 +283,18 @@ log at ~1 KB per event. Plan for 5–10 GB free.
 │
 ├── bootstrap/
 │   ├── init_db.sql          # schema: engagements, agent_results, audit_log,
-│   │                        #         token_hashes, engagement_state
+│   │                        #         agent_trace, token_hashes,
+│   │                        #         engagement_state
 │   ├── generate_password.sh # idempotent DB password → tokens/db_password.txt
 │   ├── generate_certs.sh    # self-signed cert per component + trust bundle
 │   └── generate_tokens.py   # raw tokens → tokens/, hashes → DB
 │
 ├── shared/                  # imported by every Python service
-│   ├── auth.py              # bearer-token parse / verify / require_*
-│   ├── db.py                # short-lived psycopg connections + audit()
+│   ├── tokens.py            # token format + hashing (stdlib only, so bootstrap can use it)
+│   ├── auth.py              # bearer-token verification + FastAPI dependency
+│   ├── db.py                # short-lived psycopg connections + the audit INSERT
+│   ├── audit.py             # audit trail bound to one component
+│   ├── trace.py             # execution trace: prompts, tool calls, stage I/O
 │   ├── tls.py               # server + client SSL contexts
 │   ├── logging_config.py
 │   └── models.py            # Pydantic wire types (ChainHandoff, ProgressUpdate, ...)
@@ -235,9 +304,13 @@ log at ~1 KB per event. Plan for 5–10 GB free.
 │   ├── cli.py               # operator CLI (start / status / watch)
 │   └── guardrails_entry.py  # embedded entry checkpoint (Characterization §7.1)
 │
-├── agent/
-│   ├── main.py              # same code for all six agents; AGENT_NAME env picks role
-│   └── stub_work.py         # canned per-agent output; replace when models arrive
+├── agent/                   # same image for all six; AGENT_NAME env picks the role
+│   ├── main.py              # composition root — picks this agent's worker
+│   ├── controllers/         # POST /run, GET /health
+│   ├── providers/           # runs one pipeline stage end to end
+│   ├── services/workers/    # the actual work, one module per stage
+│   ├── services/            # + report_renderer, flow_renderer, fault_injection
+│   └── repositories/        # agent_results, agent_trace, report + flow files
 │
 ├── mcp_tools/
 │   ├── main.py              # /tool/{scanner,http,cve,attack_kb,sandbox,report}
@@ -265,6 +338,17 @@ log at ~1 KB per event. Plan for 5–10 GB free.
   salted SHA-256 hashes stored in Postgres.
 * Component-restricted endpoints: `/progress` accepts only `agent-*`, the
   sandbox `/exec` accepts only `mcp-tools`, and so on.
+* Per-agent MCP tool allowlist (`mcp_tools/tool_policy.py`) — deny-by-default
+  in both directions, so Recon is structurally unable to reach the sandbox
+  executor and an unregistered tool is unreachable by anyone.
+* MCP scope enforcement: every network-touching tool call is checked against
+  the engagement's stored scope (host, `allow_paths`, `deny_paths`), including
+  URLs scraped out of sandbox command strings. Fails closed on an unknown
+  engagement, an unreachable DB, or a scope naming no domains.
+* Intake coherence: the entry checkpoint rejects a spec whose own target falls
+  outside its own scope, so an engagement cannot start only to be blocked on
+  Recon's first request. Entry and MCP share one matcher
+  (`shared/scope_match.py`) and are tested against each other for agreement.
 * Chain-of-agents handoff, DB writes, audit log, per-agent state tracking,
   three-retry logic that pulls the previous stage's output from the DB.
 * Critical / minor agent distinction from Characterization §2.2.4 —
@@ -275,11 +359,12 @@ log at ~1 KB per event. Plan for 5–10 GB free.
 
 **Stubbed** (to be replaced during the modelling phase):
 
-* Each agent's `do_stub_work` returns a canned result of the right shape.
+* Nothing. All six stages do real work — see [docs/system-flow.md](docs/system-flow.md) for what each one does, and §8 there for the genuine gaps (weak proof signals, unvalidated ATT&CK IDs, no PDF, no Simulation Engine).
 * Entry Guardrails is a placeholder: allowlist + a hard-coded prompt
   injection regex, not the real `guardrails-ai` library.
-* MCP outbound Guardrails is similarly a placeholder: scope check + a
-  short destructive-command denylist.
+* MCP outbound Guardrails is *partly* real: scope enforcement is production
+  logic, but the destructive-action check is still a short regex denylist
+  rather than the `guardrails-ai` classifier.
 * MCP tool endpoints (`scanner`, `http`, `cve`, `attack_kb`, `report`)
   return canned data; only `sandbox` actually forwards to another container.
 * Sandbox `/exec` acknowledges the command but does not execute it.
