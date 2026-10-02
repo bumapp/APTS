@@ -166,6 +166,9 @@ services:
       AGENT_NAME: recon
       # Recon is now a loop: the crawl tool runs on mcp-native and the model
       # triages the observed requests, driving the hosted AWS model directly.
+      # Per-phase audit dumps (phase0_katana/phase05_peek/phase1_agent/phase2_findings)
+      # written here each run, so the pipeline's recon is auditable too.
+      APTS_RECON_DEBUG_DIR:  ${APTS_RECON_DEBUG_DIR:-/tmp/recon_phases}
       APTS_MCP_URL:          ${APTS_MCP_URL:-http://mcp-native:9000/mcp}
       APTS_LOOP_LLM_URL:     ${APTS_LOOP_LLM_URL:-https://bedrock-mantle.eu-north-1.api.aws/v1/chat/completions}
       APTS_LOOP_LLM_MODEL:   ${APTS_LOOP_LLM_MODEL:-qwen.qwen3-coder-480b-a35b-instruct}

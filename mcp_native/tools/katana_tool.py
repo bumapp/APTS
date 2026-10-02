@@ -70,39 +70,42 @@ async def katana(
             argv.append("-xhr")
     if extra_flags:
         argv += [str(f) for f in extra_flags]
-    # Write results to a file as they are found (-o). A deep headless sweep can run
-    # long; if we hit the wall-clock limit we still SALVAGE whatever katana wrote so
-    # far rather than discarding it — a partial deep map beats an error.
-    import tempfile
-    out_file = tempfile.mktemp(prefix="katana_", suffix=".txt")
-    argv += ["-o", out_file]
+    # Read STDOUT incrementally and salvage whatever katana has emitted by the deadline.
+    # (We do NOT use -o: a killed katana's -o file is LESS complete than its stdout and
+    # drops endpoints — verified it losing endpoints that stdout had.) Streaming stdout
+    # keeps every URL katana printed up to the wall-clock limit, fragments and all.
     # katana writes a config under $HOME/.config/katana; the service user has no
     # writable home, so point HOME at /tmp (verified: fixes the startup FTL).
     env = {**os.environ, "HOME": "/tmp"}
     timed_out = False
     try:
         proc = await asyncio.create_subprocess_exec(
-            *argv, stdout=asyncio.subprocess.DEVNULL, stderr=asyncio.subprocess.DEVNULL,
+            *argv, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.DEVNULL,
             env=env)
     except FileNotFoundError as exc:
         return {"error": f"katana not found: {exc}"}
+    lines: list[str] = []
+    loop = asyncio.get_event_loop()
+    deadline = loop.time() + timeout_sec
     try:
-        await asyncio.wait_for(proc.wait(), timeout=timeout_sec)
-    except asyncio.TimeoutError:
-        timed_out = True
-        proc.kill()
-        await proc.wait()
-    endpoints: list[str] = []
-    try:
-        with open(out_file) as fh:
-            endpoints = sorted({ln.strip() for ln in fh if ln.strip().startswith("http")})
-    except OSError:
-        pass
+        while True:
+            remaining = deadline - loop.time()
+            if remaining <= 0:
+                timed_out = True
+                break
+            try:
+                raw = await asyncio.wait_for(proc.stdout.readline(), timeout=remaining)
+            except asyncio.TimeoutError:
+                timed_out = True
+                break
+            if not raw:  # EOF — katana finished
+                break
+            lines.append(raw.decode(errors="replace"))
     finally:
-        try:
-            os.remove(out_file)
-        except OSError:
-            pass
+        if proc.returncode is None:
+            proc.kill()
+            await proc.wait()
+    endpoints = sorted({ln.strip() for ln in lines if ln.strip().startswith("http")})
     # Only a timeout with NOTHING salvaged is an error; a partial map is usable.
     if timed_out and not endpoints:
         return {"error": f"katana timed out after {timeout_sec}s with no results",

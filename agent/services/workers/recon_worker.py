@@ -5,8 +5,7 @@ is agent-driven:
 
 1. **Shallow seed (code).** A one-page crawl (``max_pages=1, max_depth=1``) loads
    the landing page and mines the SPA's client route table — handing the model the
-   seed's requests plus the *hidden* routes (``#/login``, ``#/search`` …) with no
-   deep crawl yet.
+   seed's requests plus the app's *hidden* client routes with no deep crawl yet.
 2. **The agent loop (LangGraph).** The model decides which routes are worth
    crawling for a pen test and crawls them one at a time (``recon_graph``), with a
    de-dup guard so no page is crawled twice. It stops when it has covered the
@@ -47,7 +46,7 @@ from agent.services.workers.recon_graph import build_recon_graph, normalize_url
 log = logging.getLogger("agent.workers.recon")
 
 MAX_STEPS = int(os.environ.get("APTS_RECON_MAX_STEPS", "20"))
-MAX_TOKENS = int(os.environ.get("APTS_RECON_MAX_TOKENS", "1200"))
+MAX_TOKENS = int(os.environ.get("APTS_RECON_MAX_TOKENS", "4000"))  # grade must fit all findings
 DEFAULT_MODE = (os.environ.get("APTS_RECON_MODE", "broad") or "broad").lower()
 
 
@@ -99,22 +98,30 @@ How to work:
 RECON_GRADE_SYSTEM = """\
 You are a reconnaissance analyst. You are given the mapped attack surface (endpoints,
 forms, parameterised requests, API paths, interactive pages with their input types,
-technologies). Summarise it and produce GROUPED, per-finding gradings for the
-vuln/exploit stages.
+technologies) AND a list `discovered_candidates_to_grade` (hidden params from arjun,
+file-upload/auth/free-text inputs from the page peek). Summarise the surface and
+produce ONE GROUPED, per-finding graded list for the vuln/exploit stages.
 
 Reply with ONLY JSON, no prose:
 {"summary":"<2-4 sentences on the security-relevant surface>",
  "findings":[{"finding":"<what it is>","where":"<path or parameter>",
               "category":"<authentication|injection|access-control|file-upload|user-input|info-disclosure|api|other>",
               "grade":"high|medium|low","reason":"<one short line>"}]}
-One object PER finding (do not merge several into one). Group by assigning the right
-`category`. Grade by test-worthiness: high = authentication / user-input / injection /
-access-control / upload surface; medium = app or API surface with less obvious risk;
-low = minor. Only REAL findings grounded ONLY in the surface given; invent nothing.
-IGNORE TRANSPORT NOISE: WebSocket/Socket.IO handshakes and long-polling
-(/socket.io/?EIO=…&transport=polling), heartbeats/keepalives and analytics beacons are
-plumbing, not attack surface — do NOT emit findings for them even though they carry
-parameters. They are never test-worthy.
+Rules:
+- One object PER finding (do not merge several into one); set the right `category`.
+- You are given a NUMBERED list of candidate findings. Return a finding object for EVERY
+  numbered candidate — copy its `finding` and `where` VERBATIM and add your own `grade`
+  (high/medium/low) + `reason`. Do not skip any. Then add any extra real findings from the
+  surface. This is the single place grading happens.
+- Grade by test-worthiness: high = authentication / user-input / injection / access-control
+  / upload surface; medium = app or API surface with less obvious risk; low = minor.
+- Only REAL findings grounded ONLY in what you are given; invent nothing.
+
+!!! SOCKETS ARE NEVER INTERESTING !!!
+WebSocket / Socket.IO handshakes and long-polling (e.g. /socket.io/?EIO=…&transport=polling&sid=…),
+heartbeats, keepalives and analytics beacons are TRANSPORT PLUMBING, NOT attack surface.
+NEVER emit a finding for them. If you must mention one, it is ALWAYS grade "low". They carry
+params (EIO/transport/sid/t) but those are transport tokens, never user input — IGNORE THEM.
 """
 
 
@@ -135,7 +142,9 @@ class ReconWorker:
         log.info("recon starting in %s mode against %s", mode, ctx.target_url)
 
         try:
-            async with Client(agentic.MCP_URL) as client, \
+            # read_timeout_seconds must exceed the deep katana sweep budget (Phase 0,
+            # 600s) so the client waits for it to finish instead of giving up mid-scan.
+            async with Client(agentic.MCP_URL, read_timeout_seconds=900) as client, \
                     httpx.AsyncClient(timeout=agentic.LLM_TIMEOUT) as llm:
                 # ---- Phase 0: deep katana sweep (code) → breadth URI map ----
                 # Phase 0 is a CRUCIAL stage: a deep headless katana sweep (renders the
@@ -145,10 +154,14 @@ class ReconWorker:
                 # errors OR comes back empty we do NOT silently degrade — we surface it
                 # and fail the stage so the operator knows the map is missing.
                 try:
+                    # timeout well ABOVE katana's natural completion (~5 min for a deep
+                    # headless depth-2 sweep) so it FINISHES instead of being killed
+                    # mid-crawl — a killed scan returns a partial set that drops
+                    # late-emitted endpoints. Let it complete; it exits early on its own.
                     kat = (await client.call_tool("katana", {
                         "url": ctx.target_url, "depth": 2, "js_crawl": True,
                         "jsluice": True, "xhr": True, "headless": True,
-                        "known_files": True, "timeout_sec": 300})).structured_content or {}
+                        "known_files": True, "timeout_sec": 600})).structured_content or {}
                 except Exception as exc:  # noqa: BLE001
                     raise WorkFailed(
                         f"recon phase0: katana (headless deep sweep) failed to run "
@@ -218,10 +231,11 @@ class ReconWorker:
                 self._assign_interest(observed)
                 if mode == "focused":  # keep fruitful; the floor (params/body) is always high/medium
                     observed = [r for r in observed if r.interest != "low"]
-                # katana (phase0) + ffuf/katana enum → api_paths; arjun → findings;
-                # peek → behavioural findings (file upload, auth forms, etc).
+                # katana/ffuf endpoints → api_paths. arjun + peek produce CANDIDATE
+                # findings (no hardcoded grade) — they go through the SAME single grade
+                # pass as the surface so every finding is graded consistently by the model.
                 extra_paths = {urlparse(u).path for u in api_file_eps if urlparse(u).path}
-                enum_findings: list[dict] = []
+                candidates: list[dict] = []
                 for e in (out.get("enum") or []):
                     tool, res, a = e.get("tool"), e.get("result") or {}, e.get("args") or {}
                     if tool in ("katana", "ffuf"):
@@ -231,14 +245,48 @@ class ReconWorker:
                                 extra_paths.add(pth)
                     elif tool == "arjun":
                         for prm in res.get("parameters", []):
-                            enum_findings.append({
-                                "finding": f"hidden parameter '{prm}'",
-                                "where": a.get("url", ""), "grade": "high", "category": "hidden-parameter",
+                            candidates.append({
+                                "finding": f"hidden parameter '{prm}'", "where": a.get("url", ""),
+                                "category": "hidden-parameter",
                                 "reason": "endpoint accepts a parameter not exposed in the UI (arjun)"})
-                peek_findings = self._peek_findings(peek_pages)
-                summary, graded = await self._grade(
-                    llm, merged, observed, peek_pages, api_file_eps, modepre + pre)
-                findings = self._group_findings((graded or []) + enum_findings + peek_findings)
+                candidates += self._peek_findings(peek_pages)  # file-upload / auth / free-text
+                # OBSERVED requests that carry a parameter/body → candidate findings: the
+                # parameter IS the injection point (e.g. a search query). These were being
+                # captured but never turned into findings, so real injectable params were
+                # silently lost. Generic: every observed param, no per-path rule.
+                seen_param: set = set()
+                for r in observed:
+                    prms = _params_of(r)
+                    if not prms:
+                        continue
+                    path = urlparse(r.url).path or "/"
+                    key = (path, tuple(sorted(prms)))
+                    if key in seen_param:
+                        continue
+                    seen_param.add(key)
+                    candidates.append({
+                        "finding": f"parameter(s) {', '.join(prms)} on {path}",
+                        "where": f"{path}?{'&'.join(prms)}", "category": "user-input",
+                        "reason": f"{r.method} request carries user-controlled parameter(s) — "
+                                  f"test for injection / access-control"})
+                # DISCOVERED API/file endpoints become candidate findings too, so an
+                # endpoint katana found but the agent never exercised is STILL graded —
+                # landing as a rogue finding rather than silently vanishing. The model
+                # grades each on its merits. Generic: every discovered endpoint, no per-path rule.
+                cand_where = {c.get("where") for c in candidates}
+                for u in api_file_eps:
+                    pth = urlparse(u).path or u
+                    if u in cand_where or pth in cand_where:
+                        continue
+                    candidates.append({
+                        "finding": f"discovered endpoint {pth}", "where": u, "category": "api",
+                        "reason": "endpoint discovered by katana but not exercised — assess "
+                                  "access-control / input handling"})
+                # ONE grade pass: the model summarises + grades surface findings AND ALL the
+                # candidates (arjun / peek / discovered endpoints) into one consistent list.
+                summary, findings = await self._grade(
+                    llm, merged, observed, peek_pages, api_file_eps, candidates, modepre + pre)
+                findings = self._group_findings(findings)
         except WorkFailed:
             raise
         except Exception as exc:  # noqa: BLE001 — retryable stage failure
@@ -368,22 +416,23 @@ class ReconWorker:
 
     @staticmethod
     def _peek_findings(peek_pages: list[dict]) -> list[dict]:
-        """Turn behavioural peek signals into findings (generic, by input type)."""
+        """Behavioural peek signals as CANDIDATE findings (no grade — the one grade pass
+        grades them). Generic, by input type."""
         out: list[dict] = []
         for p in peek_pages:
             where = p.get("requested", "")
             types = {i.get("type") for i in p.get("inputs", [])}
             names = {(i.get("name") or "").lower() for i in p.get("inputs", [])}
             if "file" in types:
-                out.append({"finding": "file upload input", "where": where, "grade": "high",
+                out.append({"finding": "file upload input", "where": where,
                             "category": "file-upload",
                             "reason": "page accepts a file upload — test upload/type/path-traversal"})
             if "password" in types and ("email" in types or any("email" in n or "user" in n for n in names)):
-                out.append({"finding": "authentication form", "where": where, "grade": "high",
+                out.append({"finding": "authentication form", "where": where,
                             "category": "authentication",
                             "reason": "credential form — test auth bypass / weak-credential / injection"})
             if "textarea" in types:
-                out.append({"finding": "free-text input", "where": where, "grade": "medium",
+                out.append({"finding": "free-text input", "where": where,
                             "category": "user-input",
                             "reason": "free-text field — test stored XSS / injection"})
         return out
@@ -543,40 +592,63 @@ class ReconWorker:
             else:
                 r.interest, r.interest_reason = "low", "static/transport"
 
-    # --- the single grade call (model; additive, never touches raw data) --- #
+    # --- grading: a short summary call + BATCHED candidate grading ---------- #
     async def _grade(self, llm, merged: dict, observed: list[ObservedRequest],
                      peek_pages: list[dict], api_file_eps: list[str],
-                     preamble: str) -> tuple[str, list[dict]]:
-        endpoints = sorted({r.get("url", "") and (urlparse(r["url"]).path or "/")
-                            for r in merged.get("observed_requests", [])})
-        forms = [f"{urlparse(f.get('page','')).path or '/'} "
-                 f"[{','.join(x.get('name','') for x in f.get('fields', []))}]"
-                 for f in merged.get("forms", [])]
-        params = sorted({f"{urlparse(r.url).path or '/'}?{p}"
-                        for r in observed if r.interest == "high"
-                        for p in _params_of(r)})
-        # behavioural signals from the peek: route -> input types it exposes
-        peek_view = [{"page": urlparse(p.get("requested", "")).fragment or urlparse(p.get("requested","")).path,
-                      "inputs": [i.get("type") for i in p.get("inputs", [])],
-                      "xhr": p.get("xhr_on_load", [])[:6]}
+                     candidates: list[dict], preamble: str) -> tuple[str, list[dict]]:
+        # 1) summary — its own small call (surface context only)
+        endpoints = sorted({urlparse(r["url"]).path or "/"
+                            for r in merged.get("observed_requests", []) if r.get("url")})
+        peek_view = [{"page": urlparse(p.get("requested", "")).fragment or urlparse(p.get("requested", "")).path,
+                      "inputs": [i.get("type") for i in p.get("inputs", [])]}
                      for p in peek_pages if p.get("inputs")][:40]
-        view = {
-            "target_paths": endpoints[:80],
-            "forms": forms[:20],
-            "parameterised_requests": params[:80],
-            "api_paths": (merged.get("js_api_paths", []) + api_file_eps)[:100],
-            "interactive_pages": peek_view,
-            "technologies": [t.get("name") for t in merged.get("technologies", [])],
-        }
-        user = f"{preamble}Attack surface:\n{json.dumps(view, default=str)[:7000]}"
+        view = {"paths": endpoints[:80],
+                "api_paths": (merged.get("js_api_paths", []) + api_file_eps)[:100],
+                "interactive_pages": peek_view,
+                "technologies": [t.get("name") for t in merged.get("technologies", [])]}
+        summary = ""
         try:
-            msg = await agentic.chat(
-                llm, [{"role": "system", "content": RECON_GRADE_SYSTEM},
-                      {"role": "user", "content": user}], max_tokens=MAX_TOKENS)
+            m = await agentic.chat(llm, [
+                {"role": "system", "content": "Summarise the security-relevant attack surface in "
+                 "2-4 sentences. Reply with ONLY the sentences, no JSON."},
+                {"role": "user", "content": f"{preamble}{json.dumps(view, default=str)[:5000]}"}],
+                max_tokens=400)
+            summary = (m.get("content") or "").strip()[:2000]
         except httpx.HTTPError as exc:
-            log.warning("recon grade call failed: %s — keeping raw surface only", exc)
-            return "", []
-        return _parse_grade(msg.get("content") or "")
+            log.warning("recon summary call failed: %s", exc)
+
+        # 2) grade candidates in BATCHES so no single response truncates (the whole
+        #    finding list is too big for one call). Each batch is a focused "grade these".
+        BATCH = 20
+        graded: list[dict] = []
+        for i in range(0, len(candidates), BATCH):
+            graded += await self._grade_batch(llm, candidates[i:i + BATCH], preamble)
+        # safety net: keep any candidate the model dropped (ungraded — never hardcoded)
+        have = {(f.get("finding"), f.get("where")) for f in graded}
+        for c in candidates:
+            if (c.get("finding"), c.get("where")) not in have:
+                graded.append({**c, "grade": ""})
+        return summary, graded
+
+    @staticmethod
+    async def _grade_batch(llm, chunk: list[dict], preamble: str) -> list[dict]:
+        """Grade one small batch of candidate findings. Pure 'grade these N items' task —
+        reliable and never truncates. Returns each echoed back with a model grade."""
+        if not chunk:
+            return []
+        lines = "\n".join(
+            f"{i+1}. finding={c.get('finding')!r} where={c.get('where')!r} category={c.get('category')!r}"
+            for i, c in enumerate(chunk))
+        user = (f"{preamble}Grade EVERY one of these {len(chunk)} findings (copy finding+where "
+                f"verbatim, add your grade+reason):\n{lines}")
+        try:
+            m = await agentic.chat(llm, [{"role": "system", "content": RECON_GRADE_SYSTEM},
+                                         {"role": "user", "content": user}], max_tokens=MAX_TOKENS)
+            _, graded = _parse_grade(m.get("content") or "")
+            return graded
+        except httpx.HTTPError as exc:
+            log.warning("recon grade batch failed: %s", exc)
+            return []
 
     # --- validation: the contract must hold ------------------------------- #
     @staticmethod

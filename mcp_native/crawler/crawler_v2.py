@@ -168,9 +168,9 @@ class CrawlToolV2:
                     if "html" in ct and depth < max_depth:
                         try:
                             # Wait for the SPA to actually render its inputs before filling.
-                            # Without this, on a cold render _fill_all finds no fields (esp.
-                            # the password field) and never submits — the real cause of the
-                            # flaky login capture, not click ordering.
+                            # Without this, on a cold render _fill_all finds no fields and
+                            # never submits — the real cause of the flaky form-submit
+                            # capture, not click ordering.
                             try:
                                 await page.wait_for_selector(
                                     "input:visible, textarea:visible", timeout=4000)
@@ -230,9 +230,9 @@ class CrawlToolV2:
         Prefer the last PASSWORD field when present — a generic signal that this is a
         credential/submit form, and Enter on it reliably submits. Only if there is no
         password field do we fall back to the last text/email field. (Returning "the
-        last field filled" was unreliable: the last field is often a checkbox/toggle —
-        e.g. rememberMe — and Enter there never submits, so logins silently didn't fire.)
-        No English field-name matching — purely by HTML type."""
+        last field filled" was unreliable: the last field is often a checkbox/toggle, and
+        Enter there never submits, so form submits silently didn't fire.)
+        No field-name matching — purely by HTML type."""
         try:
             fields = await page.query_selector_all("input, textarea, select")
         except Exception:
