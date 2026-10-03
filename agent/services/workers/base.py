@@ -31,6 +31,9 @@ class WorkContext:
     scan_mode: str = "default"
     """Recon breadth/scope: 'default' (katana d1 + SPA seed), 'thorough' (katana d2),
     or 'page' (crawl only ``target_url`` — the page is passed as the target). Recon only."""
+    stop_after: str = ""
+    """Pause the pipeline after a stage: '' | 'probe' (recon surface only) | 'recon'.
+    Recon reads it to short-circuit to a surface map (probe) and to mark the artifact."""
 
 
 class Worker(Protocol):

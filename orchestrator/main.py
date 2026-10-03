@@ -172,7 +172,16 @@ async def progress(update: ProgressUpdate, caller: Caller = Depends(require_auth
     # already handed off, so we only note terminal completion.
     if update.status == "done":
         if ORCHESTRATOR_DRIVEN and pipeline.next_agent(update.agent) is not None:
-            await _advance_after(update)
+            if _paused_after(update.engagement_id, update.agent):
+                # The run was launched with stop_after=probe|recon: hold here for the
+                # operator to inspect; resume_engagement continues the pipeline.
+                trace.record_for(update.engagement_id, "orchestrator", "paused",
+                                 {"after": update.agent})
+                audit("orchestrator", "engagement_paused",
+                      engagement_id=str(update.engagement_id),
+                      detail={"after": update.agent})
+            else:
+                await _advance_after(update)
 
     # If the Adviser reports done, the engagement is complete.
     if update.agent == "adviser" and update.status == "done":
@@ -234,6 +243,7 @@ async def admin_start(spec: EngagementSpec) -> StartEngagementResponse:
         directive=_recon_directive(spec.objective),
         credentials=spec.credentials,
         scan_mode=getattr(spec, "scan_mode", "default"),
+        stop_after=getattr(spec, "stop_after", ""),
     )
 
     await _kickoff_agent("recon", handoff)
@@ -490,6 +500,23 @@ async def _compose_directive(successor: str, prev_agent: str,
     if note and note.lower()[:20] not in directive.lower():
         directive = f"{directive} (Note: {note})"
     return directive
+
+
+def _paused_after(engagement_id: UUID, agent: str) -> bool:
+    """True if ``agent`` just finished and its artifact carries a stop_after marker,
+    so the pipeline should pause here for operator inspection (resume to continue).
+    Only recon sets the marker today (stop_after=probe|recon)."""
+    if agent != "recon":
+        return False
+    try:
+        with get_conn() as conn, conn.cursor() as cur:
+            cur.execute("SELECT payload->>'stop_after' FROM agent_results "
+                        "WHERE engagement_id = %s AND agent = 'recon'",
+                        (str(engagement_id),))
+            row = cur.fetchone()
+        return bool(row and row[0] in ("probe", "recon"))
+    except Exception:  # noqa: BLE001 — never let a pause-check error stall the pipeline
+        return False
 
 
 async def _advance_after(update: ProgressUpdate) -> None:

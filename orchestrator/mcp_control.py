@@ -177,19 +177,35 @@ async def apts_capabilities() -> dict[str, Any]:
             "domains": "in-scope host(s); must cover the target host",
         },
         "optional": {
-            "objective": "free-text brief steering the whole run (what to "
-                         "concentrate on, ignore, or do differently); advisory, "
+            "objective": "free-text brief steering the whole run (what to concentrate "
+                         "on, ignore, or which vuln classes to emphasise); advisory, "
                          "does not narrow scope",
             "token": "access/bearer token for an authenticated run (sent to "
                      "in-scope hosts as a header and a cookie)",
             "allow_paths": "path prefixes to include",
             "deny_paths": "path prefixes to exclude",
-            "time_window": "starts_at / ends_at ISO timestamps",
-            "categories": "test categories to emphasise (advisory)",
+            "scan_mode": "recon breadth: 'default' (normal), 'thorough' (deepest), or "
+                         "'page' (crawl ONLY the target_url — pass the page itself as "
+                         "target_url, e.g. http://host/#/login)",
+            "stop_after": "pause for inspection: '' (full run), 'probe' (map the surface "
+                          "only, no findings), or 'recon' (full recon then pause before "
+                          "vuln). Resume with resume_engagement.",
         },
-        "actions": ["create_engagement", "list_engagements", "engagement_status",
-                    "stop_engagement", "list_artifacts", "get_artifact",
-                    "get_directives", "get_loot", "search_run"],
+        "intent_hints": {
+            "just probe the site / what's here": "create_engagement(stop_after='probe'); "
+                "then get_probe_summary. resume_engagement to go further.",
+            "crawl and show me the recon findings": "create_engagement(stop_after='recon'); "
+                "then get_recon_findings / get_recon_summary. resume_engagement for vuln+.",
+            "test this one page / this login page": "create_engagement(scan_mode='page', "
+                "target_url=<the page, e.g. .../#/login>)",
+            "deep / thorough scan": "create_engagement(scan_mode='thorough')",
+            "focus on X / ignore Y": "pass it in objective (advisory steer)",
+        },
+        "actions": ["create_engagement", "resume_engagement", "list_engagements",
+                    "engagement_status", "stop_engagement", "list_artifacts",
+                    "get_artifact", "get_directives", "get_loot",
+                    "get_recon_summary", "get_recon_findings", "get_recon_peek",
+                    "get_probe_summary", "search_run"],
     }
 
 
@@ -198,13 +214,11 @@ async def create_engagement(
     domains: list[str],
     allow_paths: list[str] | None = None,
     deny_paths: list[str] | None = None,
-    starts_at: str | None = None,
-    ends_at: str | None = None,
     objective: str | None = None,
-    categories: list[str] | None = None,
     token: str | None = None,
     credentials: dict[str, Any] | None = None,
     scan_mode: str = "default",
+    stop_after: str = "",
 ) -> dict[str, Any]:
     """Validate the parameters, create the engagement, and start the pipeline.
 
@@ -218,15 +232,12 @@ async def create_engagement(
         domains: In-scope hosts; must cover the target host.
         allow_paths: Optional path-prefix allowlist.
         deny_paths: Optional path-prefix denylist.
-        starts_at: Optional ISO-8601 start of the permitted window.
-        ends_at: Optional ISO-8601 end of the permitted window.
         objective: Optional free-text engagement brief from the user — whatever they
-            want the run to concentrate on, ignore, or do differently. It is folded
-            into the directive composed for EVERY stage, so it steers the whole
-            pipeline. Advisory: it re-prioritises, it does not narrow scope (use
-            allow_paths/deny_paths for a hard boundary). Pass the user's intent as
-            they phrased it; do not invent one.
-        categories: Optional test categories to emphasise (advisory only).
+            want the run to concentrate on, ignore, or do differently (including which
+            vuln classes to emphasise). It is folded into the directive composed for
+            EVERY stage, so it steers the whole pipeline. Advisory: it re-prioritises,
+            it does not narrow scope (use allow_paths/deny_paths for a hard boundary).
+            Pass the user's intent as they phrased it; do not invent one.
         token: Optional access/bearer token for an authenticated run — pass the
             token the user gives you and it is sent, to in-scope hosts only, both as
             an "Authorization: Bearer <token>" header and a "token" cookie (so the
@@ -240,16 +251,21 @@ async def create_engagement(
             (katana depth 2), slower, more endpoints. "page" = crawl ONLY the one
             route given as target_url (fastest, ~30s) — for page mode, pass the page
             itself as target_url, e.g. "http://host/#/login". Only affects recon.
+        stop_after: Where to PAUSE the pipeline so the user can inspect before more
+            runs. "" = run the whole pipeline (default). "probe" = map the surface only
+            (katana + crawl + peek, NO findings) then pause — for "just probe the site".
+            "recon" = run full recon (graded findings) then pause, before vuln/exploit —
+            for "crawl and show me the recon findings". A paused run is continued with
+            resume_engagement. Inspect a paused run with get_recon_summary / _peek /
+            _findings / get_probe_summary.
     """
     scan_mode = (scan_mode or "default").strip().lower()
     if scan_mode not in ("default", "thorough", "page"):
         return {"error": f"scan_mode must be default|thorough|page, got {scan_mode!r}"}
+    stop_after = (stop_after or "").strip().lower()
+    if stop_after not in ("", "probe", "recon"):
+        return {"error": f"stop_after must be ''|probe|recon, got {stop_after!r}"}
     time_window = None
-    if starts_at or ends_at:
-        try:
-            time_window = TimeWindow(starts_at=starts_at, ends_at=ends_at)
-        except Exception as exc:  # noqa: BLE001 — bad timestamp from the model
-            return {"error": f"invalid time_window: {exc}"}
     creds: dict[str, Any] = dict(credentials or {})
     if token:
         token = token.strip()
@@ -284,13 +300,14 @@ async def create_engagement(
         "target_url": spec.target_url,
         "scope": spec.scope.model_dump(mode="json"),
         "objective": spec.objective,
-        "chain": CHAIN, "categories": categories or []})
+        "chain": CHAIN, "scan_mode": scan_mode, "stop_after": stop_after})
 
-    directive = _recon_directive(spec.objective, categories)
+    directive = _recon_directive(spec.objective)
     handoff = ChainHandoff(
         engagement_id=engagement_id, from_component="orchestrator",
         target_url=spec.target_url, scope=spec.scope,
         time_window=spec.time_window, results={}, directive=directive,
+        stop_after=stop_after,
         credentials=spec.credentials, scan_mode=scan_mode)
 
     try:
@@ -541,6 +558,96 @@ async def get_loot(engagement_id: str) -> dict[str, Any]:
     return {"engagement_id": str(eid), "count": len(loot), "loot": loot}
 
 
+async def resume_engagement(engagement_id: str) -> dict[str, Any]:
+    """Continue a run that was PAUSED by stop_after.
+
+    After a "probe" run you get the surface; after a "recon" run you get graded
+    findings — call this to proceed. A probe resumes into a full recon (the surface
+    had no findings); a recon resumes into the vulnerability stage and the rest of
+    the pipeline. Only a paused (still-running) engagement can resume.
+
+    Args:
+        engagement_id: The paused engagement to continue.
+    """
+    eid = _uuid(engagement_id)
+    if eid is None:
+        return {"error": f"not a valid engagement id: {engagement_id!r}"}
+    st = _status(eid)
+    if st is None:
+        return {"error": f"no such engagement: {engagement_id}"}
+    if st.get("status") != "running":
+        return {"error": f"engagement is {st.get('status')}; only a paused run resumes"}
+    with get_conn() as conn, conn.cursor() as cur:
+        cur.execute("SELECT payload->>'stop_after' FROM agent_results "
+                    "WHERE engagement_id = %s AND agent = 'recon'", (str(eid),))
+        row = cur.fetchone()
+    marker = row[0] if row else None
+    from orchestrator import main as orch  # lazy: same process, avoids import cycle
+
+    async def _post(agent: str, handoff: ChainHandoff) -> None:
+        # Own client — the orchestrator's _kickoff_agent uses an app-loop-bound shared
+        # client that is not valid in this control-MCP thread, so we POST ourselves
+        # exactly as create_engagement does for the recon kickoff.
+        token = load_own_token()
+        async with httpx.AsyncClient(verify=client_ssl_context(),
+                                     timeout=httpx.Timeout(30.0, connect=5.0)) as client:
+            resp = await client.post(f"https://agent-{agent}:8443/run",
+                                     content=handoff.model_dump_json(),
+                                     headers=bearer_headers(token))
+            resp.raise_for_status()
+
+    if marker == "recon":
+        p = orch._load_prev_output(eid, "recon")
+        directive = await orch._compose_directive(
+            "vuln", "recon", p.get("results", {}) or {}, objective=p.get("objective", ""))
+        handoff = ChainHandoff(
+            engagement_id=eid, from_component="orchestrator",
+            target_url=p["target_url"], scope=p["scope"],
+            time_window=p.get("time_window"), results=p.get("results", {}) or {},
+            directive=directive, credentials=p.get("credentials", {}))
+        await _post("vuln", handoff)
+        return {"engagement_id": str(eid), "status": "resumed", "dispatched": "vuln",
+                "message": "recon findings approved — vulnerability stage dispatched."}
+    if marker == "probe":
+        p = orch._load_prev_output(eid, None)
+        handoff = ChainHandoff(
+            engagement_id=eid, from_component="orchestrator",
+            target_url=p["target_url"], scope=p["scope"],
+            time_window=p.get("time_window"), results={},
+            directive=_recon_directive(p.get("objective", "")),
+            credentials=p.get("credentials", {}), scan_mode="default", stop_after="")
+        await _post("recon", handoff)
+        return {"engagement_id": str(eid), "status": "resumed", "dispatched": "recon (full)",
+                "message": "surface probe approved — full recon dispatched."}
+    return {"error": "this engagement is not paused at a probe/recon checkpoint"}
+
+
+async def get_probe_summary(engagement_id: str) -> dict[str, Any]:
+    """The Phase-0/0.5 surface map a probe (or any recon) produced: the summary, surface
+    counts, the API/file paths, and the peek behaviour map (per route: inputs + on-load
+    XHR). Use it to show "what's on this site" before/without grading findings.
+
+    Args:
+        engagement_id: The engagement's id.
+    """
+    eid = _uuid(engagement_id)
+    if eid is None:
+        return {"error": f"not a valid engagement id: {engagement_id!r}"}
+    with get_conn() as conn, conn.cursor() as cur:
+        cur.execute("SELECT payload FROM agent_results "
+                    "WHERE engagement_id = %s AND agent = 'recon'", (str(eid),))
+        row = cur.fetchone()
+    if row is None:
+        return {"error": "recon has produced no artifact yet for this engagement"}
+    p = row[0] or {}
+    counts = {k: len(p.get(k) or []) for k in
+              ("endpoints", "api_paths", "observed_requests", "findings", "peek")}
+    return {"engagement_id": str(eid), "mode": p.get("mode"),
+            "stop_after": p.get("stop_after", ""), "summary": p.get("summary", ""),
+            "counts": counts, "api_paths": (p.get("api_paths") or [])[:80],
+            "peek": p.get("peek", [])}
+
+
 async def get_recon_findings(engagement_id: str, grade: str | None = None) -> dict[str, Any]:
     """Return recon's GRADED findings (what/where/category/grade/reason), highest grade
     first — recon's ranked lead list that the vuln stage assesses. Pass
@@ -710,6 +817,10 @@ def _register() -> list[str]:
                               "(endpoints/api_paths/observed/findings)."),
         "get_recon_peek": ("Return recon's Phase-0.5 peek behaviour map (per route: "
                            "inputs, buttons, on-load XHR)."),
+        "resume_engagement": ("Continue a run paused by stop_after — a probe resumes to "
+                              "full recon, a recon resumes to vuln + the rest."),
+        "get_probe_summary": ("Return the Phase-0/0.5 surface map (summary, counts, API "
+                              "paths, peek behaviour map) a probe/recon produced."),
         "search_run": ("Search the full raw run data (artifacts + execution trace, "
                        "incl. raw tool responses) for a substring and return the "
                        "surrounding text — recover exact values summaries shortened."),
@@ -726,6 +837,8 @@ def _register() -> list[str]:
            "get_recon_findings": get_recon_findings,
            "get_recon_summary": get_recon_summary,
            "get_recon_peek": get_recon_peek,
+           "resume_engagement": resume_engagement,
+           "get_probe_summary": get_probe_summary,
            "search_run": search_run}
     for name, desc in tools.items():
         control.tool(description=desc)(fns[name])

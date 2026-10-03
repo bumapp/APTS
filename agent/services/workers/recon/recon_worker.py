@@ -149,6 +149,10 @@ class ReconWorker:
         if scan_mode not in ("default", "thorough", "page"):
             scan_mode = "default"
         kat_depth = 2 if scan_mode == "thorough" else 1
+        # stop_after: 'probe' => map the surface only (skip the agent loop + grading),
+        # 'recon' => full recon then the orchestrator pauses. Marked on the artifact so
+        # the orchestrator knows to pause after this stage.
+        stop_after = (getattr(ctx, "stop_after", "") or "").lower()
         pre = agentic.directive_block(ctx.directive)
         modepre = _mode_preamble(mode)
         creds = ctx.credentials or {}
@@ -243,7 +247,7 @@ class ReconWorker:
                     log.info("recon phase0.5: peeked %d route(s)", len(peek_pages))
                     self._dump("phase05_peek", {"pages": peek_pages})
 
-                    if scan_mode != "page":
+                    if scan_mode != "page" and stop_after != "probe":
                         # ---- Phase 1: agent loop — 3 tools: crawl_v2, ffuf, arjun ----
                         tools = [t for t in (await client.list_tools()).tools
                                  if t.name in ("crawl_v2", "ffuf", "arjun")]
@@ -339,16 +343,25 @@ class ReconWorker:
                             "finding": f"discovered endpoint {pth}", "where": u, "category": "api",
                             "reason": "endpoint discovered by katana but not exercised — assess "
                                       "access-control / input handling"})
-                    # ONE grade pass: the model summarises + grades surface findings AND ALL the
-                    # candidates (arjun / peek / discovered endpoints) into one consistent list.
-                    summary, findings = await self._grade(
-                        llm, merged, observed, peek_pages, api_file_eps, candidates, modepre + pre)
-                    findings = self._group_findings(findings)
-                    # Drop low-priority findings after grading: keep high/medium (and
-                    # ungraded safety-net items); low adds noise to the report and to the
-                    # per-finding batch the vuln stage assesses.
-                    findings = [f for f in findings
-                                if str(f.get("grade") or "").lower() != "low"]
+                    if stop_after == "probe":
+                        # Surface map only — the operator asked to "just probe". Skip the
+                        # grade pass entirely; the surface (endpoints/observed/peek) is the
+                        # deliverable, findings come when the run is resumed to full recon.
+                        summary, findings = (
+                            "Surface probe: mapped the attack surface (endpoints, observed "
+                            "requests, interactive pages). Findings not graded — resume to "
+                            "run full recon.", [])
+                    else:
+                        # ONE grade pass: the model summarises + grades surface findings AND ALL
+                        # the candidates (arjun / peek / discovered endpoints) into one list.
+                        summary, findings = await self._grade(
+                            llm, merged, observed, peek_pages, api_file_eps, candidates, modepre + pre)
+                        findings = self._group_findings(findings)
+                        # Drop low-priority findings after grading: keep high/medium (and
+                        # ungraded safety-net items); low adds noise to the report and to the
+                        # per-finding batch the vuln stage assesses.
+                        findings = [f for f in findings
+                                    if str(f.get("grade") or "").lower() != "low"]
             except WorkFailed:
                 raise
             except Exception as exc:  # noqa: BLE001 — retryable stage failure
@@ -364,6 +377,7 @@ class ReconWorker:
         asset = AssetMap(
             target_url=ctx.target_url, mode=mode, summary=summary, findings=findings,
             findings_tree=findings_tree, request_tree=request_tree, peek=peek_pages,
+            stop_after=stop_after,
             endpoints=self._endpoints(merged, routes), forms=self._forms(merged),
             technologies=[Technology(name=t["name"], source=t.get("source", ""),
                                      version=t.get("version") or None)

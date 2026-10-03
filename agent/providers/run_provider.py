@@ -124,6 +124,7 @@ class RunProvider:
                 directive=handoff.directive,
                 credentials=handoff.credentials,
                 scan_mode=getattr(handoff, "scan_mode", "default"),
+                stop_after=getattr(handoff, "stop_after", ""),
             ))
 
             self._results.save(engagement_id, self._agent, result)

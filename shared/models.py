@@ -50,6 +50,10 @@ class EngagementSpec(BaseModel):
                     "SPA seed), 'thorough' (katana d2, deepest), or 'page' (crawl ONLY "
                     "the target_url — one route, fastest; pass the page as the target_url, "
                     "e.g. http://host/#/login). Only affects recon.")
+    stop_after: str = Field(default="",
+        description="Pause the pipeline after a stage for inspection: '' (full run), "
+                    "'probe' (surface map only — no findings — then pause), or 'recon' "
+                    "(full recon then pause before vuln). Continued via resume.")
 
 
 # --------------------------------------------------------------------------- #
@@ -80,6 +84,8 @@ class ChainHandoff(BaseModel):
     scan_mode: str = Field(default="default",
         description="Recon breadth/scope carried to Recon: default | thorough | page "
                     "(page = crawl only the target_url).")
+    stop_after: str = Field(default="",
+        description="Pause the pipeline after this stage: '' | probe | recon.")
 
 
 class HandoffAck(BaseModel):
@@ -283,6 +289,9 @@ class AssetMap(BaseModel):
     peek: list[dict[str, Any]] = Field(default_factory=list,
         description="Phase-0.5 peek behaviour map: per route {requested, title, inputs, "
                     "buttons, xhr_on_load}. Why recon judged a page interesting.")
+    stop_after: str = Field(default="",
+        description="Set by recon when the run was launched with stop_after=probe|recon "
+                    "— the orchestrator reads it to pause the pipeline here. '' = no pause.")
 
 
 # --------------------------------------------------------------------------- #
