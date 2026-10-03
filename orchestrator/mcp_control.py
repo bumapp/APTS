@@ -205,7 +205,7 @@ async def apts_capabilities() -> dict[str, Any]:
                     "engagement_status", "stop_engagement", "list_artifacts",
                     "get_artifact", "get_directives", "get_loot",
                     "get_recon_summary", "get_recon_findings", "get_recon_peek",
-                    "get_probe_summary", "search_run"],
+                    "get_probe_summary", "get_report", "search_run"],
     }
 
 
@@ -648,6 +648,32 @@ async def get_probe_summary(engagement_id: str) -> dict[str, Any]:
             "peek": p.get("peek", [])}
 
 
+async def get_report(engagement_id: str) -> dict[str, Any]:
+    """Return the adviser's client report rendered as Markdown — for the composer to
+    OPEN it (render MD->HTML in a new window) and offer an .md / .html download. Empty
+    with an error until the adviser stage has produced a report.
+
+    Args:
+        engagement_id: The engagement's id.
+    """
+    eid = _uuid(engagement_id)
+    if eid is None:
+        return {"error": f"not a valid engagement id: {engagement_id!r}"}
+    with get_conn() as conn, conn.cursor() as cur:
+        cur.execute("SELECT payload FROM agent_results "
+                    "WHERE engagement_id = %s AND agent = 'adviser'", (str(eid),))
+        row = cur.fetchone()
+    if row is None:
+        return {"error": "no report yet — the adviser stage has not produced one"}
+    from agent.services.report_renderer import render_markdown
+    from shared.models import EngagementReport
+    try:
+        md = render_markdown(EngagementReport(**(row[0] or {})))
+    except Exception as exc:  # noqa: BLE001 — a malformed stored report must not 500
+        return {"error": f"could not render report: {type(exc).__name__}: {exc}"}
+    return {"engagement_id": str(eid), "format": "markdown", "markdown": md}
+
+
 async def get_recon_findings(engagement_id: str, grade: str | None = None) -> dict[str, Any]:
     """Return recon's GRADED findings (what/where/category/grade/reason), highest grade
     first — recon's ranked lead list that the vuln stage assesses. Pass
@@ -821,6 +847,8 @@ def _register() -> list[str]:
                               "full recon, a recon resumes to vuln + the rest."),
         "get_probe_summary": ("Return the Phase-0/0.5 surface map (summary, counts, API "
                               "paths, peek behaviour map) a probe/recon produced."),
+        "get_report": ("Return the adviser client report as Markdown — for the composer "
+                       "to open (render MD->HTML) and download as .md/.html."),
         "search_run": ("Search the full raw run data (artifacts + execution trace, "
                        "incl. raw tool responses) for a substring and return the "
                        "surrounding text — recover exact values summaries shortened."),
@@ -839,6 +867,7 @@ def _register() -> list[str]:
            "get_recon_peek": get_recon_peek,
            "resume_engagement": resume_engagement,
            "get_probe_summary": get_probe_summary,
+           "get_report": get_report,
            "search_run": search_run}
     for name, desc in tools.items():
         control.tool(description=desc)(fns[name])
