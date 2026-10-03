@@ -163,7 +163,12 @@ async def apts_capabilities() -> dict[str, Any]:
     return {
         "summary": ("APTS is an AI-agentic penetration-testing pipeline for web "
                     "targets. You (the orchestrator) are the only interface: the "
-                    "user talks to you, and you drive the agents."),
+                    "user talks to you, and you drive the agents. You can run the "
+                    "FULL pipeline, or stop short of exploiting: PROBE the site "
+                    "(map the attack surface, no findings), or RECON only (graded "
+                    "recon findings, no exploitation) — both resume later with "
+                    "resume_engagement. You can also scope a run to a single PAGE. "
+                    "Offer these when a user only wants to look, not attack."),
         "pipeline": [
             {"stage": "recon", "does": "crawl the target and map the attack surface"},
             {"stage": "vuln", "does": "hypothesise concrete, testable weaknesses"},
@@ -191,6 +196,24 @@ async def apts_capabilities() -> dict[str, Any]:
                           "only, no findings), or 'recon' (full recon then pause before "
                           "vuln). Resume with resume_engagement.",
         },
+        "run_types": [
+            {"name": "Probe", "what": "map the attack surface only — no findings, no "
+             "exploitation; pauses for inspection",
+             "how": "create_engagement(stop_after='probe'); then get_probe_summary; "
+             "resume_engagement to continue"},
+            {"name": "Recon only", "what": "graded recon findings, no exploitation; "
+             "pauses before the vuln stage",
+             "how": "create_engagement(stop_after='recon'); then get_recon_findings / "
+             "get_recon_summary; resume_engagement to run vuln+exploit+report"},
+            {"name": "Single page", "what": "test just one page/route",
+             "how": "create_engagement(scan_mode='page', target_url=<the page, e.g. "
+             ".../#/login>)"},
+            {"name": "Full pentest", "what": "end to end: recon → vuln → exploit → "
+             "report (default)",
+             "how": "create_engagement()  (optionally scan_mode='thorough' for deepest)"},
+        ],
+        "note": "All run types are ONE create_engagement call — pick stop_after / "
+                "scan_mode from what the user asks. Decide intent before calling.",
         "intent_hints": {
             "just probe the site / what's here": "create_engagement(stop_after='probe'); "
                 "then get_probe_summary. resume_engagement to go further.",

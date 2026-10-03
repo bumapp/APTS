@@ -106,9 +106,15 @@ How to work:
   concise and plain.
 """
 
-GREETING = ("Hi — I'm the APTS orchestrator. I can run an authorised web "
-            "penetration test end to end. Tell me the target URL and which "
-            "domain(s) are in scope, or ask what I can do.")
+GREETING = ("Hi — I'm the APTS orchestrator for authorised web pentests. "
+            "Give me a target and tell me what you want:\n"
+            "  • Probe — just map the attack surface (no findings, no attacks)\n"
+            "  • Recon only — graded recon findings, no exploitation\n"
+            "  • Single page — test just one page/route\n"
+            "  • Full pentest — end to end: recon → vuln → exploit → report\n"
+            "Probe and Recon-only pause so you can look, then resume anytime. "
+            "Just tell me the target URL + in-scope domain(s) and which of these "
+            "you'd like (default is a full pentest).")
 
 chat_app = FastAPI(title="APTS Composer")
 
