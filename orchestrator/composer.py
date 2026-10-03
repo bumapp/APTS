@@ -257,21 +257,42 @@ def _arg_summary(name: str, args: dict) -> str:
     return f"{name}({inner})"[:200]
 
 
-def _scrub(messages: list) -> None:
-    """Remove malformed tool-call remnants (in place) that poison re-sends to the model.
+def _sanitize_ai(ai) -> None:
+    """Strip tool calls with unparseable-JSON arguments from an AIMessage, in place.
 
-    A model can emit a tool call whose arguments are not valid JSON; the client keeps
-    it in ``invalid_tool_calls`` and re-sends it verbatim every turn, which the Bedrock
-    gateway rejects with 400 'Expecting property name enclosed in double quotes'. Drop
-    those, plus any tool result orphaned by their removal."""
+    A model can emit a tool call whose ``arguments`` are not valid JSON. The client
+    keeps it in ``invalid_tool_calls`` AND in ``additional_kwargs['tool_calls']`` (the
+    raw block ChatOpenAI actually re-serializes on the next request) — so clearing only
+    the parsed field is not enough; re-sending still 400s the Bedrock gateway with
+    'Expecting property name enclosed in double quotes'. Clean BOTH; keep valid calls."""
+    try:
+        if getattr(ai, "invalid_tool_calls", None):
+            ai.invalid_tool_calls = []
+        raw = (getattr(ai, "additional_kwargs", None) or {}).get("tool_calls")
+        if raw:
+            good = []
+            for tc in raw:
+                args = ((tc or {}).get("function") or {}).get("arguments", "")
+                try:
+                    json.loads(args or "{}")
+                    good.append(tc)
+                except Exception:  # noqa: BLE001 — drop the malformed call
+                    pass
+            if good:
+                ai.additional_kwargs["tool_calls"] = good
+            else:
+                ai.additional_kwargs.pop("tool_calls", None)
+    except Exception:  # noqa: BLE001 — sanitising must never crash the turn
+        pass
+
+
+def _scrub(messages: list) -> None:
+    """Remove malformed tool-call remnants (in place) that poison re-sends to the model,
+    plus any tool result orphaned by their removal."""
     valid_ids: set = set()
     kept: list = []
     for msg in messages:
-        if getattr(msg, "invalid_tool_calls", None):
-            try:
-                msg.invalid_tool_calls = []
-            except Exception:  # noqa: BLE001
-                pass
+        _sanitize_ai(msg)
         for tc in (getattr(msg, "tool_calls", None) or []):
             valid_ids.add(tc.get("id"))
         tcid = getattr(msg, "tool_call_id", None)
@@ -356,14 +377,23 @@ async def ws(websocket: WebSocket) -> None:
                 except Exception as exc2:  # noqa: BLE001 — surface the failure to the UI
                     await send({"type": "error", "text": f"model call failed: {str(exc2)[:200]}"})
                     return
-            # Never store a malformed tool call — it would poison the next turn.
-            if getattr(ai, "invalid_tool_calls", None):
-                ai.invalid_tool_calls = []
+            # Never store a malformed tool call — it would poison the next turn's
+            # re-send (both the parsed field and the raw additional_kwargs block).
+            had_invalid = bool(getattr(ai, "invalid_tool_calls", None))
+            _sanitize_ai(ai)
             messages.append(ai)
             calls = ai.tool_calls or []
             if not calls:
-                await send({"type": "assistant",
-                            "text": agentic.message_text(ai) or "(no reply)"})
+                txt = agentic.message_text(ai)
+                if not txt and had_invalid:
+                    # The model tried a tool call but garbled its JSON args; nudge it to
+                    # retry (otherwise the user just sees "(no reply)").
+                    messages.append(agentic.HumanMessage(content=(
+                        "(system: your previous tool call had invalid JSON arguments and "
+                        "was dropped — call the tool again with valid JSON, or reply "
+                        "directly)")))
+                    continue
+                await send({"type": "assistant", "text": txt or "(no reply)"})
                 return
             for call in calls:
                 name = call["name"]
