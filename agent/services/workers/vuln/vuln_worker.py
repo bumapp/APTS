@@ -26,6 +26,7 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import os
 import re
 from typing import Any
 from urllib.parse import parse_qsl, urlparse
@@ -43,8 +44,8 @@ from agent.services.workers.common import common_agentic as agentic
 from agent.services.workers.base import WorkContext, WorkFailed
 from .vuln_constants import (
     AGENT_TOOLS, CONCURRENCY, MAX_STEPS, MAX_TOKENS, PROMPT_BUDGET_CHARS,
-    RECURSION_LIMIT, REFLECT_PROMPT_TMPL, REFLECT_ROUNDS, SKIP_NOISE,
-    VULN_SYSTEM_PROMPT_ID, _NOISE)
+    RECURSION_LIMIT, REFLECT_PROMPT_TMPL, REFLECT_ROUNDS,
+    VULN_SYSTEM_PROMPT_ID)
 
 log = logging.getLogger("agent.workers.vuln")
 
@@ -52,6 +53,15 @@ log = logging.getLogger("agent.workers.vuln")
 # --------------------------------------------------------------------------- #
 # Request + menu rendering, hypothesis parsing (pure)
 # --------------------------------------------------------------------------- #
+
+# Which recon grades the vuln loop assesses. Recon grades every finding high/medium/
+# low; we start with the HIGH leads only so the loop is not flooded. Widen to
+# ("high", "medium") — or () for all — for fuller coverage once the signal is good.
+ASSESS_GRADES: tuple[str, ...] = ("high",)
+
+# Cap hypotheses kept per finding. The loop + reflection can emit ~15; that floods
+# the register (and exploit) with near-duplicates. 5-9 is the useful range.
+MAX_HYPOTHESES = int(os.environ.get("APTS_VULN_MAX_HYPOTHESES", "8"))
 
 def _params_of(req: dict) -> list[str]:
     """Best-effort list of the parameter names a request carries.
@@ -74,10 +84,19 @@ def _params_of(req: dict) -> list[str]:
 
 
 def _render_request(req: dict) -> str:
-    """Compact, model-facing description of a single observed request."""
+    """Compact, model-facing description of a single observed request.
+
+    When the item came from a recon finding (``recon_lead``), lead with WHAT recon
+    flagged and WHY so the model assesses that specific lead, not a bare endpoint."""
     params = _params_of(req)
-    lines = [f"Method: {req.get('method')}", f"Path:   {req.get('path')}",
-             f"URL:    {req.get('url')}"]
+    lines: list[str] = []
+    lead = req.get("recon_lead")
+    if lead:
+        lines.append(
+            f"Recon lead [{lead.get('grade') or '?'}/{lead.get('category') or '?'}]: "
+            f"{lead.get('finding') or ''} — {lead.get('reason') or ''}")
+    lines += [f"Method: {req.get('method')}", f"Path:   {req.get('path')}",
+              f"URL:    {req.get('url')}"]
     if req.get("content_type"):
         lines.append(f"Content-Type: {req['content_type']}")
     lines.append(f"Parameters: {', '.join(params) if params else '(none seen)'}")
@@ -85,6 +104,25 @@ def _render_request(req: dict) -> str:
     if isinstance(body, str) and body.strip():
         lines.append(f"Body: {body[:500]}")
     return "\n".join(lines)
+
+
+def _finding_item(f: dict) -> dict:
+    """Turn one recon finding into a testable request item for the loop.
+
+    Uses the finding's captured request when recon attached one; otherwise (a rogue
+    finding — e.g. an arjun hidden parameter on an endpoint never exercised) it
+    synthesises a minimal GET from ``where`` so the lead is still assessed. The
+    recon lead (what/why/grade/category) rides along for :func:`_render_request`."""
+    req = dict(f.get("request") or {})
+    where = str(f.get("where") or "")
+    if not req:
+        req = {"method": "GET",
+               "path": f.get("page") or urlparse(where).path or where,
+               "url": where if "://" in where else "",
+               "post_data": None, "content_type": ""}
+    req["recon_lead"] = {"finding": f.get("finding"), "category": f.get("category"),
+                         "grade": f.get("grade"), "reason": f.get("reason")}
+    return req
 
 
 def _render_menu(techniques: list[dict]) -> str:
@@ -208,6 +246,13 @@ def _to_weakness(hypothesis: str, req: dict, idx: int) -> Weakness | None:
     for line in lines[1:]:
         if line.strip().lower().startswith("hypothesis:"):
             rationale = line.split(":", 1)[1].strip()[:500]
+    # Carry recon's finding lead into the weakness so Exploitation sees WHAT recon
+    # flagged (grade/category/reason), not just the hypothesis + request.
+    lead = req.get("recon_lead") or {}
+    if lead.get("finding"):
+        tag = (f"[recon {lead.get('grade') or '?'}/{lead.get('category') or '?'}: "
+               f"{lead.get('finding')}] ")
+        rationale = (tag + rationale)[:600]
     # Carry the exact request forward so Exploitation needs no lookup tool.
     # source_page is the SPA/client route the browser was ON when this request
     # fired — for a reflected/DOM XSS proof that is the page where the value is
@@ -323,6 +368,7 @@ async def _run_request(model, tools, tried: dict[str, str], menu: str, req: dict
         if not hyps:
             # No usable hypothesis — carry the endpoint forward so exploit probes it.
             hyps = _generic_probe(req)
+        hyps = hyps[:MAX_HYPOTHESES]  # cap near-duplicates flooding the register/exploit
         set_run_output(span, "\n".join(h.splitlines()[0] for h in hyps) or "(none)")
         return hyps
 
@@ -345,14 +391,25 @@ class VulnWorker:
                     overview = (await client.call_tool(
                         "hacktricks_overview", {})).structured_content
                     menu = _render_menu((overview or {}).get("techniques", []))
-                    batch = (await client.call_tool(
-                        "list_recorded_requests",
-                        {"engagement_id": str(ctx.engagement_id)})).structured_content
-                # No cap: recon already filtered to the high-interest requests.
-                requests = [r for r in (batch or {}).get("requests", [])
-                            if not (SKIP_NOISE and r.get("resource_type") in _NOISE)]
-                log.info("vuln loop: assessing %d request(s) (<=%d in parallel): %s",
-                         len(requests), CONCURRENCY,
+                    # Finding-driven: assess recon's GRADED findings (highest grade
+                    # first), not raw requests. Each finding carries the captured
+                    # request + the lead (what/why) that recon flagged.
+                    grades = ASSESS_GRADES or (None,)
+                    findings: list[dict] = []
+                    seen_f: set = set()
+                    for g in grades:
+                        fb = (await client.call_tool(
+                            "list_recon_findings",
+                            {"engagement_id": str(ctx.engagement_id),
+                             **({"grade": g} if g else {})})).structured_content
+                        for f in (fb or {}).get("findings", []):
+                            key = (f.get("finding"), f.get("where"))
+                            if key not in seen_f:
+                                seen_f.add(key)
+                                findings.append(f)
+                requests = [_finding_item(f) for f in findings]
+                log.info("vuln loop: assessing %d finding(s) grade=%s (<=%d in parallel): %s",
+                         len(requests), ",".join(ASSESS_GRADES) or "all", CONCURRENCY,
                          ", ".join(r.get("path", "?") for r in requests))
 
                 sem = asyncio.Semaphore(CONCURRENCY)

@@ -532,6 +532,78 @@ async def get_loot(engagement_id: str) -> dict[str, Any]:
     return {"engagement_id": str(eid), "count": len(loot), "loot": loot}
 
 
+async def get_recon_findings(engagement_id: str, grade: str | None = None) -> dict[str, Any]:
+    """Return recon's GRADED findings (what/where/category/grade/reason), highest grade
+    first — recon's ranked lead list that the vuln stage assesses. Pass
+    grade=high|medium|low to filter.
+
+    Args:
+        engagement_id: The engagement's id.
+        grade: Optional grade filter (high/medium/low).
+    """
+    eid = _uuid(engagement_id)
+    if eid is None:
+        return {"error": f"not a valid engagement id: {engagement_id!r}"}
+    with get_conn() as conn, conn.cursor() as cur:
+        cur.execute("SELECT payload->'findings' FROM agent_results "
+                    "WHERE engagement_id=%s AND agent='recon'", (str(eid),))
+        row = cur.fetchone()
+    if row is None:
+        return {"error": "recon has produced no artifact yet for this engagement"}
+    findings = row[0] or []
+    rank = {"high": 0, "medium": 1, "low": 2}
+    if grade:
+        findings = [f for f in findings
+                    if str(f.get("grade") or "").lower() == grade.lower()]
+    findings = sorted(findings, key=lambda f: rank.get(str(f.get("grade") or "").lower(), 3))
+    return {"engagement_id": str(eid), "count": len(findings), "findings": findings}
+
+
+async def get_recon_summary(engagement_id: str) -> dict[str, Any]:
+    """Return recon's attack-surface summary plus the surface counts (endpoints,
+    api_paths, observed requests, graded findings) — the quick 'what did recon find'.
+
+    Args:
+        engagement_id: The engagement's id.
+    """
+    eid = _uuid(engagement_id)
+    if eid is None:
+        return {"error": f"not a valid engagement id: {engagement_id!r}"}
+    with get_conn() as conn, conn.cursor() as cur:
+        cur.execute("SELECT payload FROM agent_results "
+                    "WHERE engagement_id=%s AND agent='recon'", (str(eid),))
+        row = cur.fetchone()
+    if row is None:
+        return {"error": "recon has produced no artifact yet for this engagement"}
+    p = row[0] or {}
+    counts = {k: len(p.get(k) or []) for k in
+              ("endpoints", "api_paths", "observed_requests", "findings", "forms")}
+    return {"engagement_id": str(eid), "summary": p.get("summary") or "",
+            "mode": p.get("mode"), "pages_crawled": p.get("pages_crawled"),
+            "counts": counts}
+
+
+async def get_recon_peek(engagement_id: str) -> dict[str, Any]:
+    """Return recon's Phase-0.5 peek behaviour map: per route, the inputs (type+name),
+    buttons, and the XHR/fetch calls it fires on load — how recon 'understood' each
+    page before deciding what to crawl. Empty if this run predates peek persistence.
+
+    Args:
+        engagement_id: The engagement's id.
+    """
+    eid = _uuid(engagement_id)
+    if eid is None:
+        return {"error": f"not a valid engagement id: {engagement_id!r}"}
+    with get_conn() as conn, conn.cursor() as cur:
+        cur.execute("SELECT payload->'peek' FROM agent_results "
+                    "WHERE engagement_id=%s AND agent='recon'", (str(eid),))
+        row = cur.fetchone()
+    if row is None:
+        return {"error": "recon has produced no artifact yet for this engagement"}
+    peek = row[0] or []
+    return {"engagement_id": str(eid), "count": len(peek), "peek": peek}
+
+
 async def search_run(engagement_id: str, query: str,
                      agent: str | None = None, limit: int = 20) -> dict[str, Any]:
     """Search the FULL raw data of a run for a substring and return matching windows.
@@ -623,6 +695,12 @@ def _register() -> list[str]:
                            "objective steered the run."),
         "get_loot": ("Return the exploit stage's collected loot (credentials, "
                      "tokens, DB info, ...) with full values."),
+        "get_recon_findings": ("Return recon's graded findings (what/where/category/"
+                               "grade/reason), highest grade first; grade= to filter."),
+        "get_recon_summary": ("Return recon's attack-surface summary + surface counts "
+                              "(endpoints/api_paths/observed/findings)."),
+        "get_recon_peek": ("Return recon's Phase-0.5 peek behaviour map (per route: "
+                           "inputs, buttons, on-load XHR)."),
         "search_run": ("Search the full raw run data (artifacts + execution trace, "
                        "incl. raw tool responses) for a substring and return the "
                        "surrounding text — recover exact values summaries shortened."),
@@ -636,6 +714,9 @@ def _register() -> list[str]:
            "get_artifact": get_artifact,
            "get_directives": get_directives,
            "get_loot": get_loot,
+           "get_recon_findings": get_recon_findings,
+           "get_recon_summary": get_recon_summary,
+           "get_recon_peek": get_recon_peek,
            "search_run": search_run}
     for name, desc in tools.items():
         control.tool(description=desc)(fns[name])

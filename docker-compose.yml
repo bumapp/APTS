@@ -51,7 +51,9 @@ x-llm-env: &llm-env
   APTS_LLM_STORE:            ${APTS_LLM_STORE:-}
   # Vuln reflection rounds — 0 disables the "propose more hypotheses" pass that
   # can massively over-generate on some models. Passthrough so it is tunable.
-  APTS_VULN_REFLECT_ROUNDS:  ${APTS_VULN_REFLECT_ROUNDS:-}
+  # Default matches the code's own int(..., "1"); an EMPTY default here made every
+  # agent crash on int("") in a fresh env, so the fallback is an explicit number.
+  APTS_VULN_REFLECT_ROUNDS:  ${APTS_VULN_REFLECT_ROUNDS:-2}
   # Langfuse observability. Traces are sent only when both keys are present; leave
   # empty to disable (the loop still runs, and the Postgres agent_trace is
   # unaffected). APTS_LANGFUSE_DISABLED=1 forces off.
@@ -215,7 +217,6 @@ services:
       # vuln assesses every high-interest recon request (no count cap in code), so it
       # never bottlenecks the ~50 weaknesses exploit can now take. (The old
       # APTS_VULN_MAX_REQUESTS was dead — nothing read it — so it is gone.)
-      APTS_VULN_MAX_STEPS:   ${APTS_VULN_MAX_STEPS:-5}
       APTS_VULN_MAX_TOKENS:  ${APTS_VULN_MAX_TOKENS:-900}
     secrets:
       - source: agent_vuln_token
@@ -248,7 +249,6 @@ services:
       APTS_LOOP_LLM_URL:     ${APTS_LOOP_LLM_URL:-https://bedrock-mantle.eu-north-1.api.aws/v1/chat/completions}
       APTS_LOOP_LLM_MODEL:   ${APTS_LOOP_LLM_MODEL:-qwen.qwen3-coder-480b-a35b-instruct}
       APTS_LOOP_LLM_TIMEOUT: ${APTS_LOOP_LLM_TIMEOUT:-150}
-      APTS_MITRE_MAX_STEPS:  ${APTS_MITRE_MAX_STEPS:-5}
       APTS_MITRE_MAX_PASSES: ${APTS_MITRE_MAX_PASSES:-3}
     secrets:
       - source: agent_mitre_token
@@ -280,7 +280,6 @@ services:
       APTS_LOOP_LLM_URL:     ${APTS_LOOP_LLM_URL:-https://bedrock-mantle.eu-north-1.api.aws/v1/chat/completions}
       APTS_LOOP_LLM_MODEL:   ${APTS_LOOP_LLM_MODEL:-qwen.qwen3-coder-480b-a35b-instruct}
       APTS_LOOP_LLM_TIMEOUT: ${APTS_LOOP_LLM_TIMEOUT:-300}
-      APTS_LOOP_MAX_STEPS:   ${APTS_LOOP_MAX_STEPS:-50}
       # How many candidate weaknesses the exploit stage actually tries to prove,
       # and how many it proves at once. 8 replicas behind the sticky LB mean up to
       # CONCURRENCY proofs each land on their own target instance, so a heavy

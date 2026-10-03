@@ -259,6 +259,22 @@ class AssetMap(BaseModel):
         description="True when a crawl limit stopped the sweep early. The map is "
                     "then a lower bound, and any coverage figure derived from it "
                     "must say so rather than reading as complete.")
+    # --- additive metadata from the phased recon (downstream still reads the raw
+    # surface above directly, so these never remove a request/endpoint) ---
+    mode: str = Field(default="", description="Recon mode: broad | focused.")
+    summary: str = Field(default="", description="Recon's summary of the surface.")
+    findings: list[dict[str, Any]] = Field(default_factory=list,
+        description="Graded recon findings — each {finding, where, category, grade, "
+                    "reason, page, request}. `request` is the raw captured request when one exists.")
+    findings_tree: dict[str, Any] = Field(default_factory=dict,
+        description="Findings grouped for the report/UI: {summary, rogue_findings, "
+                    "pages:[{page, findings}]}. Rogue (no backing page) listed first.")
+    request_tree: dict[str, Any] = Field(default_factory=dict,
+        description="Recorded surface as a tree: {summary, technologies, pages:[{page, "
+                    "requests}]}. Derived view; observed_requests stays authoritative.")
+    peek: list[dict[str, Any]] = Field(default_factory=list,
+        description="Phase-0.5 peek behaviour map: per route {requested, title, inputs, "
+                    "buttons, xhr_on_load}. Why recon judged a page interesting.")
 
 
 # --------------------------------------------------------------------------- #

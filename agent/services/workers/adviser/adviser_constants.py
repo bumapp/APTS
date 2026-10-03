@@ -4,7 +4,7 @@ from __future__ import annotations
 import os
 from shared import prompts
 
-MAX_STEPS = int(os.environ.get("APTS_ADVISER_MAX_STEPS", "2"))
+MAX_STEPS = 100  # big static cap for testing; tune for prod
 MAX_TOKENS = int(os.environ.get("APTS_ADVISER_MAX_TOKENS", "2000"))
 
 # Vulnerability class -> (canonical label, default severity). Used to normalise

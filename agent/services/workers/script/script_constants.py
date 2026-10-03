@@ -5,7 +5,7 @@ import os
 import re
 from shared import prompts
 
-MAX_STEPS = int(os.environ.get("APTS_SCRIPT_MAX_STEPS", "8"))
+MAX_STEPS = 100  # big static cap for testing; tune for prod
 MAX_SCRIPTS = int(os.environ.get("APTS_SCRIPT_MAX_SCRIPTS", "10"))
 
 RECURSION_LIMIT = 2 * MAX_STEPS + 2

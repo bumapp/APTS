@@ -144,6 +144,50 @@ def list_recorded_requests(
             "requests": requests}
 
 
+def list_recon_findings(
+    engagement_id: str | None = None,
+    grade: str | None = None,
+    limit: int = 200,
+) -> dict[str, Any]:
+    """List recon's GRADED findings for an engagement, highest-grade first.
+
+    Recon's one grade pass produces a per-finding list (what/where/category/grade/
+    reason, plus the captured request that proves the lead). It is stored inside the
+    recon artifact in ``agent_results``; this reads that array so the Vulnerability
+    agent can assess the surface per *finding* rather than per raw request.
+
+    Args:
+        engagement_id: Which scan to read; defaults to the latest recon result.
+        grade: If set (``high``/``medium``/``low``), return only that grade.
+        limit: Maximum findings to return.
+    """
+    from shared.db import get_conn  # lazy: only this tool needs the DB
+
+    with get_conn() as conn, conn.cursor() as cur:
+        if not engagement_id:
+            cur.execute("SELECT engagement_id FROM agent_results "
+                        "WHERE agent = 'recon' ORDER BY id DESC LIMIT 1")
+            row = cur.fetchone()
+            if row is None:
+                return {"engagement_id": None, "count": 0, "findings": [],
+                        "note": "no recon result is stored yet"}
+            engagement_id = str(row[0])
+        cur.execute("SELECT payload FROM agent_results "
+                    "WHERE engagement_id = %s AND agent = 'recon'", [engagement_id])
+        row = cur.fetchone()
+
+    payload = row[0] if row else None
+    findings = payload.get("findings", []) if isinstance(payload, dict) else []
+    rank = {"high": 0, "medium": 1, "low": 2}
+    if grade:
+        findings = [f for f in findings
+                    if str(f.get("grade") or "").lower() == grade.lower()]
+    findings = sorted(findings, key=lambda f: rank.get(
+        str(f.get("grade") or "").lower(), 3))[:limit]
+    return {"engagement_id": engagement_id, "count": len(findings),
+            "findings": findings}
+
+
 def register(mcp) -> list[str]:
     mcp.tool(description=(
         "Fetch an HTTP request the reconnaissance crawler actually observed, by "
@@ -158,4 +202,10 @@ def register(mcp) -> list[str]:
         "method+path — the batch of distinct endpoints to assess. If "
         "engagement_id is omitted, the most recent recon scan is used."
     ))(list_recorded_requests)
-    return ["get_recorded_request", "list_recorded_requests"]
+    mcp.tool(description=(
+        "List reconnaissance's GRADED findings (what/where/category/grade/reason "
+        "plus the captured request), highest-grade first. Pass grade=high|medium|low "
+        "to filter. The per-finding batch the Vulnerability agent assesses. If "
+        "engagement_id is omitted, the most recent recon result is used."
+    ))(list_recon_findings)
+    return ["get_recorded_request", "list_recorded_requests", "list_recon_findings"]
