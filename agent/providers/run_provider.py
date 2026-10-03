@@ -123,6 +123,7 @@ class RunProvider:
                 upstream=handoff.results,
                 directive=handoff.directive,
                 credentials=handoff.credentials,
+                scan_mode=getattr(handoff, "scan_mode", "default"),
             ))
 
             self._results.save(engagement_id, self._agent, result)

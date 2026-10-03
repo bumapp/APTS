@@ -204,6 +204,7 @@ async def create_engagement(
     categories: list[str] | None = None,
     token: str | None = None,
     credentials: dict[str, Any] | None = None,
+    scan_mode: str = "default",
 ) -> dict[str, Any]:
     """Validate the parameters, create the engagement, and start the pipeline.
 
@@ -234,7 +235,15 @@ async def create_engagement(
             name, several cookies, basic auth) use `credentials` instead.
         credentials: Optional auth for an authenticated crawl — {"headers": {...},
             "cookies": [...], "basic_auth": {...}}. Sent only to in-scope hosts.
+        scan_mode: How much of the app recon maps. "default" = shallow full crawl
+            (katana depth 1 + SPA seed) — the normal run. "thorough" = deepest
+            (katana depth 2), slower, more endpoints. "page" = crawl ONLY the one
+            route given as target_url (fastest, ~30s) — for page mode, pass the page
+            itself as target_url, e.g. "http://host/#/login". Only affects recon.
     """
+    scan_mode = (scan_mode or "default").strip().lower()
+    if scan_mode not in ("default", "thorough", "page"):
+        return {"error": f"scan_mode must be default|thorough|page, got {scan_mode!r}"}
     time_window = None
     if starts_at or ends_at:
         try:
@@ -259,7 +268,7 @@ async def create_engagement(
         scope=Scope(domains=domains or [], allow_paths=allow_paths or [],
                     deny_paths=deny_paths or []),
         time_window=time_window, objective=(objective or "").strip(),
-        credentials=creds)
+        credentials=creds, scan_mode=scan_mode)
 
     try:
         spec = check_engagement_spec(spec)
@@ -282,7 +291,7 @@ async def create_engagement(
         engagement_id=engagement_id, from_component="orchestrator",
         target_url=spec.target_url, scope=spec.scope,
         time_window=spec.time_window, results={}, directive=directive,
-        credentials=spec.credentials)
+        credentials=spec.credentials, scan_mode=scan_mode)
 
     try:
         token = load_own_token()

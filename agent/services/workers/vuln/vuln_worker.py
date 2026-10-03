@@ -55,9 +55,10 @@ log = logging.getLogger("agent.workers.vuln")
 # --------------------------------------------------------------------------- #
 
 # Which recon grades the vuln loop assesses. Recon grades every finding high/medium/
-# low; we start with the HIGH leads only so the loop is not flooded. Widen to
-# ("high", "medium") — or () for all — for fuller coverage once the signal is good.
-ASSESS_GRADES: tuple[str, ...] = ("high",)
+# low; low is already dropped at recon, so high+medium is the full graded surface
+# worth testing. (High-only left >half the surface untested.) Set () to assess all
+# grades, or ("high",) to narrow back if the loop is ever flooded.
+ASSESS_GRADES: tuple[str, ...] = ("high", "medium")
 
 # Cap hypotheses kept per finding. The loop + reflection can emit ~15; that floods
 # the register (and exploit) with near-duplicates. 5-9 is the useful range.

@@ -141,11 +141,21 @@ class ReconWorker:
         mode = (getattr(ctx, "recon_mode", "") or DEFAULT_MODE).lower()
         if mode not in ("broad", "focused"):
             mode = "broad"
+        # scan_mode controls breadth/scope (independent of broad/focused):
+        #   default  -> katana depth 1 + SPA seed + agent loop (shallow full crawl)
+        #   thorough -> katana depth 2 (deepest)
+        #   page     -> crawl ONLY target_url (one route), no katana, no agent loop
+        scan_mode = (getattr(ctx, "scan_mode", "") or "default").lower()
+        if scan_mode not in ("default", "thorough", "page"):
+            scan_mode = "default"
+        kat_depth = 2 if scan_mode == "thorough" else 1
         pre = agentic.directive_block(ctx.directive)
         modepre = _mode_preamble(mode)
         creds = ctx.credentials or {}
         domains = list(ctx.scope.domains)
-        log.info("recon starting in %s mode against %s", mode, ctx.target_url)
+        log.info("recon starting [%s mode, scan=%s%s] against %s", mode, scan_mode,
+                 " (one page)" if scan_mode == "page" else f" katana-d{kat_depth}",
+                 ctx.target_url)
 
         # ReconLLM runs every model turn on the project's LangChain model (shared.llm)
         # so the whole recon stage is traced in Langfuse under this engagement.
@@ -155,40 +165,43 @@ class ReconWorker:
                 # read_timeout_seconds must exceed the deep katana sweep budget (Phase 0,
                 # 600s) so the client waits for it to finish instead of giving up mid-scan.
                 async with Client(agentic.MCP_URL, read_timeout_seconds=900) as client:
-                    # ---- Phase 0: deep katana sweep (code) → breadth URI map ----
-                    # Phase 0 is a CRUCIAL stage: a deep headless katana sweep (renders the
-                    # JS app + jsluice + xhr + known-files) is the breadth map the whole
-                    # recon reasons over. headless reuses the image's Chromium via the tool's
-                    # -system-chrome-path, so it does not depend on a runtime download. If it
-                    # errors OR comes back empty we do NOT silently degrade — we surface it
-                    # and fail the stage so the operator knows the map is missing.
-                    try:
-                        # timeout well ABOVE katana's natural completion (~5 min for a deep
-                        # headless depth-2 sweep) so it FINISHES instead of being killed
-                        # mid-crawl — a killed scan returns a partial set that drops
-                        # late-emitted endpoints. Let it complete; it exits early on its own.
-                        kat = (await client.call_tool("katana", {
-                            "url": ctx.target_url, "depth": 2, "js_crawl": True,
-                            "jsluice": True, "xhr": True, "headless": True,
-                            "known_files": True, "timeout_sec": 600})).structured_content or {}
-                    except Exception as exc:  # noqa: BLE001
-                        raise WorkFailed(
-                            f"recon phase0: katana (headless deep sweep) failed to run "
-                            f"({type(exc).__name__}: {exc}). This is the breadth map the "
-                            f"stage depends on — aborting recon.") from exc
-                    if kat.get("error"):
-                        raise WorkFailed(f"recon phase0: katana error: {kat['error']}")
-                    kat_endpoints = kat.get("endpoints", []) or []
-                    if not kat_endpoints:
-                        raise WorkFailed(
-                            "recon phase0: katana returned 0 endpoints — the headless "
-                            "browser likely could not start (no usable Chromium). The "
-                            "breadth map is empty; aborting rather than running blind.")
-                    routes, api_file_eps = self._split_endpoints(kat_endpoints, ctx.target_url)
-                    log.info("recon phase0: katana %d endpoint(s) -> %d route(s), %d api/file",
-                             len(kat_endpoints), len(routes), len(api_file_eps))
-                    self._dump("phase0_katana", {"endpoints": kat_endpoints, "count": len(kat_endpoints),
-                                                 "routes": routes, "api_file_endpoints": api_file_eps})
+                    if scan_mode != "page":
+                        # ---- Phase 0: deep katana sweep (code) → breadth URI map ----
+                        # Phase 0 is a CRUCIAL stage: a deep headless katana sweep (renders the
+                        # JS app + jsluice + xhr + known-files) is the breadth map the whole
+                        # recon reasons over. headless reuses the image's Chromium via the tool's
+                        # -system-chrome-path, so it does not depend on a runtime download. If it
+                        # errors OR comes back empty we do NOT silently degrade — we surface it
+                        # and fail the stage so the operator knows the map is missing.
+                        try:
+                            # timeout well ABOVE katana's natural completion (~5 min for a deep
+                            # headless depth-2 sweep) so it FINISHES instead of being killed
+                            # mid-crawl — a killed scan returns a partial set that drops
+                            # late-emitted endpoints. Let it complete; it exits early on its own.
+                            kat = (await client.call_tool("katana", {
+                                "url": ctx.target_url, "depth": kat_depth, "js_crawl": True,
+                                "jsluice": True, "xhr": True, "headless": True,
+                                "known_files": True, "timeout_sec": 600})).structured_content or {}
+                        except Exception as exc:  # noqa: BLE001
+                            raise WorkFailed(
+                                f"recon phase0: katana (headless deep sweep) failed to run "
+                                f"({type(exc).__name__}: {exc}). This is the breadth map the "
+                                f"stage depends on — aborting recon.") from exc
+                        if kat.get("error"):
+                            raise WorkFailed(f"recon phase0: katana error: {kat['error']}")
+                        kat_endpoints = kat.get("endpoints", []) or []
+                        if not kat_endpoints:
+                            raise WorkFailed(
+                                "recon phase0: katana returned 0 endpoints — the headless "
+                                "browser likely could not start (no usable Chromium). The "
+                                "breadth map is empty; aborting rather than running blind.")
+                        routes, api_file_eps = self._split_endpoints(kat_endpoints, ctx.target_url)
+                        log.info("recon phase0: katana %d endpoint(s) -> %d route(s), %d api/file",
+                                 len(kat_endpoints), len(routes), len(api_file_eps))
+                        self._dump("phase0_katana", {"endpoints": kat_endpoints, "count": len(kat_endpoints),
+                                                     "routes": routes, "api_file_endpoints": api_file_eps})
+                    else:
+                        kat_endpoints, routes, api_file_eps = [], [], []
 
                     # ---- Phase 0.4: SPA seed (code) — one real-browser crawl of the base.
                     # katana does NOT mine client-side SPA routes (hash routes like #/login
@@ -200,8 +213,10 @@ class ReconWorker:
                     seed_crawls: list[dict] = []
                     try:
                         seed = (await client.call_tool("crawl_v2", {
-                            "url": ctx.target_url, "max_pages": SPA_SEED_MAX_PAGES,
-                            "max_depth": SPA_SEED_MAX_DEPTH, "allow_domains": domains,
+                            "url": ctx.target_url,  # page mode: target_url IS the page to crawl
+                            "max_pages": 1 if scan_mode == "page" else SPA_SEED_MAX_PAGES,
+                            "max_depth": 1 if scan_mode == "page" else SPA_SEED_MAX_DEPTH,
+                            "allow_domains": domains,
                             **self._cred_args(ctx.credentials or {})})).structured_content or {}
                         seed_crawls = [seed]
                         spa_routes = [p["url"] for p in seed.get("pages", [])
@@ -228,29 +243,32 @@ class ReconWorker:
                     log.info("recon phase0.5: peeked %d route(s)", len(peek_pages))
                     self._dump("phase05_peek", {"pages": peek_pages})
 
-                    # ---- Phase 1: agent loop — 3 tools: crawl_v2, ffuf, arjun ----
-                    tools = [t for t in (await client.list_tools()).tools
-                             if t.name in ("crawl_v2", "ffuf", "arjun")]
-                    openai_tools = mcp_tools_to_openai(tools)
+                    if scan_mode != "page":
+                        # ---- Phase 1: agent loop — 3 tools: crawl_v2, ffuf, arjun ----
+                        tools = [t for t in (await client.list_tools()).tools
+                                 if t.name in ("crawl_v2", "ffuf", "arjun")]
+                        openai_tools = mcp_tools_to_openai(tools)
 
-                    async def model_call(messages):
-                        return await llm.chat(messages, tools=openai_tools)
+                        async def model_call(messages):
+                            return await llm.chat(messages, tools=openai_tools)
 
-                    async def call_tool(name, args):
-                        out = await client.call_tool(name, args)
-                        return out.structured_content or {}
+                        async def call_tool(name, args):
+                            out = await client.call_tool(name, args)
+                            return out.structured_content or {}
 
-                    graph = build_recon_graph(model_call, call_tool, MAX_STEPS)
-                    task = self._phase1_task(ctx.target_url, routes, api_file_eps,
-                                             peek_pages, mode, pre)
-                    out = await graph.ainvoke({
-                        "mode": mode, "target": ctx.target_url, "domains": domains,
-                        "creds": creds,
-                        "messages": [{"role": "system", "content": modepre + RECON_LOOP_SYSTEM},
-                                     {"role": "user", "content": task}],
-                        "tried": {}, "crawled": [], "crawls": [],
-                        "enum": [], "step": 0,
-                    }, config={"recursion_limit": 2 * MAX_STEPS + 5})
+                        graph = build_recon_graph(model_call, call_tool, MAX_STEPS)
+                        task = self._phase1_task(ctx.target_url, routes, api_file_eps,
+                                                 peek_pages, mode, pre)
+                        out = await graph.ainvoke({
+                            "mode": mode, "target": ctx.target_url, "domains": domains,
+                            "creds": creds,
+                            "messages": [{"role": "system", "content": modepre + RECON_LOOP_SYSTEM},
+                                         {"role": "user", "content": task}],
+                            "tried": {}, "crawled": [], "crawls": [],
+                            "enum": [], "step": 0,
+                        }, config={"recursion_limit": 2 * MAX_STEPS + 5})
+                    else:
+                        out = {}
 
                     # Prepend the Phase-0.4 seed so its captured requests (e.g. the login
                     # POST it submitted) merge into the surface alongside the agent's crawls.

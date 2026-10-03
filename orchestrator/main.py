@@ -233,6 +233,7 @@ async def admin_start(spec: EngagementSpec) -> StartEngagementResponse:
         results={},
         directive=_recon_directive(spec.objective),
         credentials=spec.credentials,
+        scan_mode=getattr(spec, "scan_mode", "default"),
     )
 
     await _kickoff_agent("recon", handoff)

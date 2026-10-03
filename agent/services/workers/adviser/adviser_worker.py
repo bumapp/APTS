@@ -174,7 +174,11 @@ class AdviserWorker:
             att = attempts.get(wid, {})
             # What was PROVEN drives the group; fall back to the hypothesis title.
             label, default_sev = _class_of(att.get("proven_vuln") or w.get("title", ""))
-            asset = w.get("asset", "")
+            # Anchor on WHERE it was proven (the winning tool call's target), not the
+            # hypothesis endpoint — so a vuln proved on a different sink than guessed
+            # (XSS proved on the rendering page, etc.) is labelled/grouped by its real
+            # location. Falls back to the hypothesis asset when no proof target exists.
+            asset = att.get("proven_asset") or w.get("asset", "")
             key = (label, asset)
             g = groups.get(key)
             if g is None:

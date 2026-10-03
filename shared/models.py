@@ -45,6 +45,11 @@ class EngagementSpec(BaseModel):
         description="Optional auth for crawling behind a login: {headers: {...}, "
                     "cookies: [...], basic_auth: {...}}. Used by Recon's crawl; "
                     "sent only to in-scope hosts.")
+    scan_mode: str = Field(default="default",
+        description="Recon breadth/scope: 'default' (shallow full crawl — katana d1 + "
+                    "SPA seed), 'thorough' (katana d2, deepest), or 'page' (crawl ONLY "
+                    "the target_url — one route, fastest; pass the page as the target_url, "
+                    "e.g. http://host/#/login). Only affects recon.")
 
 
 # --------------------------------------------------------------------------- #
@@ -72,6 +77,9 @@ class ChainHandoff(BaseModel):
     credentials: dict[str, Any] = Field(default_factory=dict,
         description="Optional auth carried to Recon for an authenticated crawl "
                     "(headers/cookies/basic_auth). Empty for unauthenticated runs.")
+    scan_mode: str = Field(default="default",
+        description="Recon breadth/scope carried to Recon: default | thorough | page "
+                    "(page = crawl only the target_url).")
 
 
 class HandoffAck(BaseModel):
@@ -367,6 +375,10 @@ class ExploitAttempt(BaseModel):
         description="How confirmation was reached: a deterministic tool signal "
                     "(sqlmap injectable, http_prove signal_found) or model_judgment. "
                     "Lets the Adviser weight a finding by how hard the proof was.")
+    proven_asset: str = Field(default="",
+        description="WHERE the proof actually fired — the target of the winning tool "
+                    "call (e.g. the xss_prove spa_page+param, the sqlmap url), not the "
+                    "hypothesis endpoint. Ground truth for labelling/grouping a finding.")
     writeup: str = Field(default="",
         description="One or two sentences describing the exploit actually found.")
 

@@ -28,6 +28,9 @@ class WorkContext:
     credentials: dict[str, Any] = field(default_factory=dict)
     """Optional auth for an authenticated crawl (headers/cookies/basic_auth). Only
     Recon uses it; empty for unauthenticated runs."""
+    scan_mode: str = "default"
+    """Recon breadth/scope: 'default' (katana d1 + SPA seed), 'thorough' (katana d2),
+    or 'page' (crawl only ``target_url`` — the page is passed as the target). Recon only."""
 
 
 class Worker(Protocol):
