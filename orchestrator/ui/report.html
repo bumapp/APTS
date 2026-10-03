@@ -1,0 +1,76 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>APTS Report</title>
+<!-- prebuilt Markdown->HTML renderer -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/marked/9.1.6/marked.min.js"></script>
+<style>
+  :root{--bg:#0f1420;--panel:#161d2e;--edge:#26304a;--fg:#e6ebf5;--dim:#8a97b3;--accent:#5b8cff;}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--fg);font:15px/1.65 system-ui,Segoe UI,Roboto,sans-serif}
+  #bar{position:sticky;top:0;display:flex;align-items:center;gap:12px;padding:12px 20px;
+       background:var(--panel);border-bottom:1px solid var(--edge);z-index:5}
+  #bar #title{font-weight:600}
+  #bar #sp{flex:1}
+  #bar button{border:0;border-radius:8px;background:var(--accent);color:#fff;font:inherit;font-weight:600;
+       padding:8px 14px;cursor:pointer}
+  #bar button.ghost{background:#274a8a}
+  #wrap{max-width:900px;margin:28px auto;padding:0 22px 60px}
+  #doc{background:var(--panel);border:1px solid var(--edge);border-radius:14px;padding:30px 34px}
+  #doc h1{margin-top:0;border-bottom:1px solid var(--edge);padding-bottom:10px}
+  #doc h2{margin-top:1.6em;border-bottom:1px solid var(--edge);padding-bottom:6px}
+  #doc code{background:#0b0f18;border:1px solid var(--edge);border-radius:4px;padding:1px 5px;
+       font:13px ui-monospace,Menlo,monospace}
+  #doc pre{background:#0b0f18;border:1px solid var(--edge);border-radius:8px;padding:13px 15px;overflow:auto}
+  #doc pre code{border:0;padding:0}
+  #doc table{border-collapse:collapse;width:100%;margin:12px 0}
+  #doc th,#doc td{border:1px solid var(--edge);padding:7px 11px;text-align:left}
+  #doc th{background:#0b0f18}
+  #doc a{color:var(--accent)}
+  #doc blockquote{margin:12px 0;padding:6px 14px;border-left:3px solid var(--accent);color:var(--dim)}
+  .note{color:var(--dim);padding:20px}
+</style></head>
+<body>
+  <div id="bar">
+    <span id="title">APTS — Penetration Test Report</span>
+    <span id="sp"></span>
+    <button id="dlh" class="ghost">Download HTML</button>
+    <button id="dlm">Download Markdown</button>
+  </div>
+  <div id="wrap"><div id="doc"><div class="note">Loading report…</div></div></div>
+<script>
+  // eid is in the path: /api/report/<eid>/view
+  const parts = location.pathname.split("/").filter(Boolean);
+  const eid = parts[2] || "";
+  const doc = document.getElementById("doc");
+  let rawMd = "";
+
+  fetch("/api/report/" + eid + "?fmt=md")
+    .then(r => { if (!r.ok) throw new Error("report not available yet (status " + r.status + ")"); return r.text(); })
+    .then(md => {
+      rawMd = md;
+      if (window.marked) { doc.innerHTML = marked.parse(md); }
+      else { const pre = document.createElement("pre"); pre.textContent = md; doc.innerHTML = ""; doc.appendChild(pre); }
+      document.title = "APTS Report " + eid.slice(0, 8);
+    })
+    .catch(e => { doc.innerHTML = '<div class="note">⚠ ' + e.message + '</div>'; });
+
+  function download(name, content, type) {
+    const blob = new Blob([content], { type });
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob); a.download = name; a.click();
+    URL.revokeObjectURL(a.href);
+  }
+  document.getElementById("dlm").onclick = () =>
+    download("apts-report-" + eid.slice(0, 8) + ".md", rawMd || "(empty)", "text/markdown");
+  document.getElementById("dlh").onclick = () => {
+    const html = "<!doctype html><html><head><meta charset=\"utf-8\">" +
+      "<title>APTS Report " + eid.slice(0, 8) + "</title><style>" +
+      "body{font:15px/1.65 system-ui,Segoe UI,Roboto,sans-serif;max-width:900px;margin:40px auto;padding:0 22px;color:#111}" +
+      "code,pre{background:#f4f4f4;border-radius:4px}pre{padding:12px;overflow:auto}" +
+      "table{border-collapse:collapse}th,td{border:1px solid #ccc;padding:6px 10px}" +
+      "h1,h2{border-bottom:1px solid #ddd;padding-bottom:6px}blockquote{border-left:3px solid #5b8cff;margin:12px 0;padding:4px 14px;color:#555}" +
+      "</style></head><body>" + doc.innerHTML + "</body></html>";
+    download("apts-report-" + eid.slice(0, 8) + ".html", html, "text/html");
+  };
+</script></body></html>

@@ -44,6 +44,13 @@ log = logging.getLogger("orchestrator.composer")
 
 CONTROL_URL = os.environ.get("APTS_CONTROL_MCP_URL", "http://localhost:9100/mcp")
 REPORTS_DIR = os.environ.get("APTS_REPORTS_DIR", "/var/apts/reports")
+
+# The web UI lives in its own files (orchestrator/ui/*.html) for easy editing — no
+# build step; composer serves them inline. Edit the file, rebuild+restart orchestrator.
+_UI_DIR = os.path.join(os.path.dirname(__file__), "ui")
+def _ui(name: str) -> str:
+    with open(os.path.join(_UI_DIR, name), encoding="utf-8") as fh:
+        return fh.read()
 MAX_STEPS = int(os.environ.get("APTS_COMPOSER_MAX_STEPS", "8"))
 RECENT_LIMIT = int(os.environ.get("APTS_COMPOSER_RECENT", "10"))
 
@@ -212,6 +219,14 @@ def download_report(eid: str, fmt: str = "md") -> FileResponse:
     return FileResponse(path, media_type=media, filename=f"apts-report-{u}.{ext}")
 
 
+@chat_app.get("/api/report/{eid}/view", response_class=HTMLResponse)
+def view_report(eid: str) -> str:
+    """Serve the self-contained report viewer (renders the report Markdown to HTML in
+    the browser via a prebuilt renderer, with .md/.html download). The page reads the
+    engagement id from its own URL and fetches /api/report/<eid>?fmt=md."""
+    return _ui("report.html")
+
+
 @chat_app.post("/api/engagement/{eid}/delete")
 def delete_engagement(eid: str) -> dict:
     """Delete an engagement and its stored artifacts (cascades). Best-effort: a
@@ -234,6 +249,30 @@ def _arg_summary(name: str, args: dict) -> str:
         return name + "()"
     inner = ", ".join(f"{k}={json.dumps(v, default=str)}" for k, v in args.items())
     return f"{name}({inner})"[:200]
+
+
+def _scrub(messages: list) -> None:
+    """Remove malformed tool-call remnants (in place) that poison re-sends to the model.
+
+    A model can emit a tool call whose arguments are not valid JSON; the client keeps
+    it in ``invalid_tool_calls`` and re-sends it verbatim every turn, which the Bedrock
+    gateway rejects with 400 'Expecting property name enclosed in double quotes'. Drop
+    those, plus any tool result orphaned by their removal."""
+    valid_ids: set = set()
+    kept: list = []
+    for msg in messages:
+        if getattr(msg, "invalid_tool_calls", None):
+            try:
+                msg.invalid_tool_calls = []
+            except Exception:  # noqa: BLE001
+                pass
+        for tc in (getattr(msg, "tool_calls", None) or []):
+            valid_ids.add(tc.get("id"))
+        tcid = getattr(msg, "tool_call_id", None)
+        if tcid is not None and tcid not in valid_ids:
+            continue  # tool result whose call was dropped — would dangle
+        kept.append(msg)
+    messages[:] = kept
 
 
 @chat_app.websocket("/ws")
@@ -302,9 +341,18 @@ async def ws(websocket: WebSocket) -> None:
         for _ in range(MAX_STEPS):
             try:
                 ai = await model.ainvoke(messages, config=run_config(agent="orchestrator"))
-            except Exception as exc:  # noqa: BLE001 — surface a model failure to the UI
-                await send({"type": "error", "text": f"model call failed: {str(exc)[:200]}"})
-                return
+            except Exception:  # noqa: BLE001
+                # A malformed tool call in the history poisons every re-send (Bedrock
+                # 400). Scrub it out and retry once before giving up.
+                _scrub(messages)
+                try:
+                    ai = await model.ainvoke(messages, config=run_config(agent="orchestrator"))
+                except Exception as exc2:  # noqa: BLE001 — surface the failure to the UI
+                    await send({"type": "error", "text": f"model call failed: {str(exc2)[:200]}"})
+                    return
+            # Never store a malformed tool call — it would poison the next turn.
+            if getattr(ai, "invalid_tool_calls", None):
+                ai.invalid_tool_calls = []
             messages.append(ai)
             calls = ai.tool_calls or []
             if not calls:
@@ -366,160 +414,5 @@ def serve(port: int | None = None) -> None:
 # --------------------------------------------------------------------------- #
 # The Chat UI (single self-contained page).
 # --------------------------------------------------------------------------- #
-CHAT_HTML = r"""<!doctype html>
-<html lang="en"><head><meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>APTS Orchestrator</title>
-<style>
-  :root{--bg:#0f1420;--panel:#161d2e;--edge:#26304a;--fg:#e6ebf5;--dim:#8a97b3;
-        --accent:#5b8cff;--user:#1f2a44;--tool:#141a29;
-        --run:#e0a53a;--ok:#48c78e;--fail:#f14668;--cancel:#7a879e;--pend:#3a445e;}
-  *{box-sizing:border-box}
-  body{margin:0;font:14px/1.5 system-ui,Segoe UI,Roboto,sans-serif;background:var(--bg);color:var(--fg);height:100vh;display:flex}
-  #main{flex:1;display:flex;flex-direction:column;min-width:0;min-height:0}
-  header{padding:12px 18px;border-bottom:1px solid var(--edge);font-weight:600;letter-spacing:.02em}
-  header small{color:var(--dim);font-weight:400;margin-left:8px}
-  #log{flex:1;min-height:0;overflow-y:auto;padding:18px;display:flex;flex-direction:column;gap:10px}
-  /* Children of the flex-column scrollers must NOT shrink, or they squash to fit
-     the viewport and the container never overflows (so it never scrolls). */
-  #log>*{flex:0 0 auto}
-  .msg{max-width:78%;padding:9px 13px;border-radius:12px;white-space:pre-wrap;word-wrap:break-word}
-  .user{align-self:flex-end;background:var(--user)}
-  .bot{align-self:flex-start;background:var(--panel);border:1px solid var(--edge)}
-  .tool{align-self:flex-start;font:12px ui-monospace,Menlo,monospace;color:var(--dim);background:var(--tool);border:1px dashed var(--edge);border-radius:8px;padding:5px 9px}
-  .err{align-self:flex-start;background:#2a1420;border:1px solid var(--fail);color:#ffb3c1}
-  form{display:flex;gap:8px;padding:12px 14px;border-top:1px solid var(--edge)}
-  input{flex:1;padding:11px 13px;border-radius:10px;border:1px solid var(--edge);background:#0b0f18;color:var(--fg);font:inherit}
-  button{border:0;border-radius:8px;background:var(--accent);color:#fff;font:inherit;font-weight:600;cursor:pointer}
-  #f button{padding:0 18px}
-  button:disabled{opacity:.45;cursor:default}
-  #side{width:320px;border-left:1px solid var(--edge);background:var(--panel);display:flex;flex-direction:column;min-height:0}
-  #side h3{margin:0;padding:12px 16px;border-bottom:1px solid var(--edge);font-size:13px;color:var(--dim);text-transform:uppercase;letter-spacing:.08em}
-  #engs{flex:1;min-height:0;overflow-y:auto;padding:10px;display:flex;flex-direction:column;gap:10px}
-  .card{border:1px solid var(--edge);border-radius:10px;background:#121829;overflow:hidden;flex:0 0 auto}
-  .chead{display:flex;align-items:center;gap:8px;padding:9px 11px;cursor:pointer;user-select:none}
-  .chead .caret{color:var(--dim);width:12px;transition:transform .15s}
-  .card.collapsed .caret{transform:rotate(-90deg)}
-  .ctitle{flex:1;min-width:0;font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-  .ctitle .cid{color:var(--dim);font:11px ui-monospace,monospace}
-  .badge{font-size:10px;padding:2px 7px;border-radius:20px;background:var(--pend);color:#fff;text-transform:uppercase;letter-spacing:.04em}
-  .badge.running{background:var(--run)} .badge.complete{background:var(--ok)}
-  .badge.failed{background:var(--fail)} .badge.cancelled{background:var(--cancel)}
-  .cbody{border-top:1px solid var(--edge);padding:10px 12px}
-  .card.collapsed .cbody{display:none}
-  .stage{display:flex;align-items:center;gap:9px;padding:2px 0}
-  .dot{width:9px;height:9px;border-radius:50%;background:var(--pend);flex:none}
-  .stage.running .dot{background:var(--run);box-shadow:0 0 0 3px rgba(224,165,58,.18)}
-  .stage.completed .dot{background:var(--ok)}
-  .stage.failed .dot{background:var(--fail)}
-  .stage.cancelled .dot{background:var(--cancel)}
-  .stage .nm{font-size:12px}.stage .st{margin-left:auto;font-size:11px;color:var(--dim)}
-  .plog{margin-top:8px;font:11px ui-monospace,monospace;color:var(--dim);display:flex;flex-direction:column;gap:2px;max-height:120px;overflow-y:auto;overscroll-behavior:contain}
-  .cloot{margin-top:8px}
-  .looth{font-size:11px;color:var(--run);text-transform:uppercase;letter-spacing:.06em;margin-bottom:4px}
-  .lootsum{font-size:12.5px;line-height:1.5;color:var(--fg);margin-bottom:6px}
-  .lootitems{margin-top:4px}
-  .lootitems>summary{font-size:11px;color:var(--dim);cursor:pointer}
-  .lootrow{font:11px ui-monospace,monospace;color:var(--fg);background:#0b0f18;border:1px solid var(--edge);border-radius:6px;padding:4px 7px;margin:3px 0;word-break:break-all}
-  .loott{color:var(--run);margin-right:6px}
-  .cacts{display:flex;gap:8px;margin-top:10px}
-  .cacts button{flex:1;padding:7px 0;font-size:12px}
-  .dl{background:#274a8a}.del{background:#3a2030;color:#ffb3c1}
-  #empty{color:var(--dim);font-size:13px;padding:14px 16px}
-</style></head>
-<body>
-  <div id="main">
-    <header>APTS UI<small>Autonomous pen-test system, lab enviorment</small></header>
-    <div id="log"></div>
-    <form id="f"><input id="i" autocomplete="off" placeholder="Message the orchestrator…" autofocus>
-      <button id="b" type="submit">Send</button></form>
-  </div>
-  <div id="side">
-    <h3>Engagements</h3>
-    <div id="engs"><div id="empty">No engagements yet.</div></div>
-  </div>
-<script>
-const STAGES=[["recon","Recon"],["vuln","Vulnerability Assessment"],["mitre","MITRE Mapping"],
-  ["exploit","Exploitation"],["script","Attack Script Builder"],["adviser","Reporting"]];
-const CLS={pending:"",started:"running",running:"running",done:"completed",
-  completed:"completed",failed:"failed",cancelled:"cancelled",skipped:"cancelled"};
-const WORD={started:"started",running:"running",done:"completed",completed:"completed",
-  failed:"failed",cancelled:"cancelled",pending:"pending",skipped:"skipped"};
-const log=document.getElementById("log"),engs=document.getElementById("engs"),
-      empty=document.getElementById("empty"),f=document.getElementById("f"),
-      i=document.getElementById("i"),b=document.getElementById("b");
-const cards={};
-function esc(s){return String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));}
-// Chat transcript persists per-browser across refreshes (engagements persist
-// server-side; the visible chat persists here). The model's working memory still
-// resets on a new connection — only the transcript is restored.
-const HKEY="apts_chat_v1";
-let history=[];try{history=JSON.parse(localStorage.getItem(HKEY)||"[]");}catch(_){history=[];}
-const hadHistory=history.length>0;
-function persist(){try{localStorage.setItem(HKEY,JSON.stringify(history.slice(-200)));}catch(_){}}
-function render(cls,text){const el=document.createElement("div");el.className="msg "+cls;el.textContent=text;
-  log.appendChild(el);log.scrollTop=log.scrollHeight;}
-function add(cls,text,save){render(cls,text);if(save!==false){history.push([cls,text]);persist();}}
-for(const [cls,text] of history) render(cls,text);   // replay saved transcript
-function ensureCard(eid,target,status,fresh){
-  if(cards[eid])return cards[eid];
-  if(fresh)for(const k in cards)cards[k].el.classList.add("collapsed");  // only the new one open
-  if(empty&&empty.parentNode)empty.remove();
-  const card=document.createElement("div");card.className="card";
-  const short=eid.slice(0,8);
-  card.innerHTML=`<div class="chead"><span class="caret">▾</span>
-      <span class="ctitle">${target||"?"} <span class="cid">${short}</span></span>
-      <span class="badge">…</span></div>
-    <div class="cbody"><div class="stages"></div><div class="plog"></div>
-      <div class="cloot"></div>
-      <div class="cacts"><button class="dl" disabled title="available when Reporting finishes">Download report</button>
-      <button class="del">Delete</button></div></div>`;
-  const stagesEl=card.querySelector(".stages"),rows={};
-  for(const [id,label] of STAGES){const d=document.createElement("div");d.className="stage";
-    d.innerHTML=`<span class="dot"></span><span class="nm">${label}</span><span class="st">pending</span>`;
-    stagesEl.appendChild(d);rows[id]=d;}
-  const c={el:card,rows,plog:card.querySelector(".plog"),badge:card.querySelector(".badge"),
-           dl:card.querySelector(".dl"),loot:card.querySelector(".cloot")};
-  cards[eid]=c;
-  card.querySelector(".chead").onclick=()=>card.classList.toggle("collapsed");
-  c.dl.onclick=e=>{e.stopPropagation();window.open(`/api/report/${eid}?fmt=md`,"_blank");};
-  card.querySelector(".del").onclick=async e=>{e.stopPropagation();
-    if(!confirm("Delete this engagement and its stored artifacts?"))return;
-    try{await fetch(`/api/engagement/${eid}/delete`,{method:"POST"});}catch(_){}
-    card.remove();delete cards[eid];
-    if(!Object.keys(cards).length){engs.appendChild(empty);}};
-  setBadge(c,status||"running");
-  if(!fresh)card.classList.add("collapsed");   // existing engagements start collapsed
-  engs.prepend(card);
-  return c;
-}
-function setBadge(c,status){const s=(status==="running"||status==="created")?"running":status;
-  c.badge.textContent=s;c.badge.className="badge "+(["running","complete","failed","cancelled"].includes(s)?s:"");}
-function plog(c,t){const el=document.createElement("div");el.textContent=t;c.plog.appendChild(el);c.plog.scrollTop=c.plog.scrollHeight;}
-const proto=location.protocol==="https:"?"wss":"ws";
-const sock=new WebSocket(`${proto}://${location.host}/ws`);
-sock.onmessage=e=>{const m=JSON.parse(e.data);
-  if(m.type==="assistant"){if(m.greeting&&hadHistory)return;add("bot",m.text);}
-  else if(m.type==="tool")add("tool","⚙ "+m.text);
-  else if(m.type==="error")add("err","⚠ "+m.text);
-  else if(m.type==="engagement_new")ensureCard(m.engagement_id,m.target_url,m.status,m.fresh);
-  else if(m.type==="progress"){const c=cards[m.engagement_id]||ensureCard(m.engagement_id);
-    const r=c.rows[m.agent];if(r){r.className="stage "+(CLS[m.status]||"");
-      r.querySelector(".st").textContent=WORD[m.status]||m.status;}
-    plog(c,`${m.label} ${WORD[m.status]||m.status}`);
-    if(m.agent==="adviser"&&(m.status==="done"||m.status==="completed")){c.dl.disabled=false;c.dl.title="";}}
-  else if(m.type==="loot"){const c=cards[m.engagement_id]||ensureCard(m.engagement_id);
-    if(!c.loot)return;
-    let html='<div class="looth">🔎 Interesting findings</div>';
-    if(m.summary)html+='<div class="lootsum">'+esc(m.summary).replace(/\n/g,"<br>")+'</div>';
-    if(m.items&&m.items.length)html+='<details class="lootitems"><summary>raw items ('+m.items.length+')</summary>'+
-      m.items.map(it=>`<div class="lootrow"><span class="loott">${esc(it.type||'?')}</span>${esc(String(it.value||'').slice(0,120))}</div>`).join('')+'</details>';
-    c.loot.innerHTML=html;}
-  else if(m.type==="engagement"){const c=cards[m.engagement_id];if(c){setBadge(c,m.status);plog(c,`— ${m.status} —`);}}
-  else if(m.type==="gone"){const c=cards[m.engagement_id];if(c){c.el.remove();delete cards[m.engagement_id];}}
-};
-sock.onclose=()=>{add("err","connection closed",false);b.disabled=true;};
-f.onsubmit=ev=>{ev.preventDefault();const t=i.value.trim();if(!t||sock.readyState!==1)return;
-  add("user",t);sock.send(JSON.stringify({text:t}));i.value="";};
-</script></body></html>
-"""
+CHAT_HTML = _ui("chat.html")
+
